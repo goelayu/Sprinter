@@ -24,10 +24,11 @@ def exec_wget(args):
         'wget',
         *(['-q'] if args.quiet else []),
         *WGET_ARGS,
-        *(['-P {}'.format(args.output)] if args.output else []),
+        *(['-P{}'.format(args.output)] if args.output else []),
         *(['--warc-file={}'.format(args.warc)] if args.warc else []),
         *(['--page-requisites'] if args.page_requisites else []),
         '--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36',
+        '--timeout=30',
         args.url
     ]
 
@@ -35,8 +36,14 @@ def exec_wget(args):
     process = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
-    print(stderr)
-    if process.returncode != 0:
+
+    
+    # store the fetch log
+    with open(args.output + '/fetch.log', 'w') as f:
+        f.write(stderr.decode())
+        
+    # check for common failure cases
+    if process.returncode != 0 and process.returncode != 8:
         raise Exception(
             'wget failed with return code {}'.format(process.returncode))
 
