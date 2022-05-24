@@ -42,16 +42,16 @@ async function launch() {
   await initCDP(cdp);
 
   //Set global timeout to force kill the browser
-  var gTimeoutValue = program.testing
-    ? Number.parseInt(program.timeout) * 100
-    : Number.parseInt(program.timeout) + 20000;
-  console.log("global time out value", gTimeoutValue, program.timeout);
+  // var gTimeoutValue = program.testing
+  //   ? Number.parseInt(program.timeout) * 100
+  //   : Number.parseInt(program.timeout) + 20000;
+  // console.log("global time out value", gTimeoutValue, program.timeout);
 
   // loading pages in Chrome
-  await loadPageInChrome(page, browser, cdp, gTimeoutValue);
+  await loadPageInChrome(page, browser, cdp);
 }
 
-var loadPageInChrome = async function (page, browser, cdp, gTimeoutValue) {
+var loadPageInChrome = async function (page, browser, cdp) {
   /**
    * Once Chrome is initilized, loop through the list of URLs
    * and launch each of them in a new Chrome Tab.
@@ -61,7 +61,7 @@ var loadPageInChrome = async function (page, browser, cdp, gTimeoutValue) {
     if (url.length == 0) continue;
     // var globalTimer = globalTimeout(browser, cdp, gTimeoutValue),
 
-    var nLogs = [];
+    var nLogs = [], pageError = null;
     console.log(`Launching url ${url}`);
     initNetHandlers(cdp, nLogs);
     await page
@@ -70,8 +70,12 @@ var loadPageInChrome = async function (page, browser, cdp, gTimeoutValue) {
       })
       .catch((err) => {
         console.log("Timer fired before page could be loaded", err);
+        pageError = err;
       });
 
+    if (pageError) {
+      continue;
+    }
     console.log("Site loaded");
 
     var outputDir = `${program.output}/${extractHostname(url)}`;
