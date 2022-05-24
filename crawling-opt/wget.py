@@ -5,7 +5,9 @@
 
 import argparse
 import subprocess
-
+import time
+from subprocess import STDOUT, check_output
+from threading import Timer
 
 def exec_wget(args):
   
@@ -33,19 +35,32 @@ def exec_wget(args):
     ]
 
     print('running cmd: ', *cmd)
+    
     process = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-
+    timer = Timer(args.timeout,process.kill)
+    try:
+        timer.start()
+        stdout, stderr = process.communicate()
+    finally:
+        timer.cancel()
     
+    # try:
+    #     output = check_output(cmd, stderr=STDOUT, timeout=60)
+    # except subprocess.TimeoutExpired as err:
+    #     output = "Timeout"
+    # except subprocess.CalledProcessError as err:
+    #     output = "Non-zero return code {}".format(err.returncode)
+
     # store the fetch log
     with open(args.output + '/fetch.log', 'w') as f:
         f.write(stderr.decode())
+        # f.write('elapsed time: {}\n'.format(end - start))
         
     # check for common failure cases
-    if process.returncode != 0 and process.returncode != 8:
-        raise Exception(
-            'wget failed with return code {}'.format(process.returncode))
+    # if process.returncode != 0 and process.returncode != 8:
+    #     raise Exception(
+    #         'wget failed with return code {}'.format(process.returncode))
 
 
 if __name__ == "__main__":
@@ -58,6 +73,7 @@ if __name__ == "__main__":
                         help='Download page requisites', action='store_true')
     parser.add_argument('-w', '--warc', help='Create a warc file')
     parser.add_argument('-q', '--quiet', help='Quiet mode', action='store_true')
+    parser.add_argument('-t', '--timeout', help='Timeout in seconds', type=int, default=60)
 
     args = parser.parse_args()
     exec_wget(args)
