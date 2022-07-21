@@ -14,13 +14,13 @@ program
     "path to the input file containing list of URLs"
   )
   .option("--timeout [value]", "timeout value for page navigation")
-
+  .option("--testing",'testing mode enabled')
   .parse(process.argv);
 
 async function launch() {
   const options = {
-    executablePath: "/usr/bin/google-chrome-stable",
-    headless: program.testing ? false : true,
+    // executablePath: "/usr/bin/google-chrome-stable",
+    executablePath: "/vault-swift/goelayu/tools/chromium/src/out/v90/chrome",
     args: [
       "--ignore-certificate-errors" /*, '--blink-settings=scriptEnabled=false'*/,
       "--disable-web-security",
@@ -29,6 +29,54 @@ async function launch() {
       "--disable-setuid-sandbox",
     ],
   };
+
+  var browserlessargs = [
+    '--autoplay-policy=user-gesture-required', // https://source.chromium.org/search?q=lang:cpp+symbol:kAutoplayPolicy&ss=chromium
+    '--disable-blink-features=AutomationControlled', // https://blog.m157q.tw/posts/2020/09/11/bypass-cloudflare-detection-while-using-selenium-with-chromedriver/
+    '--disable-cloud-import',
+    '--disable-component-update', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisableComponentUpdate&ss=chromium
+    '--disable-domain-reliability', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisableDomainReliability&ss=chromium
+    '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process', // https://source.chromium.org/search?q=file:content_features.cc&ss=chromium
+    '--disable-gesture-typing',
+    '--disable-infobars',
+    '--disable-notifications',
+    '--disable-offer-store-unmasked-wallet-cards',
+    '--disable-offer-upload-credit-cards',
+    '--disable-print-preview', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisablePrintPreview&ss=chromium
+    '--disable-setuid-sandbox', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisableSetuidSandbox&ss=chromium
+    '--disable-site-isolation-trials', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisableSiteIsolation&ss=chromium
+    '--disable-speech-api', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisableSpeechAPI&ss=chromium
+    '--disable-tab-for-desktop-share',
+    '--disable-translate',
+    '--disable-voice-input',
+    '--disable-wake-on-wifi',
+    '--enable-async-dns',
+    '--enable-simple-cache-backend',
+    '--enable-tcp-fast-open',
+    '--enable-webgl',
+    '--force-webrtc-ip-handling-policy=default_public_interface_only',
+    '--ignore-gpu-blocklist', // https://source.chromium.org/search?q=lang:cpp+symbol:kIgnoreGpuBlocklist&ss=chromium
+    '--no-default-browser-check', // https://source.chromium.org/search?q=lang:cpp+symbol:kNoDefaultBrowserCheck&ss=chromium
+    '--no-pings', // https://source.chromium.org/search?q=lang:cpp+symbol:kNoPings&ss=chromium
+    '--no-sandbox', // https://source.chromium.org/search?q=lang:cpp+symbol:kNoSandbox&ss=chromium
+    '--no-zygote', // https://source.chromium.org/search?q=lang:cpp+symbol:kNoZygote&ss=chromium
+    '--prerender-from-omnibox=disabled',
+    '--use-gl=swiftshader' // https://source.chromium.org/search?q=lang:cpp+symbol:kUseGl&ss=chromium
+  ],
+  brozzlerargs = [
+    '--disable-background-networking', '--disable-breakpad',
+    '--disable-renderer-backgrounding', '--disable-hang-monitor',
+    '--disable-background-timer-throttling', '--mute-audio',
+    '--disable-web-sockets',
+    '--window-size=1100,900', '--no-default-browser-check',
+    '--disable-first-run-ui', '--no-first-run',
+    '--homepage=about:blank', '--disable-direct-npapi-requests',
+    '--disable-web-security', '--disable-notifications',
+    '--disable-extensions', '--disable-save-password-bubble',
+    '--disable-sync'];
+
+  options.args = browserlessargs.concat(brozzlerargs);
+
 
   const browser = await puppeteer.launch(options);
   let page = await browser.newPage();
@@ -57,16 +105,17 @@ var loadPageInChrome = async function (page, browser, cdp) {
    * and launch each of them in a new Chrome Tab.
    */
   var URLs = fs.readFileSync(program.input, "utf-8").split("\n");
-  for (var url of URLs){
+  for (var url of URLs) {
     if (url.length == 0) continue;
     // var globalTimer = globalTimeout(browser, cdp, gTimeoutValue),
-
-    var nLogs = [], pageError = null;
+    var timeout = program.testing ? Number.parseInt(program.timeout) * 100 : Number.parseInt(program.timeout);
+    var nLogs = [],
+      pageError = null;
     console.log(`Launching url ${url}`);
     initNetHandlers(cdp, nLogs);
     await page
       .goto(url, {
-        timeout: program.timeout,
+        timeout: timeout,
       })
       .catch((err) => {
         console.log("Timer fired before page could be loaded", err);
@@ -83,7 +132,8 @@ var loadPageInChrome = async function (page, browser, cdp) {
     dump(nLogs, `${outputDir}/network.log`);
     await extractPLT(page, outputDir);
   }
-  await browser.close();
+  if (!program.testing)
+    await browser.close();
 };
 
 function extractHostname(url) {
