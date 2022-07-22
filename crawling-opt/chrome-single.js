@@ -1,6 +1,8 @@
 /**
  * New chrome launcher based on puppeeteer instead
  * of CDP (as used inside chrome-remote-interface)
+ * This version launches the browser once and then opens every webpage
+ * in a new tab.
  */
 
 var puppeteer = require("puppeteer"),
