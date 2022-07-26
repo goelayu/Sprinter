@@ -74,7 +74,7 @@ async function launch() {
   if (program.filter) {
     console.log("apply filtering");
     puppeteer = require("puppeteer-extra");
-    puppeteer.use(AdblockerPlugin({ blockTrackers: true, useCache: false }));
+    puppeteer.use(AdblockerPlugin({ useCache: false }));
   }
 
   const browser = await puppeteer.launch(options);
@@ -90,7 +90,7 @@ async function launch() {
   var _width = await page.evaluateHandle(() => window.screen.height);
   var height = await _height.jsonValue(),
     width = await _width.jsonValue();
-  // await page.setUserAgent("Opera/9.80 (J2ME/MIDP; Opera Mini/5.1.21214/28.2725; U; ru) Presto/2.8.119 Version/11.10")
+  await page.setUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/602.1 (KHTML, like Gecko) splash Version/10.0 Safari/602.1");
   console.log(await browser.userAgent());
   // await page.setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4182.0 Safari/537.36");
   // await page.setUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36")
