@@ -17,6 +17,7 @@ program
   )
   .option("--timeout [value]", "timeout value for page navigation")
   .option("--testing",'testing mode enabled')
+  .option("-e, --existing-browser [value]", "use an existing browser")
   .parse(process.argv);
 
 async function launch() {
@@ -80,7 +81,11 @@ async function launch() {
   options.args = browserlessargs.concat(brozzlerargs);
 
 
-  const browser = await puppeteer.launch(options);
+  var browser;
+  if (program.existingBrowser){
+    browser = await puppeteer.connect({browserURL: program.existingBrowser});
+  }
+  else browser = await puppeteer.launch(options);
   let page = await browser.newPage();
   await page.setUserAgent(
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"
@@ -128,6 +133,9 @@ var loadPageInChrome = async function (page, browser, cdp) {
       continue;
     }
     console.log("Site loaded");
+
+    if (!program.output)
+      continue;
 
     var outputDir = `${program.output}/${extractHostname(url)}`;
     fs.mkdirSync(outputDir, { recursive: true });

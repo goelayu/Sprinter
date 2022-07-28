@@ -30,6 +30,7 @@ program
     "--chrome-dir [value]",
     "path to the chrome user directory, only useful if loadIter is present"
   )
+  .option("-e, --exisiting-browser [value]", "use existing browser")
   .option("--filter", "filters all the archive-irrelevant files")
   .option("--deterministic", "turn deterministic execution mode")
   .option("--wait", "waits before exiting chrome")
@@ -76,12 +77,19 @@ async function launch() {
     puppeteer = require("puppeteer-extra");
     puppeteer.use(AdblockerPlugin({ useCache: false }));
   }
-
-  const browser = await puppeteer.launch(options);
+  
+  var browser;
+  if (program.exisitingBrowser) {
+    var browserURL = program.exisitingBrowser;
+    browser = await puppeteer.connect({browserURL});
+  }
+  else 
+    browser = await puppeteer.launch(options);
   let page = await browser.newPage();
   // await page.setViewport({ width: 2600, height: 900 })
   // var device = puppeteer.devices['iPhone 6'];
   // await page.emulate(device);
+  console.log(browser.process().spawnargs);
   var nLogs = [],
     cLogs = [],
     jProfile;

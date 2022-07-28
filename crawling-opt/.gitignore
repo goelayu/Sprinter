@@ -3,3 +3,5 @@
 !*.js
 !*.sh
 !*/
+!pages/
+!pages/*

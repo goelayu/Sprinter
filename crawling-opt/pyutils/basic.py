@@ -3,6 +3,7 @@ import argparse
 
 script = """
 splash.images_enabled = true
+splash:set_viewport_size(800,600)
 splash.media_source_enabled = false
 splash.http2_enabled = false
 splash:set_viewport_full()
@@ -18,7 +19,7 @@ args = argparser.parse_args()
 
 resp = requests.post('http://localhost:8050/run', json={
     'lua_source': script,
-    'filters':'easylist',
+    'filters':'combined',
     'url': args.url,
 })
 
