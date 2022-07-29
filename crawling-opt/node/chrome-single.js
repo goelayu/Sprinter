@@ -7,7 +7,9 @@
 
 var puppeteer = require("puppeteer"),
   program = require("commander"),
-  fs = require("fs");
+  fs = require("fs"),
+  path = require("path"),
+  url = require("url");
 
 program
   .option("-o, --output [output]", "path to the output directory")
@@ -18,7 +20,10 @@ program
   .option("--timeout [value]", "timeout value for page navigation")
   .option("--testing",'testing mode enabled')
   .option("-e, --existing-browser [value]", "use an existing browser")
+  .option("-s, --store","store the downloaded resources. By default store all")
   .parse(process.argv);
+
+var SITE_LOADED = false;
 
 async function launch() {
   const options = {
@@ -119,7 +124,10 @@ var loadPageInChrome = async function (page, browser, cdp) {
     var nLogs = [],
       pageError = null;
     console.log(`Launching url ${url}`);
+    var outputDir = `${program.output}/${extractHostname(url)}`;
+    fs.mkdirSync(outputDir, { recursive: true });
     initNetHandlers(cdp, nLogs);
+    downloadResources(page, outputDir, browser)
     await page
       .goto(url, {
         timeout: timeout,
@@ -129,6 +137,8 @@ var loadPageInChrome = async function (page, browser, cdp) {
         pageError = err;
       });
 
+    
+    page.off('response',()=>{});
     if (pageError) {
       continue;
     }
@@ -137,14 +147,28 @@ var loadPageInChrome = async function (page, browser, cdp) {
     if (!program.output)
       continue;
 
-    var outputDir = `${program.output}/${extractHostname(url)}`;
-    fs.mkdirSync(outputDir, { recursive: true });
     dump(nLogs, `${outputDir}/network.log`);
-    await extractPLT(page, outputDir);
+    // await extractPLT(page, outputDir);
   }
   if (!program.testing)
     await browser.close();
 };
+
+function downloadResources(page,outputDir, browser){
+  page.on('response', async (response) => {
+    var resUrl = response.url();
+    var filePath = path.basename(url.parse(resUrl).pathname).substring(0,10);
+    if (filePath == "") filePath = "index";
+    // console.log(filePath)
+  
+    fs.writeFileSync(`${outputDir}/${filePath}`, await response.buffer());
+    // await fs.writeFile(`${outputDir}/${filePath}`, await response.buffer(), async (err) => {
+    //   // if (SITE_LOADED){
+    //   //   await browser.close();
+    //   // }
+    // });
+  });
+}
 
 function extractHostname(url) {
   var hostname;
