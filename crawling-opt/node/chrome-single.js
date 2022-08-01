@@ -23,7 +23,7 @@ program
   .option("-s, --store","store the downloaded resources. By default store all")
   .parse(process.argv);
 
-var SITE_LOADED = false;
+var SITE_LOADED = SITES_DONE = false;
 
 async function launch() {
   const options = {
@@ -116,7 +116,8 @@ var loadPageInChrome = async function (page, browser, cdp) {
    * Once Chrome is initilized, loop through the list of URLs
    * and launch each of them in a new Chrome Tab.
    */
-  var URLs = fs.readFileSync(program.input, "utf-8").split("\n");
+  var URLs = fs.readFileSync(program.input, "utf-8").split("\n"),
+    filePromises = [];
   for (var url of URLs) {
     if (url.length == 0) continue;
     // var globalTimer = globalTimeout(browser, cdp, gTimeoutValue),
@@ -127,7 +128,7 @@ var loadPageInChrome = async function (page, browser, cdp) {
     var outputDir = `${program.output}/${extractHostname(url)}`;
     fs.mkdirSync(outputDir, { recursive: true });
     initNetHandlers(cdp, nLogs);
-    downloadResources(page, outputDir, browser)
+    program.store && initRespHandler(page, outputDir, browser, filePromises)
     await page
       .goto(url, {
         timeout: timeout,
@@ -137,7 +138,6 @@ var loadPageInChrome = async function (page, browser, cdp) {
         pageError = err;
       });
 
-    
     page.off('response',()=>{});
     if (pageError) {
       continue;
@@ -149,23 +149,36 @@ var loadPageInChrome = async function (page, browser, cdp) {
 
     dump(nLogs, `${outputDir}/network.log`);
     // await extractPLT(page, outputDir);
+    if (program.store){
+      await Promise.all(filePromises);
+    }
   }
   if (!program.testing)
     await browser.close();
 };
 
-function downloadResources(page,outputDir, browser){
+function initRespHandler(page,outputDir, browser, filePromises){
   page.on('response', async (response) => {
+    const status = response.status()
+    if ((status >= 300) && (status <= 399)) return;
     var resUrl = response.url();
     var filePath = path.basename(url.parse(resUrl).pathname).substring(0,10);
     if (filePath == "") filePath = "index";
     // console.log(filePath)
   
-    fs.writeFileSync(`${outputDir}/${filePath}`, await response.buffer());
+    // fs.writeFileSync(`${outputDir}/${filePath}`, await response.buffer());
+    var writePromise = new Promise((resolve, reject) => {
+      fs.writeFile(`${outputDir}/${filePath}`, response.buffer(), (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    filePromises.push(writePromise);
+
     // await fs.writeFile(`${outputDir}/${filePath}`, await response.buffer(), async (err) => {
-    //   // if (SITE_LOADED){
-    //   //   await browser.close();
-    //   // }
+    //   if (SITE_LOADED && SITES_DONE){
+    //     await browser.close();
+    //   }
     // });
   });
 }
