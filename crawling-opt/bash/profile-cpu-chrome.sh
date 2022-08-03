@@ -4,19 +4,24 @@
 # Uses the time command, to get the total user + kernel space usage, in seconds. 
 
 # $1 -> path to the output directory
+# $2 -> the name of the output file for storing benchmark results
+# $3 -> Launch chrome browser
 
 mkdir -p $1
 #launch the chrome browser
 flags=`cat flags`
-{ time google-chrome-stable $flags &> /dev/null; } &
+port=`shuf -i 9100-9900 -n 1`
+if [[ $3 == "1" ]]; then
+  echo launching chrome browser
+  { time google-chrome-stable $flags --remote-debugging-port=${port} &> /dev/null; } 2>$2 &
+fi;
 
 # Connect to this browser 
 # and load individual pages
 sleep 1
-node ../node/chrome-single.js -i <(cat ../pages/alexa_100_news | awk '{print "https://"$0}' | head -n70  | tail -n15  ) -e 'http://127.0.0.1:9222' -o $1 --timeout 10000 -s 2>/dev/null
+node ../node/chrome-single.js -i <(cat ../pages/alexa_100_news | awk '{print "https://"$0}' | head -n70  | tail -n20  ) -e "http://127.0.0.1:${port}" -o $1 --timeout 10000 &>$1/out
 
-pkill chrome
-
-
+# pkill chrome
+ps aux | grep ${port} | grep chrome | awk '{print $2}' | xargs kill -9
 
 
