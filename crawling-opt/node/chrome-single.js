@@ -160,7 +160,7 @@ var loadPageInChrome = async function (page, browser, cdp) {
     if (!program.output) continue;
 
     dump(nLogs, `${outputDir}/network.log`);
-    // await extractPLT(page, outputDir);
+    await extractPLT(page, outputDir);
     if (program.store) {
       await Promise.all(filePromises);
     }
