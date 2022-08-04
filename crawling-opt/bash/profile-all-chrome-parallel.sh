@@ -61,6 +61,9 @@ start_disk_profile(){
 
 # mk new directories for the number of parallel jobs
 
+# clean any residual chrome instances
+pkill chrome
+
 mkdir -p $1/$3;
 mkdir -p $2/$3;
 
