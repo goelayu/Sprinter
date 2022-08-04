@@ -37,6 +37,7 @@ async function launch() {
       "--disable-features=IsolateOrigins,site-per-process,CrossSiteDocumentBlockingAlways,CrossSiteDocumentBlockingIfIsolating",
       "--no-sandbox",
       "--disable-setuid-sandbox",
+      "--user-data-dir=/dev/null"
     ],
   };
 

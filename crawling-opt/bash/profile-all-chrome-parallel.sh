@@ -22,8 +22,10 @@ EOF
     exit 1
 fi 
 
+echo Parallizing $3 Chrome browsers
+
 start_cpu_profile() {
-  rm -r $1/cpu_profile
+  # rm -r $1/cpu_profile
   echo "usage,time" > $1/cpu_profile
   t=1
   while true; do 
@@ -34,13 +36,13 @@ start_cpu_profile() {
 }
 
 start_nw_profle(){
-  rm -r $1/nw_profile
+  # rm -r $1/nw_profile
   sudo iftop -t -i ens15f1 < /dev/null > $1/nw_profile
   nwpid=$!
 }
 
 start_disk_profile(){
-  rm -r $1/disk_profile
+  # rm -r $1/disk_profile
   sudo iostat -d 2 > $1/disk_profile &
   diskpid=$!
 }
@@ -84,11 +86,11 @@ start_disk_profile $2/$3
 # ./profile-cpu-chrome.sh $2/1/ $1/1 1 &
 for i in $(eval echo {1..${3}}); do
   cur_port=$((start_port+i));
-  echo  ./profile-cpu-chrome.sh $1/$3/$i $2/$3/${i}.time 1 $cur_port; 
+  echo "./profile-cpu-chrome.sh ${1}/${3}/${i} ${2}/${3}/${i}.time 1 $cur_port"; 
 done | parallel
 
 echo kill the profiling process $cpupid $nwpid $diskpid
 kill -9 $cpupid;
 # sudo kill -SIGINT $nwpid;
 sudo pkill -SIGINT iftop
-sudo kill -9 $diskpid;
+sudo pkill -9 iostat;
