@@ -171,8 +171,11 @@ var loadPageInChrome = async function (page, browser, cdp) {
         fullPage: false,
       });
   }
-  await browser.disconnect();
-  if (!program.testing && program.kill) await browser.close();
+  
+  if (!program.testing && program.kill){
+    await browser.close();
+  } else 
+    await browser.disconnect();
 };
 
 function initRespHandler(page, outputDir, browser, filePromises) {
