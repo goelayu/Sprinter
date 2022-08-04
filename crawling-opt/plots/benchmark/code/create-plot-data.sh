@@ -7,6 +7,8 @@
 # $2 -> Path to the input2 (PLT data) directory
 # $2 -> Path to the output directory
 
+NODECOMMON=/vault-swift/goelayu/research-ideas/crawling-opt/node/util/
+
 
 # parse CPU data
 echo usage time scale > $3/cpu.p
@@ -28,8 +30,14 @@ echo plt scale > $3/plt.p
 ls $2 | while read scale ; do find $2/$scale -iname PLT | while read plt; do cat $plt ; echo ''; done | awk -v scale=$scale '{print $1,scale}' ; done >> $3/plt.p
 echo Done parsing PLT data
 
+#parse network data as well
+echo net scale > $3/reqnw.p
+ls $2 | while read scale ; do find $2/$scale -iname network.log | while read net; do echo "node $NODECOMMON/common.js -t dl -i $net" ; done | parallel | awk -v scale=$scale '{print $1,scale}' ; done >> $3/reqnw.p
+echo Done parsing network data
+
 #generate all plots
 ./cpu.r $3/cpu.p $3/cpu.png
 ./nw.r $3/nw.p $3/nw.png
 ./disk.r $3/disk.p $3/disk.png
 ./plt.r $3/plt.p $3/plt.png
+./reqnw.r $3/reqnw.p $3/reqnw.png
