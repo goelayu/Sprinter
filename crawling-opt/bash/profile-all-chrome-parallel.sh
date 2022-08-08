@@ -24,7 +24,7 @@ fi
 
 echo Parallizing $3 Chrome browsers
 
-NPAGES=400
+NPAGES=300
 top=0
 bottom=0
 
@@ -93,6 +93,10 @@ update_range2(){
   bottom=$factor
 }
 
+create_tempfile(){
+  cat ../pages/alexa_1000 | head -n $NPAGES | shuf > tmpfile
+}
+
 # if [[ ! -d $2 ]]; then
 #     echo "Output directory doesn't exist"
 #     exit 1
@@ -130,7 +134,7 @@ start_nw_profle $2/$3 &
 start_disk_profile $2/$3
 
 # init_range $3
-
+create_tempfile
 # ./profile-cpu-chrome.sh $2/1/ $1/1 1 &
 for i in $(eval echo {1..${3}}); do
   cur_port=$((start_port+i));
@@ -143,3 +147,5 @@ kill -9 $cpupid;
 # sudo kill -SIGINT $nwpid;
 sudo pkill -SIGINT iftop
 sudo pkill -9 iostat;
+
+rm -r tmpfile

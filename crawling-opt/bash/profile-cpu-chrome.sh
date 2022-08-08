@@ -23,7 +23,7 @@ fi;
 # Connect to this browser 
 # and load individual pages
 sleep 1
-node ../node/chrome-single.js -k  -i <(cat ../pages/alexa_1000 | awk '{print "https://"$0}' | head -n${5}  | tail -n${6} | shuf ) -e "http://127.0.0.1:${4}" -o $1 --timeout 15000 &>${1}/out
+node ../node/chrome-single.js -k  -i <(cat tmpfile | awk '{print "https://"$0}' | head -n${5}  | tail -n${6} ) -e "http://127.0.0.1:${4}" -o $1 --timeout 15000 &>${1}/out
 
 # pkill chrome
 # ps aux | grep ${4} | grep remote | awk '{print $2}' | xargs kill -9
