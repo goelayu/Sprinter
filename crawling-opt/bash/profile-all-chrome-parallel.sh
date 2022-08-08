@@ -24,6 +24,10 @@ fi
 
 echo Parallizing $3 Chrome browsers
 
+NPAGES=400
+top=0
+bottom=0
+
 start_cpu_profile() {
   # rm -r $1/cpu_profile
   echo "usage,time" > $1/cpu_profile
@@ -49,8 +53,8 @@ start_disk_profile(){
 
 init_range(){
   if [[ $1 == 5 ]]; then 
-    top=20
-    bottom=20
+    top=50
+    bottom=50
   elif [[ $1 == 10 ]]; then
     top=10
     bottom=10
@@ -81,6 +85,12 @@ update_range(){
       bottom=7
     fi
   fi
+}
+
+update_range2(){
+  factor=`echo $NPAGES $1 | awk '{print int($1/$2)}'`
+  top=`echo $top $factor | awk '{print $1+$2}'`
+  bottom=$factor
 }
 
 # if [[ ! -d $2 ]]; then
@@ -119,13 +129,13 @@ start_nw_profle $2/$3 &
 
 start_disk_profile $2/$3
 
-init_range $3
+# init_range $3
 
 # ./profile-cpu-chrome.sh $2/1/ $1/1 1 &
 for i in $(eval echo {1..${3}}); do
   cur_port=$((start_port+i));
+  update_range2 $3 
   echo "./profile-cpu-chrome.sh ${1}/${3}/${i} ${2}/${3}/${i}.time 1 $cur_port $top $bottom";
-  update_range $3 
 done | parallel
 
 echo kill the profiling process $cpupid $nwpid $diskpid
