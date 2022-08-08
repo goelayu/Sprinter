@@ -47,6 +47,42 @@ start_disk_profile(){
   diskpid=$!
 }
 
+init_range(){
+  if [[ $1 == 5 ]]; then 
+    top=20
+    bottom=20
+  elif [[ $1 == 10 ]]; then
+    top=10
+    bottom=10
+    next=10
+  elif [[ $1 == 15 ]]; then
+    top=7
+    bottom=7
+  fi
+}
+
+update_range(){
+  if [[ $1 == 5 ]]; then 
+    top=20
+    bottom=20
+  elif [[ $1 == 10 ]]; then
+    top=$((top+next))
+    # bottom=$((bottom+next))
+    next=$((-next))
+  elif [[ $1 == 15 ]]; then
+    if [[ $top == 7 ]]; then
+      top=14
+      bottom=7
+    elif [[ $top == 14 ]]; then
+      top=20
+      bottom=6
+    elif [[ $top == 20 ]]; then
+      top=7
+      bottom=7
+    fi
+  fi
+}
+
 # if [[ ! -d $2 ]]; then
 #     echo "Output directory doesn't exist"
 #     exit 1
@@ -83,10 +119,13 @@ start_nw_profle $2/$3 &
 
 start_disk_profile $2/$3
 
+init_range $3
+
 # ./profile-cpu-chrome.sh $2/1/ $1/1 1 &
 for i in $(eval echo {1..${3}}); do
   cur_port=$((start_port+i));
-  echo "./profile-cpu-chrome.sh ${1}/${3}/${i} ${2}/${3}/${i}.time 1 $cur_port"; 
+  echo "./profile-cpu-chrome.sh ${1}/${3}/${i} ${2}/${3}/${i}.time 1 $cur_port $top $bottom";
+  update_range $3 
 done | parallel
 
 echo kill the profiling process $cpupid $nwpid $diskpid
