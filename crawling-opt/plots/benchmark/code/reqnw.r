@@ -13,7 +13,7 @@ png(output, height=2.5, width=5.0,units="in",res=900)
 ggplot(data, aes(x=net, color=as.factor(scale))) +
     # geom_bar(position="stack",stat="identity")+
     stat_ecdf()+
-    xlab("Time (ms)") +
+    xlab("Time to fetch (ms)") +
     ylab("CDF across net requests") +
     # ylab(expression(atop("% JS bytes on", paste("median page")))) + 
     guides(fill=guide_legend(title="Config")) +

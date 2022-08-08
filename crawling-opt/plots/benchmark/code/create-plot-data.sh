@@ -36,8 +36,10 @@ ls $2 | while read scale ; do find $2/$scale -iname network.log | while read net
 echo Done parsing network data
 
 #generate all plots
-./cpu.r $3/cpu.p $3/cpu.png
-./nw.r $3/nw.p $3/nw.png
-./disk.r $3/disk.p $3/disk.png
-./plt.r $3/plt.p $3/plt.png
-./reqnw.r $3/reqnw.p $3/reqnw.png
+./cpu.r $3/cpu.p $3/cpu.png &
+./nw.r $3/nw.p $3/nw.png &
+./disk.r $3/disk.p $3/disk.png &
+./plt.r $3/plt.p $3/plt.png &
+./reqnw.r $3/reqnw.p $3/reqnw.png & 
+
+wait
