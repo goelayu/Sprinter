@@ -24,7 +24,7 @@ var getResourceDLTime = function (input) {
   for (var n of net){
     var lastReq = n.redirects.length ? n.redirects[n.redirects.length - 1] : n;
     if (!lastReq.response || !lastReq.endTime) continue;
-        console.log((lastReq.endTime - lastReq.response.timing.requestTime)*1000); //in ms
+        console.log((lastReq.endTime - lastReq.requestStart_o)*1000); //in ms
   }
 };
 
