@@ -27,7 +27,7 @@ var getResourceDLTime = function (input) {
   var resourceDLTime = 0;
   for (var n of net) {
     var lastReq = n.redirects.length ? n.redirects[n.redirects.length - 1] : n;
-    if (!lastReq.response) continue;
+    if (!lastReq.response || !lastReq.endTime) continue;
     var timing = n.timing;
     var stalled = firstNonNegative(
       timing.dnsStart,
@@ -36,8 +36,8 @@ var getResourceDLTime = function (input) {
     );
     var wait = timing.receiveHeadersEnd - timing.sendEnd;
     if (stalled == -1) stalled = 0;
-    // console.log((lastReq.requestStart - lastReq.requestStart_o)*1000); //in ms
-    console.log(wait);
+    console.log((lastReq.endTime - lastReq.requestStart_o)*1000); //in ms
+    // console.log(wait);
   }
 };
 
