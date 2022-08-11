@@ -10,15 +10,15 @@ data <- read.csv(args[1], header=TRUE, sep=" ")
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 png(output, height=2.5, width=5.0,units="in",res=900)
 
-ggplot(data, aes(x=plt, color=as.factor(scale))) +
+ggplot(data, aes(x=net, color=as.factor(scale))) +
     # geom_bar(position="stack",stat="identity")+
     stat_ecdf()+
-    xlab("Page load time (ms)") +
-    ylab("CDF across sites") +
+    xlab("Time to fetch (ms)") +
+    ylab("CDF across net requests") +
     # ylab(expression(atop("% JS bytes on", paste("median page")))) + 
     guides(fill=guide_legend(title="Config")) +
     # coord_cartesian(ylim=c(0,100)) +
-    # coord_cartesian(xlim=c(0,120)) +
+    coord_cartesian(xlim=c(0,2500)) +
     scale_color_manual(values=cbPalette) +
     # scale_x_continuous(expand=c(0, 0)) +
     # scale_x_discrete(labels=my.labels) +

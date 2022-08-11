@@ -7,7 +7,7 @@
 # $2 -> Path for storing the benchmarking results files
 # $1-> Path to store rethink and warc outputs
 
-which python
+
 BROZZLERDIR="/vault-swift/goelayu/research-ideas/crawling-opt/crawlers/brozzler"
 
 if [ $# -lt 3 ]; then
@@ -54,9 +54,9 @@ brozzler_cleanup(){
   # clean up pending brozzling instances
   ps aux | grep brozzler-easy | awk '{print $2}' | xargs kill -9
   # restart rethinkdb
-  rm -rf $RETHINKDBDIR/rethinkdb_store;
   ps aux | grep rethinkdb | awk '{print $2}' | xargs kill -9;
-  rethinkdb --config-file $RETHINKDBDIR/rethinkdb.conf &> $RETHINKDBDIR/rethink.log &
+  rm -rf $RETHINKDBDIR/rethinkdb_store;
+  rethinkdb -d $RETHINKDBDIR/rethinkdb_store &> $RETHINKDBDIR/rethink.log &
   sleep 1
 }
 
@@ -88,11 +88,18 @@ start_nw_profle $2/$3 &
 
 start_disk_profile $2/$3
 
+echo Done launching system monitors
+echo Started brozzling
 # allocate new job and start the crawlers
-brozzler-new-job $BROZZLERDIR/dummy.yaml;
-BROZZLER_EXTRA_CHROME_ARGS="--headless" brozzler-easy -n $3 -d $1/$3 &> $2/$3/brozzler.out
+brozzler-new-job $BROZZLERDIR/dummy-20.yaml &> $2/$3/new-job.log
+BROZZLER_EXTRA_CHROME_ARGS="--headless" brozzler-easy -n $3 -d $1/$3 &> $2/$3/brozzler.out &
 
 is_job_finished $2/$3/brozzler.out
+
+echo Done crawling 20 pages with $3 crawlers
+
+#clean up brozzler taks
+brozzler_cleanup
 
 echo kill the profiling process $cpupid $nwpid $diskpid
 kill -9 $cpupid;
