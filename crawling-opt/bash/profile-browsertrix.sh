@@ -34,7 +34,7 @@ echo "Starting monitoring tools"
 sysupid=$!;
 
 echo System usage process id $sysupid
-docker_flags=" --generateWACZ --scopeType page --combineWARC -w $3 --waitUntil load --timeout 15 --headless"
+docker_flags=" --generateWACZ --scopeType page --combineWARC -w $3 --waitUntil load --headless --userAgent 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36'"
 sudo docker run -v $1:/crawls/ --privileged -it webrecorder/browsertrix-crawler crawl --urlFile /crawls/seedUrls.txt $docker_flags &> $2/run.out
 
 # send ctrl-c to the monitoring tools
