@@ -36,8 +36,13 @@ var getResourceDLTime = function (input) {
     );
     var wait = timing.receiveHeadersEnd - timing.sendEnd;
     if (stalled == -1) stalled = 0;
-    console.log((lastReq.endTime - lastReq.requestStart_o)*1000); //in ms
-    // console.log(wait);
+    // console.log((lastReq.endTime - lastReq.requestStart_o)*1000); // total fetch time
+    // console.log((lastReq.requestStart - lastReq.requestStart_o)*1000 + stalled); // total fetch time
+    // console.log(stalled);
+    var tKey = 'sslStart';
+    // (timing[tKey] != -1) && (console.log(timing.sslEnd - timing[tKey]));
+    // console.log(lastReq.endTime - (lastReq.requestStart + lastReq.timing.receiveHeadersEnd/1000) ); // total time to download
+      console.log(lastReq.timing.sendStart); // ttfb time
   }
 };
 

@@ -23,22 +23,24 @@ program
   .option("-s, --store", "store the downloaded resources. By default store all")
   .option("-k, --kill", "kill the browser after the test is done")
   .option("--screenshot", "capture screenshot")
+  .option("-d, --display", "display the browser")
   .parse(process.argv);
 
 var SITE_LOADED = (SITES_DONE = false);
 
 async function launch() {
   const options = {
-    // executablePath: "/usr/bin/google-chrome-stable",
-    executablePath: "/vault-swift/goelayu/tools/chromium/src/out/v90/chrome",
-    args: [
-      "--ignore-certificate-errors" /*, '--blink-settings=scriptEnabled=false'*/,
-      "--disable-web-security",
-      "--disable-features=IsolateOrigins,site-per-process,CrossSiteDocumentBlockingAlways,CrossSiteDocumentBlockingIfIsolating",
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--user-data-dir=/dev/null"
-    ],
+    executablePath: "/usr/bin/google-chrome-stable",
+    // executablePath: "/vault-swift/goelayu/tools/chromium/src/out/v90/chrome",
+    // args: [
+    //   "--ignore-certificate-errors" /*, '--blink-settings=scriptEnabled=false'*/,
+    //   "--disable-web-security",
+    //   "--disable-features=IsolateOrigins,site-per-process,CrossSiteDocumentBlockingAlways,CrossSiteDocumentBlockingIfIsolating",
+    //   "--no-sandbox",
+    //   "--disable-setuid-sandbox",
+    // ],
+    args: ['--headless'],
+    ignoreDefaultArgs: true
   };
 
   var browserlessargs = [
@@ -95,9 +97,17 @@ async function launch() {
       "--disable-sync",
     ];
 
-  options.args = browserlessargs.concat(brozzlerargs);
+  // options.args = browserlessargs.concat(brozzlerargs);
+
+  if (process.env.CHROME_EXTRA_ARGS) {
+    options.args = options.args.concat(
+      process.env.CHROME_EXTRA_ARGS.split(";;")
+    );
+    console.log(options.args)
+  }
 
   var browser;
+  program.display && (options.headless = false);
   if (program.existingBrowser) {
     browser = await puppeteer.connect({ browserURL: program.existingBrowser });
   } else browser = await puppeteer.launch(options);
@@ -106,7 +116,7 @@ async function launch() {
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"
   );
   await page.setCacheEnabled(false);
-
+  console.log(browser.process().spawnargs);
   var cdp = await page.target().createCDPSession();
 
   await initCDP(cdp);
@@ -129,53 +139,56 @@ var loadPageInChrome = async function (page, browser, cdp) {
   var URLs = fs.readFileSync(program.input, "utf-8").split("\n"),
     filePromises = [];
   for (var url of URLs) {
-    if (url.length == 0) continue;
-    // var globalTimer = globalTimeout(browser, cdp, gTimeoutValue),
-    var timeout = program.testing
-      ? Number.parseInt(program.timeout) * 100
-      : Number.parseInt(program.timeout);
-    var nLogs = [],
-      pageError = null;
-    console.log(`Launching url ${url}`);
-    var outputDir = `${program.output}/${extractHostname(url)}`;
-    fs.mkdirSync(outputDir, { recursive: true });
-    initNetHandlers(cdp, nLogs);
-    program.store && initRespHandler(page, outputDir, browser, filePromises);
-    await page
-      .goto(url, {
-        timeout: timeout,
-        waituntil: "networkidle2"
-      })
-      .catch((err) => {
-        console.log("Timer fired before page could be loaded", err);
-        pageError = err;
-      });
+    try {
+      if (url.length == 0) continue;
+      // var globalTimer = globalTimeout(browser, cdp, gTimeoutValue),
+      var timeout = program.testing
+        ? Number.parseInt(program.timeout) * 100
+        : Number.parseInt(program.timeout);
+      var nLogs = [],
+        pageError = null;
+      console.log(`Launching url ${url}`);
+      var outputDir = `${program.output}/${extractHostname(url)}`;
+      fs.mkdirSync(outputDir, { recursive: true });
+      initNetHandlers(cdp, nLogs);
+      program.store && initRespHandler(page, outputDir, browser, filePromises);
+      await page
+        .goto(url, {
+          timeout: timeout,
+          waituntil: "networkidle2",
+        })
+        .catch((err) => {
+          console.log("Timer fired before page could be loaded", err);
+          pageError = err;
+        });
 
-    page.off("response", () => {});
-    if (pageError) {
-      continue;
+      page.off("response", () => {});
+      if (pageError) {
+        continue;
+      }
+      console.log("Site loaded");
+
+      if (!program.output) continue;
+
+      dump(nLogs, `${outputDir}/network.log`);
+      await extractPLT(page, outputDir);
+      if (program.store) {
+        await Promise.all(filePromises);
+      }
+
+      if (program.screenshot)
+        await page.screenshot({
+          path: `${outputDir}/screenshot.png`,
+          fullPage: false,
+        });
+    } catch (err) {
+      console.log(`Error while loading ${url}: ${err}`);
     }
-    console.log("Site loaded");
-
-    if (!program.output) continue;
-
-    dump(nLogs, `${outputDir}/network.log`);
-    await extractPLT(page, outputDir);
-    if (program.store) {
-      await Promise.all(filePromises);
-    }
-
-    if (program.screenshot)
-      await page.screenshot({
-        path: `${outputDir}/screenshot.png`,
-        fullPage: false,
-      });
   }
-  
-  if (!program.testing && program.kill){
+
+  if (!program.testing && program.kill) {
     await browser.close();
-  } else 
-    await browser.disconnect();
+  } else await browser.disconnect();
 };
 
 function initRespHandler(page, outputDir, browser, filePromises) {
