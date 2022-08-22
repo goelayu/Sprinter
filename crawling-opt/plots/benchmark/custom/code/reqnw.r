@@ -13,12 +13,12 @@ png(output, height=2.5, width=5.0,units="in",res=900)
 ggplot(data, aes(x=net, color=as.factor(scale))) +
     # geom_bar(position="stack",stat="identity")+
     stat_ecdf()+
-    xlab("Time to fetch (ms)") +
+    xlab("conn setup (ms)") +
     ylab("CDF across net requests") +
     # ylab(expression(atop("% JS bytes on", paste("median page")))) + 
     guides(fill=guide_legend(title="Config")) +
     # coord_cartesian(ylim=c(0,100)) +
-    coord_cartesian(xlim=c(0,2500)) +
+    coord_cartesian(xlim=c(0,250)) +
     scale_color_manual(values=cbPalette) +
     # scale_x_continuous(expand=c(0, 0)) +
     # scale_x_discrete(labels=my.labels) +

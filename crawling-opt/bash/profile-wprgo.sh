@@ -67,7 +67,7 @@ echo 'Starting monitoring tools'
 ./sys-usage-track.sh $2/$3 &
 sysupid=$!;
 
-create_tempfile
+# create_tempfile
 
 for i in $(eval echo {1..${3}}); do
   # start proxy
@@ -85,7 +85,7 @@ proxyports+=(55)
 #     ps aux | grep "http_port=$port" | awk '{print $2}' | xargs kill -SIGINT
 # done
 
-ps aux | grep "http_port=*" | awk '{print $2}' | xargs kill -9
+ps aux | grep "http_port=*" | awk '{print $2}' | xargs kill -SIGINT
 
 
 # kill the resource usage scripts

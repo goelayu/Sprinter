@@ -155,7 +155,7 @@ var loadPageInChrome = async function (page, browser, cdp) {
       await page
         .goto(url, {
           timeout: timeout,
-          waituntil: "networkidle2",
+          // waituntil: "networkidle2",
         })
         .catch((err) => {
           console.log("Timer fired before page could be loaded", err);
