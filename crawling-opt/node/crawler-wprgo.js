@@ -30,6 +30,7 @@ program
     parseInt
   )
   .option("-m, --monitor <monitor>", "monitor the cluster (boolean)")
+  .option("-t, --timeout <timeout>", "timeout for each crawl (seconds)", parseInt)
   .parse(process.argv);
 
 class Proxy {
@@ -44,7 +45,6 @@ class Proxy {
     var cmd = `GOROOT=${GOROOT} GOPATH=${GOPATH} go run src/wpr.go record\
     --http_port ${this.http_port} --https_port ${this.https_port}\
     ${this.dataOutput}`;
-    console.log(`Starting proxy: ${cmd}`);
     this.stdout = "", this.stderr = "";
     this.process = child_process.spawn(cmd, { shell: true, cwd: WPRDIR });
     this.process.stdout.on("data", (data) => {
@@ -94,7 +94,7 @@ class ProxyManager {
     await Promise.all(this.proxies.map((p) => p.start()));
 
     // wait for all proxies to start
-    await sleep(1000);
+    await sleep(2000);
   }
 
   async stopIth(i) {
@@ -133,6 +133,7 @@ var genBrowserArgs = (proxies) => {
       ignoreHTTPSErrors: true,
       headless: true,
       args: [
+        "--ignore-certificate-errors",
         "--ignore-certificate-errors-spki-list=PhrPvGIaAMmd29hj8BCZOq096yj7uMpRNHpn5PDxI6I",
       ],
     };
@@ -171,17 +172,16 @@ var genBrowserArgs = (proxies) => {
     // await page.evaluateOnNewDocument(
     //   'Object.defineProperty(navigator, "webdriver", {value: false});'
     // );
-    await page.goto(`https://${url}`);
-    await page.screenshot({ path: `${program.output}/${url}.png` });
+    await page.goto(`https://${url}`,{timeout: program.timeout*1000});
+    // await page.screenshot({ path: `${program.output}/${url}.png` });
   });
 
   cluster.on("taskerror", (err, data) => {
-    console.log(`  Error crawling ${data}: ${err.message}`);
+    console.log(`Error crawling ${data}: ${err.message}`);
   });
 
   // Crawl the urls
   urls.forEach((url) => {
-    console.log(`  Crawling ${url}`);
     cluster.queue(url);
   });
   // await sleep(1000000);
