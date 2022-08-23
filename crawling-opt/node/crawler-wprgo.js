@@ -1,25 +1,35 @@
 /**
  * A nodeJS based crawler (similar to the browsertrix crawler)
- * that leverages the webpagereplay project as the man in the middle proxy 
- * instead of pywb. 
- * Also supports distributed crawling, by leveraging 
- * multiple browser based crawlers. 
+ * that leverages the webpagereplay project as the man in the middle proxy
+ * instead of pywb.
+ * Also supports distributed crawling, by leveraging
+ * multiple browser based crawlers.
  */
 
-const program = require('commander');
-const puppeteer = require('puppeteer');
-const fs = require('fs');
+const program = require("commander");
+const puppeteer = require("puppeteer");
+const fs = require("fs");
 const child_process = require("child_process");
-const { Cluster } = require('puppeteer-cluster');
+const { Cluster } = require("puppeteer-cluster");
 
-const GOROOT='/w/goelayu/uluyol-sigcomm/go'
-const GOPATH='/vault-swift/goelayu/research-ideas/crawling-opt/crawlers/wprgo/go'
-const WPRDIR='/vault-swift/goelayu/research-ideas/crawling-opt/crawlers/wprgo/pkg/mod/github.com/catapult-project/catapult/web_page_replay_go@v0.0.0-20220815222316-b3421074fa70'
+const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
+const GOPATH =
+  "/vault-swift/goelayu/research-ideas/crawling-opt/crawlers/wprgo/go";
+const WPRDIR =
+  "/vault-swift/goelayu/research-ideas/crawling-opt/crawlers/wprgo/pkg/mod/github.com/catapult-project/catapult/web_page_replay_go@v0.0.0-20220815222316-b3421074fa70";
 
 program
   .option("-u, --urls <urls>", "file containing list of urls to crawl")
-  .option("-o, --output <output>", "output directory for storing the crawled data")
-  .option("-c, --concurrency <concurrency>", "number of concurrent crawlers to use", parseInt)
+  .option(
+    "-o, --output <output>",
+    "output directory for storing the crawled data"
+  )
+  .option(
+    "-c, --concurrency <concurrency>",
+    "number of concurrent crawlers to use",
+    parseInt
+  )
+  .option("-m, --monitor <monitor>", "monitor the cluster (boolean)")
   .parse(process.argv);
 
 class Proxy {
@@ -28,25 +38,41 @@ class Proxy {
     this.https_port = options.https_port;
     this.dataOutput = options.dataOutput;
     this.logOutput = options.logOutput;
-
   }
 
   async start() {
     var cmd = `GOROOT=${GOROOT} GOPATH=${GOPATH} go run src/wpr.go record\
     --http_port ${this.http_port} --https_port ${this.https_port}\
-    ${this.dataOutput} &> ${this.logOutput}`;
+    ${this.dataOutput}`;
+    console.log(`Starting proxy: ${cmd}`);
+    this.stdout = "", this.stderr = "";
+    this.process = child_process.spawn(cmd, { shell: true, cwd: WPRDIR });
+    this.process.stdout.on("data", (data) => {
+      this.stdout += data;
+    });
+    this.process.stderr.on("data", (data) => {
+      this.stderr += data;
+    });
+    // this.process.on("exit", (code) => {
+    //   fs.writeFileSync(this.logOutput, stdout + stderr);
+    // });
 
-    this.process = child_process.spawnSync(cmd, {shell: true, cwd: WPRDIR});
+  }
+
+  dump() {
+    fs.writeFileSync(this.logOutput, this.stdout + this.stderr);
   }
 
   async stop() {
-    this.process.kill('SIGINT');
+    // this.process.kill("SIGINT");
+    child_process.spawnSync(`ps aux | grep http_port | grep ${this.http_port} | awk '{print $2}' | xargs kill -SIGINT`, { shell: true});
+    // await sleep(1000);
+    this.dump();
   }
-
 }
 
 class ProxyManager {
-  constructor(nProxies, outputDir){
+  constructor(nProxies, outputDir) {
     this.nProxies = nProxies;
     this.proxies = [];
     this.startHttpPort = 8000;
@@ -60,38 +86,107 @@ class ProxyManager {
       var https_port = this.startHttpsPort + i;
       var dataOutput = `${this.outputDir}/data-${i}.wprgo`;
       var logOutput = `${this.outputDir}/log-${i}`;
-      var p = new Proxy({http_port, https_port, dataOutput, logOutput});
+      var p = new Proxy({ http_port, https_port, dataOutput, logOutput });
       this.proxies.push(p);
     }
 
     // start all proxies inside Promise.all
-    await Promise.all(this.proxies.map(p => p.start()));
+    await Promise.all(this.proxies.map((p) => p.start()));
+
+    // wait for all proxies to start
+    await sleep(1000);
   }
 
-  stopIth(i) {
-    this.proxies[i].stop();
+  async stopIth(i) {
+    await this.proxies[i].stop();
   }
 
-  stopAll() {
-    this.proxies.forEach(p => p.stop());
+  async stopAll() {
+    await Promise.all(this.proxies.map((p) => p.stop()));
   }
 
   getAll() {
     return this.proxies;
   }
-
 }
 
 var getUrls = (urlFile) => {
-  var urls = fs.readFileSync(urlFile, 'utf8').split('\n');
+  var urls = [];
+  fs.readFileSync(urlFile, "utf8").split("\n").forEach((url) => {
+    if (url.length > 0) {
+      urls.push(url);
+    }
+  });
   return urls;
+};
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
-async function distributedCrawler(){
+var genBrowserArgs = (proxies) => {
+  var args = [],
+    template = {
+      executablePath: "/usr/bin/google-chrome-stable",
+      ignoreHTTPSErrors: true,
+      headless: true,
+      args: [
+        "--ignore-certificate-errors-spki-list=PhrPvGIaAMmd29hj8BCZOq096yj7uMpRNHpn5PDxI6I",
+      ],
+    };
+  for (var i = 0; i < proxies.length; i++) {
+    var proxy = proxies[i];
+    var proxyFlags = [
+      `--host-resolver-rules="MAP *:80 127.0.0.1:${proxy.http_port},MAP *:443 127.0.0.1:${proxy.https_port},EXCLUDE localhost`,
+      `--proxy-server=http=https://127.0.0.1:${proxy.https_port}`,
+    ];
+    var browserArgs = Object.assign({}, template);
+    browserArgs.args = browserArgs.args.concat(proxyFlags);
+    args.push(browserArgs);
+  }
+  // console.log(args)
+  return args;
+};
 
-  // Initialize the proxies 
+(async () => {
+  // Initialize the proxies
   var proxyManager = new ProxyManager(program.concurrency, program.output);
   await proxyManager.createProxies();
   var proxies = proxyManager.getAll();
 
-}
+  // Create a browser pool
+  var cluster = await Cluster.launch({
+    concurrency: Cluster.CONCURRENCY_BROWSER,
+    maxConcurrency: program.concurrency,
+    perBrowserOptions: genBrowserArgs(proxies),
+    monitor: program.monitor,
+  });
+
+  // Get the urls to crawl
+  var urls = getUrls(program.urls);
+
+  cluster.task(async ({ page, data: url }) => {
+    // await page.evaluateOnNewDocument(
+    //   'Object.defineProperty(navigator, "webdriver", {value: false});'
+    // );
+    await page.goto(`https://${url}`);
+    await page.screenshot({ path: `${program.output}/${url}.png` });
+  });
+
+  cluster.on("taskerror", (err, data) => {
+    console.log(`  Error crawling ${data}: ${err.message}`);
+  });
+
+  // Crawl the urls
+  urls.forEach((url) => {
+    console.log(`  Crawling ${url}`);
+    cluster.queue(url);
+  });
+  // await sleep(1000000);
+  // Wait for the cluster to finish
+  await cluster.idle();
+  await cluster.close();
+  await proxyManager.stopAll();
+})();
