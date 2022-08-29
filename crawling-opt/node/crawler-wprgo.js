@@ -7,11 +7,12 @@
  */
 
 const program = require("commander");
-const puppeteer = require("puppeteer");
+const { Events } = require('chrome-remote-interface-extra')
 const fs = require("fs");
 const child_process = require("child_process");
 const { Cluster } = require("puppeteer-cluster");
 const { options } = require("yargs");
+const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
 const GOPATH =
@@ -37,6 +38,7 @@ program
     parseInt
   )
   .option("--noproxy", "disable proxy usage")
+  .option("-s, --store", "store the downloaded resources. By default store all")
   .parse(process.argv);
 
 class Proxy {
@@ -179,21 +181,42 @@ var genBrowserArgs = (proxies) => {
   if (!program.noproxy) {
     opts.perBrowserOptions = genBrowserArgs(proxies);
   } else {
-    opts.puppeteerOptions = {executablePath: "/usr/bin/google-chrome-stable"}
+    opts.puppeteerOptions = { executablePath: "/usr/bin/google-chrome-stable" };
   }
-  console.log(opts)
+  console.log(opts);
   // Create a browser pool
   var cluster = await Cluster.launch(opts);
 
   // Get the urls to crawl
   var urls = getUrls(program.urls);
 
+  var crawlData = {};
+
   cluster.task(async ({ page, data: url }) => {
     // await page.evaluateOnNewDocument(
     //   'Object.defineProperty(navigator, "webdriver", {value: false});'
     // );
+    var bPid = page.browser()._process.pid;
+    console.log("page target is", page._target._targetInfo.targetId);
+    if (program.store) {
+      // await page.setRequestInterception(true);
+      // interceptData(page, crawlData);
+      var cap = new PuppeteerCapturer(page, Events.Page.Request);
+      cap.startCapturing();
+    }
     await page.goto(`https://${url}`, { timeout: program.timeout * 1000 });
-    // await page.screenshot({ path: `${program.output}/${url}.png` });
+    if (program.store) {
+      const warcGen = new PuppeteerWARCGenerator();
+      await warcGen.generateWARC(cap, {
+        warcOpts: {
+          warcPath: `${program.output}/${page._target._targetInfo.targetId}.warc`,
+        },
+        winfo: {
+          description: "I created a warc!",
+          isPartOf: "My awesome pywb collection",
+        },
+      });
+    }
   });
 
   cluster.on("taskerror", (err, data) => {
@@ -211,4 +234,38 @@ var genBrowserArgs = (proxies) => {
   if (!program.noproxy) {
     await proxyManager.stopAll();
   }
+  // save the crawl data
+  program.store && dumpData(crawlData);
 })();
+
+function interceptData(page, crawlData) {
+  var bPid = page.browser()._process.pid;
+  if (!crawlData[bPid]) {
+    crawlData[bPid] = "";
+
+    // page.on("request", (request) => {
+    //   crawlData[bPid] += request.url() + "\n";
+    //   crawlData[bPid] += JSON.stringify(request.headers()) + "\n";
+    //   request.continue();
+    // });
+    page.on("response", async (response) => {
+      crawlData[bPid] += response.url() + "\n";
+      crawlData[bPid] += JSON.stringify(response.headers()) + "\n";
+      var status = response.status();
+      if (status >= 300 && status <= 399) return;
+      var data = await response.buffer();
+      if (data) {
+        crawlData[bPid] += data.toString() + "\n";
+      }
+    });
+  }
+}
+
+function dumpData(crawlData) {
+  for (var pid in crawlData) {
+    var data = crawlData[pid];
+    fs.writeFile(`${program.output}/data-${pid}.wprgo`, data, (err) => {
+      if (err) console.error(err);
+    });
+  }
+}
