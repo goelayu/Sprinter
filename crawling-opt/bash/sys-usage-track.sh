@@ -14,6 +14,7 @@ function ctrl_c() {
         echo "** Trapped CTRL-C"
         echo "** Stopping all processes"
         kill -9 $cpupid;
+        kill -9 $ifconfigpid
         # sudo kill -SIGINT $nwpid;
         sudo pkill -SIGINT iftop
         sudo pkill -9 iostat;
@@ -36,6 +37,16 @@ start_nw_profle(){
   nwpid=$!
 }
 
+start_nw_ifconfig(){
+  echo "usage,time" > $1/nw_bytes_profile
+  t=1
+  while true; do 
+    u=`nw-usage ens15f1`;
+    echo $u,$t >> $1/nw_bytes_profile;
+    t=$((t+1));
+  done
+}
+
 start_disk_profile(){
   # rm -r $1/disk_profile
   sudo iostat -d 2 > $1/disk_profile &
@@ -45,6 +56,9 @@ start_disk_profile(){
 #start cpu profiling
 start_cpu_profile $1 &
 cpupid=$!;
+
+start_nw_ifconfig $1 &
+ifconfigpid=$!;
 
 start_nw_profle $1 &
 

@@ -11,6 +11,7 @@ const puppeteer = require("puppeteer");
 const fs = require("fs");
 const child_process = require("child_process");
 const { Cluster } = require("puppeteer-cluster");
+const { options } = require("yargs");
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
 const GOPATH =
@@ -30,7 +31,12 @@ program
     parseInt
   )
   .option("-m, --monitor <monitor>", "monitor the cluster (boolean)")
-  .option("-t, --timeout <timeout>", "timeout for each crawl (seconds)", parseInt)
+  .option(
+    "-t, --timeout <timeout>",
+    "timeout for each crawl (seconds)",
+    parseInt
+  )
+  .option("--noproxy", "disable proxy usage")
   .parse(process.argv);
 
 class Proxy {
@@ -45,7 +51,7 @@ class Proxy {
     var cmd = `GOROOT=${GOROOT} GOPATH=${GOPATH} go run src/wpr.go record\
     --http_port ${this.http_port} --https_port ${this.https_port}\
     ${this.dataOutput}`;
-    this.stdout = "", this.stderr = "";
+    (this.stdout = ""), (this.stderr = "");
     this.process = child_process.spawn(cmd, { shell: true, cwd: WPRDIR });
     this.process.stdout.on("data", (data) => {
       this.stdout += data;
@@ -56,7 +62,6 @@ class Proxy {
     // this.process.on("exit", (code) => {
     //   fs.writeFileSync(this.logOutput, stdout + stderr);
     // });
-
   }
 
   dump() {
@@ -65,7 +70,10 @@ class Proxy {
 
   async stop() {
     // this.process.kill("SIGINT");
-    child_process.spawnSync(`ps aux | grep http_port | grep ${this.http_port} | awk '{print $2}' | xargs kill -SIGINT`, { shell: true});
+    child_process.spawnSync(
+      `ps aux | grep http_port | grep ${this.http_port} | awk '{print $2}' | xargs kill -SIGINT`,
+      { shell: true }
+    );
     // await sleep(1000);
     this.dump();
   }
@@ -112,11 +120,13 @@ class ProxyManager {
 
 var getUrls = (urlFile) => {
   var urls = [];
-  fs.readFileSync(urlFile, "utf8").split("\n").forEach((url) => {
-    if (url.length > 0) {
-      urls.push(url);
-    }
-  });
+  fs.readFileSync(urlFile, "utf8")
+    .split("\n")
+    .forEach((url) => {
+      if (url.length > 0) {
+        urls.push(url);
+      }
+    });
   return urls;
 };
 
@@ -152,18 +162,28 @@ var genBrowserArgs = (proxies) => {
 };
 
 (async () => {
-  // Initialize the proxies
-  var proxyManager = new ProxyManager(program.concurrency, program.output);
-  await proxyManager.createProxies();
-  var proxies = proxyManager.getAll();
+  // Initialize the proxies if flag enabled
+  var proxies = [];
+  if (!program.noproxy) {
+    console.log("Initializing proxies...");
+    var proxyManager = new ProxyManager(program.concurrency, program.output);
+    await proxyManager.createProxies();
+    proxies = proxyManager.getAll();
+  }
 
-  // Create a browser pool
-  var cluster = await Cluster.launch({
+  var opts = {
     concurrency: Cluster.CONCURRENCY_BROWSER,
     maxConcurrency: program.concurrency,
-    perBrowserOptions: genBrowserArgs(proxies),
     monitor: program.monitor,
-  });
+  };
+  if (!program.noproxy) {
+    opts.perBrowserOptions = genBrowserArgs(proxies);
+  } else {
+    opts.puppeteerOptions = {executablePath: "/usr/bin/google-chrome-stable"}
+  }
+  console.log(opts)
+  // Create a browser pool
+  var cluster = await Cluster.launch(opts);
 
   // Get the urls to crawl
   var urls = getUrls(program.urls);
@@ -172,7 +192,7 @@ var genBrowserArgs = (proxies) => {
     // await page.evaluateOnNewDocument(
     //   'Object.defineProperty(navigator, "webdriver", {value: false});'
     // );
-    await page.goto(`https://${url}`,{timeout: program.timeout*1000});
+    await page.goto(`https://${url}`, { timeout: program.timeout * 1000 });
     // await page.screenshot({ path: `${program.output}/${url}.png` });
   });
 
@@ -188,5 +208,7 @@ var genBrowserArgs = (proxies) => {
   // Wait for the cluster to finish
   await cluster.idle();
   await cluster.close();
-  await proxyManager.stopAll();
+  if (!program.noproxy) {
+    await proxyManager.stopAll();
+  }
 })();

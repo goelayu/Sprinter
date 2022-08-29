@@ -2,7 +2,7 @@
 
 # set -x
 
-# Bash script to launch Chrome based crawling, and 
+# Bash script to launch Chrome based crawling, and
 # using web page replay go to be used as a mitm proxy
 
 # $1 -> Path to archive file containing archived data
@@ -17,10 +17,10 @@ if [ $# -lt 3 ]; then
     \$1 -> Path to the output directory for storing archived data
     \$2 -> path to the output directory containing benchmaking data
     \$3 -> Number of parallel browsers
-    
+
 EOF
     exit 1
-fi 
+fi
 
 GOROOT=/w/goelayu/uluyol-sigcomm/go
 GOPATH=/vault-swift/goelayu/research-ideas/crawling-opt/crawlers/wprgo/go
@@ -35,7 +35,7 @@ WPRDIR='/vault-swift/goelayu/research-ideas/crawling-opt/crawlers/wprgo/pkg/mod/
 # clear the mounted volume
 mkdir -p $1;
 mkdir -p $2;
-sudo rm -rf $1/*; 
+sudo rm -rf $1/*;
 sudo rm -rf $2/*;
 
 # $1 -> proxy rank
@@ -53,13 +53,13 @@ launch_wprgo(){
 }
 
 update_range2(){
-  factor=`echo $NPAGES $1 | awk '{print int($1/$2)}'`
-  top=`echo $top $factor | awk '{print $1+$2}'`
-  bottom=$factor
+    factor=`echo $NPAGES $1 | awk '{print int($1/$2)}'`
+    top=`echo $top $factor | awk '{print $1+$2}'`
+    bottom=$factor
 }
 
 create_tempfile(){
-  cat ../pages/alexa_1000 | head -n $NPAGES | shuf > tmpfile
+    cat ../pages/alexa_1000 | head -n $NPAGES | shuf > tmpfile
 }
 
 # start monitoring tools
@@ -70,12 +70,12 @@ sysupid=$!;
 # create_tempfile
 
 for i in $(eval echo {1..${3}}); do
-  # start proxy
-  cd $WPRDIR; launch_wprgo $i $3 $1
-  cd -
-  update_range2 $3
-  CHROME_EXTRA_ARGS="--host-resolver-rules=\"MAP *:80 127.0.0.1:$http_port,MAP *:443 127.0.0.1:$https_port,EXCLUDE localhost\";;--ignore-certificate-errors;;--ignore-certificate-errors-spki-list=PhrPvGIaAMmd29hj8BCZOq096yj7uMpRNHpn5PDxI6I=;;--proxy-server=http=https://127.0.0.1:$https_port";
-  echo "CHROME_EXTRA_ARGS='$CHROME_EXTRA_ARGS' ./profile-cpu-chrome.sh ${1}/${3}/${i} ${2}/${3}/${i}.time 0 cur_port $top $bottom";
+    # start proxy
+    cd $WPRDIR; launch_wprgo $i $3 $1
+    cd -
+    update_range2 $3
+    CHROME_EXTRA_ARGS="--host-resolver-rules=\"MAP *:80 127.0.0.1:$http_port,MAP *:443 127.0.0.1:$https_port,EXCLUDE localhost\";;--ignore-certificate-errors;;--ignore-certificate-errors-spki-list=PhrPvGIaAMmd29hj8BCZOq096yj7uMpRNHpn5PDxI6I=;;--proxy-server=http=https://127.0.0.1:$https_port";
+    echo "CHROME_EXTRA_ARGS='$CHROME_EXTRA_ARGS' ./profile-cpu-chrome.sh ${1}/${3}/${i} ${2}/${3}/${i}.time 0 cur_port $top $bottom";
 done | parallel
 
 proxyports+=(55)

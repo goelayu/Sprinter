@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 
-# This bash script profile wprgo based 
+# This bash script profile wprgo based
 # crawling, however the proxy is launched
 # inside the node script itself.
 
@@ -8,18 +8,21 @@
 # $2 -> path to the output directory containing benchmaking data
 # $3 -> Number of parallel browsers
 # $4 -> file containing list of sites to crawl
+# $5 -> Enable no proxy mode
 
-if [ $# -lt 3 ]; then
+if [ $# -lt 4 ]; then
     echo "insufficient arguments provided"
     cat << EOF
     Usage: bash profile-wprgo.sh <output_dir> <performance_directory> <num_browsers> <file_containing_list_of_sites>
     \$1 -> Path to the output directory for storing archived data
     \$2 -> path to the output directory containing benchmaking data
     \$3 -> Number of parallel browsers
-    
+    \$4 -> file containing list of sites to crawl
+    \$5 -> Enable no proxy mode
+
 EOF
     exit 1
-fi 
+fi
 
 MAINSCRIPT=../node/crawler-wprgo.js
 
@@ -31,8 +34,14 @@ echo 'Starting monitoring tools'
 ./sys-usage-track.sh $2/$3 &
 sysupid=$!;
 
+if [[ $5 == "1" ]]; then
+    echo 'No proxy mode enabled'
+    node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 90 --noproxy &> $1/$3/node.out
+else
+    echo 'Proxy mode Enabled'
+    node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 90 &> $1/$3/node.out
+fi
 
-node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 15 -m true &> $1/$3/node.out
 
 
 # kill the resource usage scripts
