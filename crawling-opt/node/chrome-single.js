@@ -23,7 +23,9 @@ program
   .option("-s, --store", "store the downloaded resources. By default store all")
   .option("-k, --kill", "kill the browser after the test is done")
   .option("--screenshot", "capture screenshot")
+  .option("-n , --network", "dump network logs")
   .option("-d, --display", "display the browser")
+  .option("-p, --profile", "profile the load time")
   .parse(process.argv);
 
 var SITE_LOADED = (SITES_DONE = false);
@@ -141,7 +143,9 @@ var loadPageInChrome = async function (page, browser, cdp) {
   for (var url of URLs) {
     try {
       if (url.length == 0) continue;
-      // var globalTimer = globalTimeout(browser, cdp, gTimeoutValue),
+      if (program.profile){
+        var startTime = process.hrtime();
+      }
       var timeout = program.testing
         ? Number.parseInt(program.timeout) * 100
         : Number.parseInt(program.timeout);
@@ -149,7 +153,7 @@ var loadPageInChrome = async function (page, browser, cdp) {
         pageError = null;
       console.log(`Launching url ${url}`);
       var outputDir = `${program.output}/${extractHostname(url)}`;
-      fs.mkdirSync(outputDir, { recursive: true });
+      
       initNetHandlers(cdp, nLogs);
       program.store && initRespHandler(page, outputDir, browser, filePromises);
       await page
@@ -159,6 +163,10 @@ var loadPageInChrome = async function (page, browser, cdp) {
         })
         .catch((err) => {
           console.log("Timer fired before page could be loaded", err);
+          if (program.profile){
+            var endTime = process.hrtime(startTime);
+            console.log(`Total time taken for ${url} is ${endTime[0]*1000 + endTime[1]/1000000}ms`);
+          }
           pageError = err;
         });
 
@@ -169,9 +177,9 @@ var loadPageInChrome = async function (page, browser, cdp) {
       console.log("Site loaded");
 
       if (!program.output) continue;
-
-      dump(nLogs, `${outputDir}/network.log`);
-      await extractPLT(page, outputDir);
+      program.network && fs.mkdirSync(outputDir, { recursive: true });
+      program.network && dump(nLogs, `${outputDir}/network.log`);
+      // await extractPLT(page, outputDir);
       if (program.store) {
         await Promise.all(filePromises);
       }
@@ -181,8 +189,16 @@ var loadPageInChrome = async function (page, browser, cdp) {
           path: `${outputDir}/screenshot.png`,
           fullPage: false,
         });
+      if (program.profile){
+        var endTime = process.hrtime(startTime);
+        console.log(`Total time taken for ${url} is ${endTime[0]*1000 + endTime[1]/1000000}ms`);
+      }
     } catch (err) {
       console.log(`Error while loading ${url}: ${err}`);
+      if (program.profile){
+        var endTime = process.hrtime(startTime);
+        console.log(`Total time taken for ${url} is ${endTime[0]*1000 + endTime[1]/1000000}ms`);
+      }
     }
   }
 
