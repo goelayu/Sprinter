@@ -46,4 +46,16 @@ var getResourceDLTime = function (input) {
   }
 };
 
+var totalSize = function(input){
+  var net = netParser.parseNetworkLogs(parse(input));
+  var totalsize = 0;
+  for (var n of net) {
+    if (!n.size) continue;
+    // console.log(n.url)
+    totalsize += n.size;
+  }
+  console.log(totalsize);
+}
+
 if (program.type == "dl") return getResourceDLTime(program.input);
+if (program.type == "size") return totalSize(program.input);
