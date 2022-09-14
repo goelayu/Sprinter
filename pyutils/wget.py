@@ -13,8 +13,7 @@ def exec_wget(args):
   
   #change to output directory
   
-    WGET_ARGS = ['--no-verbose',
-                 '--adjust-extension',
+    WGET_ARGS = ['--adjust-extension',
                  '--convert-links',
                  '--force-directories',
                  '--backup-converted',
