@@ -4,5 +4,8 @@
 !*.sh
 !*/
 !*.r
-!pages/
-!pages/*
+browser
+crawlers
+data
+pages
+plots
