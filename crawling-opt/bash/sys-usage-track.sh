@@ -60,7 +60,7 @@ cpupid=$!;
 start_nw_ifconfig $1 &
 ifconfigpid=$!;
 
-start_nw_profle $1 &
+# start_nw_profle $1 &
 
 start_disk_profile $1
 

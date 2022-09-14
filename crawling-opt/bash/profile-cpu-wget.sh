@@ -11,7 +11,7 @@ while read site; do
   echo "site is",$site
   mkdir $2/$site
   
-  cmd="wget -q -O$2/$site.noio -P$2/$site/ --timeout 30 --no-verbose --force-directories --span-hosts \
+  cmd="wget -q -P$2/$site/ --timeout 30 --no-verbose --force-directories --span-hosts \
     --no-parent -e robots=off \
     --user-agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36' \
     --timeout=10 \

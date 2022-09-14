@@ -29,6 +29,7 @@ MAINSCRIPT=../node/crawler-wprgo.js
 mkdir -p $2/$3;
 mkdir -p $1/$3;
 rm -rf $2/$3/*;
+rm -rf $1/$3/*;
 
 echo 'Starting monitoring tools'
 ./sys-usage-track.sh $2/$3 &
@@ -36,10 +37,10 @@ sysupid=$!;
 
 if [[ $5 == "1" ]]; then
     echo 'No proxy mode enabled'
-    node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 90 --noproxy &> $1/$3/node.out
+    { time node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 50 --noproxy -n; } &> $1/$3/node.out
 else
     echo 'Proxy mode Enabled'
-    node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 90 &> $1/$3/node.out
+    time node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 15 -n &> $1/$3/node.out
 fi
 
 
