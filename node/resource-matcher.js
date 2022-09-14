@@ -52,7 +52,7 @@ var getOrigMissing = function () {
   // read the source page's static and dynamic fetches
   var source = fs.readFileSync(`${program.source}/static/fetch.log`, "utf8");
   var destination = fs.readFileSync(
-    `${program.destination}/dynamic/network.log`,
+    `${program.source}/dynamic/network.log`,
     "utf8"
   );
 
@@ -85,9 +85,37 @@ var getOrigMissing = function () {
   });
 
   console.log(
-    `destination: ${destinationURLS.length} source: ${sourceURLS.length} missing: ${missing.length}`
+    `dynamic: ${destinationURLS.length} static: ${sourceURLS.length} missing: ${missing.length}`
   );
   return missing;
 };
 
-console.log(getOrigMissing());
+var retrieveMissing = function (missing) {
+  var destination = fs.readFileSync(
+    `${program.destination}/dynamic/network.log`,
+    "utf8"
+  );
+  var dstParsed = netParser.parseNetworkLogs(JSON.parse(destination));
+  var destinationURLS = [];
+
+  for (var n of dstParsed) {
+    if (!ignoreUrl(n)) {
+      destinationURLS.push(n.url);
+    }
+  }
+
+  var missingResources = [];
+  missing.forEach(function (url) {
+    if (!destinationURLS.some((s) => matchURLs(s, url, program.matchType))) {
+      missingResources.push(url);
+    }
+  });
+  
+  console.log(
+    `destination: ${destinationURLS.length} missing: ${missing.length} not retrieved: ${missingResources.length}`
+  );
+  console.log(missingResources);
+}
+
+var missing = getOrigMissing();
+retrieveMissing(missing);
