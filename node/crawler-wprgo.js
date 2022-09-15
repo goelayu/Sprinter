@@ -124,6 +124,12 @@ class ProxyManager {
   }
 }
 
+var bashSanitize = (str) => {
+  cmd="echo '" + str + "' | sanitize";
+  console.log(cmd);
+  return child_process.execSync(cmd, { encoding: "utf8" }).trim();
+}
+
 var getUrls = (urlFile) => {
   var urls = [];
   fs.readFileSync(urlFile, "utf8")
@@ -200,6 +206,12 @@ var genBrowserArgs = (proxies) => {
     // await page.evaluateOnNewDocument(
     //   'Object.defineProperty(navigator, "webdriver", {value: false});'
     // );
+
+    // create output dir if not exists
+    data.outputDir = `${program.output}/${bashSanitize(data.url)}/dynamic`;
+    if (!fs.existsSync(data.outputDir)) {
+      fs.mkdirSync(data.outputDir, { recursive: true });
+    }
     var bPid = page.browser()._process.pid;
     data.bPid = bPid;
     if (!schd_changed[bPid]) {
@@ -224,7 +236,7 @@ var genBrowserArgs = (proxies) => {
     var endTime = process.hrtime(startTime);
     if (program.screenshot)
       await page.screenshot({
-        path: `${program.output}/${data.url}.png`,
+        path: `${data.outputDir}/${data.url}.png`,
       });
     console.log(
       `Total time taken for ${data.url} is ${
@@ -236,7 +248,7 @@ var genBrowserArgs = (proxies) => {
       await warcGen.generateWARC(cap, {
         warcOpts: {
           // warcPath: `${program.output}/${page._target._targetInfo.targetId}.warc`,
-          warcPath: `${program.output}/${bPid}.warc`,
+          warcPath: `${data.outputDir}/${bPid}.warc`,
           appending: true,
         },
         winfo: {
@@ -247,7 +259,7 @@ var genBrowserArgs = (proxies) => {
     }
     program.network &&
       fs.writeFileSync(
-        `${program.output}/${data.url}.network`,
+        `${data.outputDir}/network.log`,
         JSON.stringify(nLogs)
       );
   });
@@ -256,7 +268,7 @@ var genBrowserArgs = (proxies) => {
     console.log(`Error crawling ${data.url}: ${err.message}`);
     program.network &&
       fs.writeFileSync(
-        `${program.output}/${data.url}.network`,
+        `${data.outputDir}/network.log`,
         JSON.stringify(data.nLogs)
       );
   });

@@ -18,12 +18,12 @@
 
 const fs = require("fs");
 const program = require("commander");
-const netParser = require("./parser/network.js");
+const netParser = require("parser/network.js");
 
 program
   .version("0.0.1")
   .option("-s, --source [source]", "The source file")
-  .option("-d, --destination [destination]", "The destination file")
+  .option("-d, --destination [destination]", "The destination file(s)")
   .option("--match-type [matchType]", "The type of match to perform")
   .parse(process.argv);
 
@@ -31,6 +31,8 @@ if (!program.source || !program.destination) {
   console.log("Please specify a source and destination file");
   process.exit(1);
 }
+
+// console.log(program.destination)
 
 var ignoreUrl = function (n) {
   var type = n.type;
@@ -48,74 +50,85 @@ var matchURLs = function (source, destination, type) {
   else if (type == 1) return source.split("?")[0] == destination.split("?")[0];
 };
 
+var combDest = function () {
+  var destinationLogs = [],
+    destinationURLs = [];
+  fs.readFileSync(program.destination, "utf8")
+    .split("\n")
+    .filter((f) => f)
+    .forEach(function (file) {
+      var destLog = netParser.parseNetworkLogs(
+        JSON.parse(fs.readFileSync(`${file}/dynamic/network.log`, "utf8"))
+      );
+      destinationLogs = destinationLogs.concat(destLog);
+    });
+  for (var n of destinationLogs) {
+    if (!ignoreUrl(n)) {
+      destinationURLs.push(n.url);
+    }
+  }
+
+  return destinationURLs;
+};
+
 var getOrigMissing = function () {
   // read the source page's static and dynamic fetches
-  var source = fs.readFileSync(`${program.source}/static/fetch.log`, "utf8");
-  var destination = fs.readFileSync(
+  var static = fs.readFileSync(`${program.source}/static/fetch.log`, "utf8");
+  var dynamic = fs.readFileSync(
     `${program.source}/dynamic/network.log`,
     "utf8"
   );
 
-  var sourceURLS = [],
-    destinationURLS = [];
+  var staticURLs = [],
+    dynamicURLs = [];
 
   //parse each network log separetely
-  source.split("\n").forEach(function (line) {
+  static.split("\n").forEach(function (line) {
     if (line.indexOf("--") > -1) {
       var url = line.split(" ")[3];
-      sourceURLS.push(url);
+      staticURLs.push(url);
     }
   });
 
   // remove undefined URLs
-  sourceURLS = sourceURLS.filter(f=>f);
+  staticURLs = staticURLs.filter((f) => f);
 
-  var dstParsed = netParser.parseNetworkLogs(JSON.parse(destination));
-  for (var n of dstParsed) {
+  var dynParsed = netParser.parseNetworkLogs(JSON.parse(dynamic));
+  for (var n of dynParsed) {
     if (!ignoreUrl(n)) {
-      destinationURLS.push(n.url);
+      dynamicURLs.push(n.url);
     }
   }
   // compare the two lists and return the missing resources
   var missing = [];
-  destinationURLS.forEach(function (url) {
-    if (!sourceURLS.some((s) => matchURLs(s, url, program.matchType))) {
+  dynamicURLs.forEach(function (url) {
+    if (!staticURLs.some((s) => matchURLs(s, url, program.matchType))) {
       missing.push(url);
     }
   });
 
   console.log(
-    `dynamic: ${destinationURLS.length} static: ${sourceURLS.length} missing: ${missing.length}`
+    `dynamic: ${dynamicURLs.length} static: ${staticURLs.length} missing: ${missing.length}`
   );
   return missing;
 };
 
 var retrieveMissing = function (missing) {
-  var destination = fs.readFileSync(
-    `${program.destination}/dynamic/network.log`,
-    "utf8"
-  );
-  var dstParsed = netParser.parseNetworkLogs(JSON.parse(destination));
-  var destinationURLS = [];
-
-  for (var n of dstParsed) {
-    if (!ignoreUrl(n)) {
-      destinationURLS.push(n.url);
-    }
-  }
+  var destinationURLs = combDest();
 
   var missingResources = [];
   missing.forEach(function (url) {
-    if (!destinationURLS.some((s) => matchURLs(s, url, program.matchType))) {
+    if (!destinationURLs.some((s) => matchURLs(s, url, program.matchType))) {
       missingResources.push(url);
-    }
+    } else
+      console.log(`found ${url} in destination, not adding to missing list`);
   });
-  
+
   console.log(
-    `destination: ${destinationURLS.length} missing: ${missing.length} not retrieved: ${missingResources.length}`
+    `destination: ${destinationURLs.length} missing: ${missing.length} not retrieved: ${missingResources.length}`
   );
   console.log(missingResources);
-}
+};
 
 var missing = getOrigMissing();
 retrieveMissing(missing);
