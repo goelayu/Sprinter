@@ -43,6 +43,7 @@ program
   .option("--screenshot", "take screenshot of each page")
   .option("-s, --store", "store the downloaded resources. By default store all")
   .option("-n, --network", "dump network data")
+  .option('--tracing', 'dump tracing data')
   .parse(process.argv);
 
 class Proxy {
@@ -214,10 +215,10 @@ var genBrowserArgs = (proxies) => {
     }
     var bPid = page.browser()._process.pid;
     data.bPid = bPid;
-    if (!schd_changed[bPid]) {
-      await change_schd_rt(bPid,99);
-      schd_changed[bPid] = true;
-    }
+    // if (!schd_changed[bPid]) {
+    //   await change_schd_rt(bPid,99);
+    //   schd_changed[bPid] = true;
+    // }
     // console.log("page target is", page._target._targetInfo.targetId);
     if (program.network) {
       var cdp = await page.target().createCDPSession(),
@@ -230,6 +231,10 @@ var genBrowserArgs = (proxies) => {
       // interceptData(page, crawlData);
       var cap = new PuppeteerCapturer(page, Events.Page.Request);
       cap.startCapturing();
+    }
+
+    if (program.tracing){
+      await page.tracing.start({path: `${data.outputDir}/trace.json`});
     }
     var startTime = process.hrtime();
     await page.goto(`http://${data.url}`, { timeout: program.timeout * 1000 });
@@ -262,6 +267,11 @@ var genBrowserArgs = (proxies) => {
         `${data.outputDir}/network.log`,
         JSON.stringify(nLogs)
       );
+    
+    if (program.tracing){
+      await page.tracing.stop();
+    }
+
   });
 
   cluster.on("taskerror", (err, data) => {
