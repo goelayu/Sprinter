@@ -34,6 +34,7 @@ program
   .option("--filter", "filters all the archive-irrelevant files")
   .option("--deterministic", "turn deterministic execution mode")
   .option("--wait", "waits before exiting chrome")
+  .option("-t, --tracing", "capture tracing information")
   .parse(process.argv);
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -89,7 +90,7 @@ async function launch() {
   // await page.setViewport({ width: 2600, height: 900 })
   // var device = puppeteer.devices['iPhone 6'];
   // await page.emulate(device);
-  console.log(browser.process().spawnargs);
+  // console.log(browser.process().spawnargs);
   var nLogs = [],
     cLogs = [],
     jProfile;
@@ -99,7 +100,8 @@ async function launch() {
   var height = await _height.jsonValue(),
     width = await _width.jsonValue();
   await page.setUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/602.1 (KHTML, like Gecko) splash Version/10.0 Safari/602.1");
-  console.log(await browser.userAgent());
+  await page.setUserAgent("bot")
+  // console.log(await browser.userAgent());
   // await page.setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4182.0 Safari/537.36");
   // await page.setUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36")
   console.log(height, width);
@@ -123,6 +125,9 @@ async function launch() {
     await cdp.send("Profiler.start");
   }
 
+  if (program.tracing){
+    await page.tracing.start({path: `${program.output}/trace.json`, screenshots: false});
+  }
   // if (program.coverage)
   //     await page.coverage.startJSCoverage();
 
@@ -144,6 +149,10 @@ async function launch() {
     });
 
   console.log("Site loaded");
+
+  if (program.tracing){
+    await page.tracing.stop();
+  }
 
   if (program.coverage) await page.coverage.startJSCoverage();
 
