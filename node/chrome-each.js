@@ -8,7 +8,7 @@ var puppeteerOg = require("puppeteer"),
   program = require("commander"),
   fs = require("fs"),
   // psl = require("psl"),
-AdblockerPlugin = require("puppeteer-extra-plugin-adblocker");
+  AdblockerPlugin = require("puppeteer-extra-plugin-adblocker");
 
 program
   .option("-o, --output [output]", "path to the output directory")
@@ -35,6 +35,7 @@ program
   .option("--deterministic", "turn deterministic execution mode")
   .option("--wait", "waits before exiting chrome")
   .option("-t, --tracing", "capture tracing information")
+  .option("-k, --kill", "kill the browser after the run")
   .parse(process.argv);
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -42,7 +43,6 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 const SERIALIZESTYLES = `${__dirname}/chrome-ctx-scripts/serializeWithStyle.js`;
 const DISTILLDOM = `${__dirname}/../dom-distill/lib/domdistiller.js`;
 const HANDLERS = `${__dirname}/chrome-ctx-scripts/fetch-listeners.js`;
-
 
 async function launch() {
   const options = {
@@ -78,14 +78,12 @@ async function launch() {
     puppeteer = require("puppeteer-extra");
     puppeteer.use(AdblockerPlugin({ useCache: false }));
   }
-  
+
   var browser;
   if (program.exisitingBrowser) {
     var browserURL = program.exisitingBrowser;
-    browser = await puppeteer.connect({browserURL});
-  }
-  else 
-    browser = await puppeteer.launch(options);
+    browser = await puppeteer.connect({ browserURL });
+  } else browser = await puppeteer.launch(options);
   let page = await browser.newPage();
   // await page.setViewport({ width: 2600, height: 900 })
   // var device = puppeteer.devices['iPhone 6'];
@@ -99,11 +97,10 @@ async function launch() {
   var _width = await page.evaluateHandle(() => window.screen.height);
   var height = await _height.jsonValue(),
     width = await _width.jsonValue();
-  await page.setUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/602.1 (KHTML, like Gecko) splash Version/10.0 Safari/602.1");
-  await page.setUserAgent("bot")
-  // console.log(await browser.userAgent());
-  // await page.setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4182.0 Safari/537.36");
-  // await page.setUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36")
+  await page.setUserAgent(
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/602.1 (KHTML, like Gecko) splash Version/10.0 Safari/602.1"
+  );
+  // await page.setUserAgent("bot")
   console.log(height, width);
 
   // await emulateUserAgent(page, 'iPhone 6');
@@ -125,8 +122,11 @@ async function launch() {
     await cdp.send("Profiler.start");
   }
 
-  if (program.tracing){
-    await page.tracing.start({path: `${program.output}/trace.json`, screenshots: false});
+  if (program.tracing) {
+    await page.tracing.start({
+      path: `${program.output}/trace.json`,
+      screenshots: false,
+    });
   }
   // if (program.coverage)
   //     await page.coverage.startJSCoverage();
@@ -150,18 +150,11 @@ async function launch() {
 
   console.log("Site loaded");
 
-  if (program.tracing){
+  if (program.tracing) {
     await page.tracing.stop();
   }
 
   if (program.coverage) await page.coverage.startJSCoverage();
-
-  // await page.reload();
-  // console.log('page reloaded')
-
-  // page.evaluate(() => {
-  //     debugger;
-  //   });
 
   if (program.coverage) {
     await getCoverage(page, "preload");
@@ -171,9 +164,6 @@ async function launch() {
   }
 
   if (program.wait) {
-    //turn on logging
-    // await page.evaluateHandle(()=> window.__tracer.setTracingMode(true));
-    // await page.evaluateHandle(()=> window.__tracer.setCaptureMode('postload'));
     await sleep(2000);
   }
 
@@ -197,41 +187,15 @@ async function launch() {
       fullPage: false,
     });
 
-  if (program.custom) {
-    let cstmEntries = program.custom.split(",");
-    for (var c of cstmEntries) {
-      switch (c) {
-        case "Handlers":
-          await extractHandlers(page, cdp, 1);
-          break;
-        case "DOM":
-          await extractDOM(page);
-          break;
-        case "Distill":
-          await distillDOM(page);
-          break;
-        case "CG":
-          await chromeFns.getAllFns(page, program);
-          break;
-        case "dynAPI":
-          await getDynCount(page);
-          break;
-        case "state":
-          await getJSState(page);
-          break;
-        case "heap":
-          await getHeapObject(page, "getCustomCache");
-          break;
-      }
-    }
-  }
   // await extractDOM(page);
 
   if (program.mhtml) await getMhtml(cdp);
 
   if (program.memory) await getMemory(page);
 
-  if (!program.testing) browser.close();
+  if (!program.testing && program.kill) {
+    await browser.close();
+  } else await browser.disconnect();
 
   //delete the timeout and exit script
   if (!program.testing) clearTimeout(globalTimer);
