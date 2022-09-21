@@ -8,6 +8,7 @@
 
 const program = require("commander");
 const { Events } = require("chrome-remote-interface-extra");
+const { Tracing } = require("chrome-remote-interface-extra");
 const fs = require("fs");
 const util = require("util");
 const child_process = require("child_process");
@@ -127,7 +128,6 @@ class ProxyManager {
 
 var bashSanitize = (str) => {
   cmd="echo '" + str + "' | sanitize";
-  console.log(cmd);
   return child_process.execSync(cmd, { encoding: "utf8" }).trim();
 }
 
@@ -234,7 +234,9 @@ var genBrowserArgs = (proxies) => {
     }
 
     if (program.tracing){
-      await page.tracing.start({path: `${data.outputDir}/trace.json`});
+      await page.tracing.start({path: `${data.outputDir}/mainframe.trace.json`});
+      // page.frameTracers = {};
+      // enableTracingPerFrame(page, data.outputDir);
     }
     var startTime = process.hrtime();
     await page.goto(`http://${data.url}`, { timeout: program.timeout * 1000 });
@@ -248,6 +250,7 @@ var genBrowserArgs = (proxies) => {
         endTime[0] * 1000 + endTime[1] / 1000000
       }`
     );
+    console.log(`total number of frames loaded is ${page.frames().length}`);
     if (program.store) {
       const warcGen = new PuppeteerWARCGenerator();
       await warcGen.generateWARC(cap, {
@@ -270,6 +273,16 @@ var genBrowserArgs = (proxies) => {
     
     if (program.tracing){
       await page.tracing.stop();
+      // stop tracing for all frames
+      // var frames = page.frames();
+      // for (var i = 0; i < frames.length; i++) {
+      //   // if (page.mainFrame() !== frames[i]) {
+      //     var frameTracer = page.frameTracers[frames[i]._id];
+      //     if (frameTracer) {
+      //       await frameTracer.stop();
+      //     }
+      //   // }
+      // }
     }
 
   });
@@ -320,6 +333,47 @@ function interceptData(page, crawlData) {
     });
   }
 }
+
+var enableTracingPerFrame = function (page, outputDir) {
+  page.on("frameattached", async (frame) => {
+    // if (frame === page.mainFrame()) return;
+    console.log(`starting tracing for frame ${frame._id} with url ${frame.url()}` );
+    var frameTracer = new Tracing(frame._client);
+    page.frameTracers[frame._id] = frameTracer;
+    await frameTracer.start({
+      path: `${outputDir}/${frame._id}.trace.json`,
+    });
+  });
+
+
+
+  //   frame._client.send("Tracing.start", {
+  //     transferMode: "ReturnAsStream",
+  //     categories: [
+  //       "-*",
+  //       "devtools.timeline",
+  //       "disabled-by-default-devtools.timeline",
+  //       "disabled-by-default-devtools.timeline.frame",
+  //       "toplevel",
+  //       "blink.console",
+  //       "blink.user_timing",
+  //       "latencyInfo",
+  //       "disabled-by-default-devtools.timeline.stack",
+  //       "disabled-by-default-v8.cpu_profiler",
+  //       "disabled-by-default-v8.cpu_profiler.hires",
+  //     ],
+  //   });
+  //   frame._client.on("Tracing.tracingComplete", async (event) => {
+  //     var stream = await frame._client.send("Tracing.getTraceStream");
+  //     var buffer = await stream.read();
+  //     var trace = JSON.parse(buffer.toString());
+  //     fs.writeFileSync(
+  //       `${outputDir}/${frame._target._targetInfo.targetId}.json`,
+  //       JSON.stringify(trace)
+  //     );
+  //   });
+  // });
+};
 
 var change_schd_rt = async (pid, rt) => {
   var cmd = `sudo chrt -a -f -p ${rt} ${pid}`;
