@@ -3,12 +3,11 @@
  * of CDP (as used inside chrome-remote-interface)
  */
 
-var puppeteerOg = require("puppeteer"),
-  puppeteer = require("puppeteer"),
-  program = require("commander"),
-  fs = require("fs"),
-  // psl = require("psl"),
-  AdblockerPlugin = require("puppeteer-extra-plugin-adblocker");
+const puppeteer = require("puppeteer");
+const program = require("commander");
+const fs = require("fs");
+const AdblockerPlugin = require("puppeteer-extra-plugin-adblocker");
+const PageClient = require('./lib/PageClient')
 
 program
   .option("-o, --output [output]", "path to the output directory")
@@ -16,7 +15,7 @@ program
   .option("-n, --network", "capture network logs")
   .option("-j, --js-profile", "capture jsProfile")
   .option("-u, --url [url]", "url of the page")
-  .option("--timeout [value]", "timeout value for page navigation")
+  .option("--timeout [value]", "timeout value for page navigation", parseInt)
   .option("--response-body", "capture network response body")
   .option("--screenshot", "capture screenshot")
   .option("--pac-url [value]", "path to the proxy pac url file")
@@ -59,20 +58,9 @@ async function launch() {
     // '--no-first-run'],
     // ignoreDefaultArgs: true,
   };
-  // program.testing && options.args.push(
-  //     `--window-size=2600,900`
-  // )
-  if (program.dimension) {
-    console.log("custom dimensions");
-    // options.args.push(` --window-size=700,1000`);
-    // options.args.push(' --lang=es-ES');
-  }
 
   var outDir = program.output;
 
-  // if (program.loadIter) {
-  //     options.userDataDir = program.chromeDir;
-  // }
   if (program.filter) {
     console.log("apply filtering");
     puppeteer = require("puppeteer-extra");
@@ -85,109 +73,32 @@ async function launch() {
     browser = await puppeteer.connect({ browserURL });
   } else browser = await puppeteer.launch(options);
   let page = await browser.newPage();
-  // await page.setViewport({ width: 2600, height: 900 })
-  // var device = puppeteer.devices['iPhone 6'];
-  // await page.emulate(device);
-  // console.log(browser.process().spawnargs);
-  var nLogs = [],
-    cLogs = [],
-    jProfile;
+
   var cdp = await page.target().createCDPSession();
-  var _height = await page.evaluateHandle(() => window.screen.height);
-  var _width = await page.evaluateHandle(() => window.screen.height);
-  var height = await _height.jsonValue(),
-    width = await _width.jsonValue();
   await page.setUserAgent(
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/602.1 (KHTML, like Gecko) splash Version/10.0 Safari/602.1"
   );
-  // await page.setUserAgent("bot")
-  console.log(height, width);
-
-  // await emulateUserAgent(page, 'iPhone 6');
-
-  if (program.loadIter) {
-    console.log(`Part of a series of page loads`);
-    await emulateUserAgent(page, program.loadIter);
-  }
-
-  await initCDP(cdp);
-  if (program.network) {
-    initNetHandlers(cdp, nLogs);
-  }
-  if (program.logs) {
-    initConsoleHandlers(cdp, cLogs);
-  }
-
-  if (program.jsProfile) {
-    await cdp.send("Profiler.start");
-  }
-
-  if (program.tracing) {
-    await page.tracing.start({
-      path: `${program.output}/trace.json`,
-      screenshots: false,
-    });
-  }
   // if (program.coverage)
   //     await page.coverage.startJSCoverage();
 
   //Set global timeout to force kill the browser
-  var gTimeoutValue = program.testing
-    ? Number.parseInt(program.timeout) * 100
-    : Number.parseInt(program.timeout) + 20000;
+  var gTimeoutValue = program.testing ? 1000000 : program.timeout + 10000;
   console.log("global time out value", gTimeoutValue, program.timeout);
   var globalTimer = globalTimeout(browser, cdp, gTimeoutValue);
-  await page
-    .goto(program.url, {
-      timeout: program.timeout,
-    })
-    .catch((err) => {
-      console.log("Timer fired before page could be loaded", err);
-      browser.close();
-      clearTimeout(globalTimer);
-      return;
-    });
+  
+  var pclient = new PageClient(page, cdp, {
+    url: program.url,
+    enableNetwork: program.network,
+    enableConsole: program.logs,
+    enableJSProfile: program.jsProfile,
+    enableTracing: program.tracing,
+    enableScreenshot: program.screenshot,
+    userAgent: program.userAgent,
+    outputDir: program.output,
+    verbose: true
+  });
 
-  console.log("Site loaded");
-
-  if (program.tracing) {
-    await page.tracing.stop();
-  }
-
-  if (program.coverage) await page.coverage.startJSCoverage();
-
-  if (program.coverage) {
-    await getCoverage(page, "preload");
-    //     await page.coverage.startJSCoverage();
-    //     await extractHandlers(page,cdp);
-    //     await getCoverage(page, 'postLoad', true);
-  }
-
-  if (program.wait) {
-    await sleep(2000);
-  }
-
-  // await autoScroll(page);
-
-  if (program.network) {
-    dump(nLogs, `${outDir}/network`);
-  }
-  if (program.logs) {
-    dump(cLogs, `${outDir}/logs`);
-  }
-  if (program.jsProfile) {
-    var prof = await cdp.send("Profiler.stop");
-    dump(prof.profile, `${outDir}/jsProfile`);
-  }
-
-  await extractPLT(page);
-  if (program.screenshot)
-    await page.screenshot({
-      path: `${outDir}/screenshot.png`,
-      fullPage: false,
-    });
-
-  // await extractDOM(page);
+  await pclient.start();
 
   if (program.mhtml) await getMhtml(cdp);
 
@@ -236,13 +147,6 @@ var globalTimeout = function (browser, cdp, timeout) {
     // cdp.detach();
     browser.close();
   }, timeout);
-};
-
-var initCDP = async function (cdp) {
-  await cdp.send("Page.enable");
-  await cdp.send("Network.enable");
-  await cdp.send("Runtime.enable");
-  await cdp.send("Profiler.enable");
 };
 
 function extractHostname(url) {
@@ -335,24 +239,6 @@ var getMhtml = async function (cdp) {
   dump(data, `${program.output}/mhtml`);
 };
 
-var initNetHandlers = function (cdp, nLogs) {
-  const network_observe = [
-    "Network.requestWillBeSent",
-    "Network.requestServedFromCache",
-    "Network.dataReceived",
-    "Network.responseReceived",
-    "Network.resourceChangedPriority",
-    "Network.loadingFinished",
-    "Network.loadingFailed",
-  ];
-
-  network_observe.forEach((method) => {
-    cdp.on(method, (params) => {
-      nLogs.push({ [method]: params });
-    });
-  });
-};
-
 var distillDOM = async function (page) {
   var distillCode = fs.readFileSync(DISTILLDOM, "utf-8");
   var runCmd = `var __distill_res__ = org.chromium.distiller.DomDistiller.apply();`;
@@ -432,7 +318,8 @@ var dump = function (data, file) {
   fs.writeFileSync(file, JSON.stringify(data));
 };
 
-launch().catch((err) => {
-  console.log(`error while launching ${err}`);
-  // process.exit();
-});
+launch()
+// .catch((err) => {
+//   console.log(`error while launching ${err}`);
+//   // process.exit();
+// });
