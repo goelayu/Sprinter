@@ -49,7 +49,13 @@ class PageClient {
    * and finally dumps the captured metrics to a file
    */
   async start() {
-    var nLogs = [];
+    var nLogs = [], startTime, endTime;
+
+    // create output directory if it doesn't exist already
+    if (!fs.existsSync(this._options.outputDir)) {
+      fs.mkdirSync(this._options.outputDir);
+    }
+
     if (this._options.webDriver) {
       await this._page.evaluateOnNewDocument(() => {
         'Object.defineProperty(navigator, "webdriver", {value:false})';
@@ -76,6 +82,9 @@ class PageClient {
       this._options.verbose && console.log("Tracing enabled");
     }
 
+    if (this._options.logTime){
+      startTime = process.hrtime();
+    }
     // load the page
     await this._page
       .goto(this._options.url, { timeout: this._options.timeout * 1000 })
@@ -83,6 +92,11 @@ class PageClient {
         console.log(err);
         this._options.closeBrowserOnError && this._page.browser().close();
       });
+
+    if (this._options.logTime){
+      endTime = process.hrtime(startTime);
+      console.log("Page load time: ", endTime[0] + endTime[1] / 1e9);
+    }
 
     this._options.verbose && console.log("Page loaded");
 
@@ -95,6 +109,10 @@ class PageClient {
 
     if (this._options.enableTracing) {
       await this._page.tracing.stop();
+    }
+
+    if (this._options.screenshot){
+      await this._page.screenshot({path: this._options.outputDir + "/screenshot.png"});
     }
   }
 }

@@ -16,6 +16,7 @@ const exec = util.promisify(child_process.exec);
 const { Cluster } = require("puppeteer-cluster");
 const { options } = require("yargs");
 const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
+const PageClient = require("./lib/PageClient.js");
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
 const GOPATH =
@@ -44,7 +45,7 @@ program
   .option("--screenshot", "take screenshot of each page")
   .option("-s, --store", "store the downloaded resources. By default store all")
   .option("-n, --network", "dump network data")
-  .option('--tracing', 'dump tracing data')
+  .option("--tracing", "dump tracing data")
   .parse(process.argv);
 
 class Proxy {
@@ -127,9 +128,9 @@ class ProxyManager {
 }
 
 var bashSanitize = (str) => {
-  cmd="echo '" + str + "' | sanitize";
+  cmd = "echo '" + str + "' | sanitize";
   return child_process.execSync(cmd, { encoding: "utf8" }).trim();
-}
+};
 
 var getUrls = (urlFile) => {
   var urls = [];
@@ -204,28 +205,8 @@ var genBrowserArgs = (proxies) => {
   var schd_changed = {};
 
   cluster.task(async ({ page, data }) => {
-    // await page.evaluateOnNewDocument(
-    //   'Object.defineProperty(navigator, "webdriver", {value: false});'
-    // );
+    var outputDir = `${program.output}/${bashSanitize(data.url)}/dynamic`;
 
-    // create output dir if not exists
-    data.outputDir = `${program.output}/${bashSanitize(data.url)}/dynamic`;
-    if (!fs.existsSync(data.outputDir)) {
-      fs.mkdirSync(data.outputDir, { recursive: true });
-    }
-    var bPid = page.browser()._process.pid;
-    data.bPid = bPid;
-    // if (!schd_changed[bPid]) {
-    //   await change_schd_rt(bPid,99);
-    //   schd_changed[bPid] = true;
-    // }
-    // console.log("page target is", page._target._targetInfo.targetId);
-    if (program.network) {
-      var cdp = await page.target().createCDPSession(),
-        nLogs = data.nLogs = [];
-      await initCDP(cdp);
-      initNetHandlers(cdp, nLogs);
-    }
     if (program.store) {
       // await page.setRequestInterception(true);
       // interceptData(page, crawlData);
@@ -233,24 +214,24 @@ var genBrowserArgs = (proxies) => {
       cap.startCapturing();
     }
 
-    if (program.tracing){
-      await page.tracing.start({path: `${data.outputDir}/mainframe.trace.json`});
-      // page.frameTracers = {};
-      // enableTracingPerFrame(page, data.outputDir);
-    }
-    var startTime = process.hrtime();
-    await page.goto(`http://${data.url}`, { timeout: program.timeout * 1000 });
-    var endTime = process.hrtime(startTime);
-    if (program.screenshot)
-      await page.screenshot({
-        path: `${data.outputDir}/${data.url}.png`,
-      });
-    console.log(
-      `Total time taken for ${data.url} is ${
-        endTime[0] * 1000 + endTime[1] / 1000000
-      }`
-    );
+    var cdp = await page.target().createCDPSession();
+
+    var pclient = new PageClient(page, cdp, {
+      url: data.url,
+      enableNetwork: program.network,
+      enableConsole: program.logs,
+      enableJSProfile: program.jsProfile,
+      enableTracing: program.tracing,
+      enableScreenshot: program.screenshot,
+      userAgent: program.userAgent,
+      outputDir: outputDir,
+      verbose: true,
+    });
+
+    await pclient.start();
+
     console.log(`total number of frames loaded is ${page.frames().length}`);
+
     if (program.store) {
       const warcGen = new PuppeteerWARCGenerator();
       await warcGen.generateWARC(cap, {
@@ -265,26 +246,20 @@ var genBrowserArgs = (proxies) => {
         },
       });
     }
-    program.network &&
-      fs.writeFileSync(
-        `${data.outputDir}/network.log`,
-        JSON.stringify(nLogs)
-      );
-    
-    if (program.tracing){
-      await page.tracing.stop();
-      // stop tracing for all frames
-      // var frames = page.frames();
-      // for (var i = 0; i < frames.length; i++) {
-      //   // if (page.mainFrame() !== frames[i]) {
-      //     var frameTracer = page.frameTracers[frames[i]._id];
-      //     if (frameTracer) {
-      //       await frameTracer.stop();
-      //     }
-      //   // }
-      // }
-    }
 
+    // if (program.tracing) {
+    //   await page.tracing.stop();
+    //   // stop tracing for all frames
+    //   // var frames = page.frames();
+    //   // for (var i = 0; i < frames.length; i++) {
+    //   //   // if (page.mainFrame() !== frames[i]) {
+    //   //     var frameTracer = page.frameTracers[frames[i]._id];
+    //   //     if (frameTracer) {
+    //   //       await frameTracer.stop();
+    //   //     }
+    //   //   // }
+    //   // }
+    // }
   });
 
   cluster.on("taskerror", (err, data) => {
@@ -298,7 +273,7 @@ var genBrowserArgs = (proxies) => {
 
   // Crawl the urls
   urls.forEach((url) => {
-    cluster.queue({url:url});
+    cluster.queue({ url: url });
   });
   // await sleep(1000000);
   // Wait for the cluster to finish
@@ -337,15 +312,15 @@ function interceptData(page, crawlData) {
 var enableTracingPerFrame = function (page, outputDir) {
   page.on("frameattached", async (frame) => {
     // if (frame === page.mainFrame()) return;
-    console.log(`starting tracing for frame ${frame._id} with url ${frame.url()}` );
+    console.log(
+      `starting tracing for frame ${frame._id} with url ${frame.url()}`
+    );
     var frameTracer = new Tracing(frame._client);
     page.frameTracers[frame._id] = frameTracer;
     await frameTracer.start({
       path: `${outputDir}/${frame._id}.trace.json`,
     });
   });
-
-
 
   //   frame._client.send("Tracing.start", {
   //     transferMode: "ReturnAsStream",
@@ -378,31 +353,6 @@ var enableTracingPerFrame = function (page, outputDir) {
 var change_schd_rt = async (pid, rt) => {
   var cmd = `sudo chrt -a -f -p ${rt} ${pid}`;
   await exec(cmd);
-};
-
-var initCDP = async function (cdp) {
-  await cdp.send("Page.enable");
-  await cdp.send("Network.enable");
-  await cdp.send("Runtime.enable");
-  await cdp.send("Profiler.enable");
-};
-
-var initNetHandlers = function (cdp, nLogs) {
-  const network_observe = [
-    "Network.requestWillBeSent",
-    "Network.requestServedFromCache",
-    "Network.dataReceived",
-    "Network.responseReceived",
-    "Network.resourceChangedPriority",
-    "Network.loadingFinished",
-    "Network.loadingFailed",
-  ];
-
-  network_observe.forEach((method) => {
-    cdp.on(method, (params) => {
-      nLogs.push({ [method]: params });
-    });
-  });
 };
 
 function dumpData(crawlData) {
