@@ -18,7 +18,7 @@
 
 const fs = require("fs");
 const program = require("commander");
-const netParser = require("parser/network.js");
+const netParser = require("./lib/network.js");
 
 program
   .version("0.0.1")
@@ -29,6 +29,9 @@ program
 
 if (!program.source || !program.destination) {
   console.log("Please specify a source and destination file");
+  process.exit(1);
+} else if (program.source == program.destination) {
+  // console.log("Source and destination files cannot be the same");
   process.exit(1);
 }
 
@@ -90,8 +93,8 @@ var getOrigMissing = function () {
     }
   });
 
-  // remove undefined URLs
-  staticURLs = staticURLs.filter((f) => f);
+  // remove undefined URLs and decode URI
+  staticURLs = staticURLs.filter((f) => f).map((m) => decodeURIComponent(m));
 
   var dynParsed = netParser.parseNetworkLogs(JSON.parse(dynamic));
   for (var n of dynParsed) {
@@ -103,9 +106,20 @@ var getOrigMissing = function () {
   var missing = [];
   dynamicURLs.forEach(function (url) {
     if (!staticURLs.some((s) => matchURLs(s, url, program.matchType))) {
+      console.log(`missing ${url}`);
       missing.push(url);
-    }
+    } else console.log(`found ${url} in static, not adding to missing list`);
   });
+
+  //print the resources in static that are not in dynamic
+  var notRetrieved = [];
+  // staticURLs.forEach(function (url) {
+  //   if (!dynamicURLs.some((d) => matchURLs(d, url, program.matchType))) {
+  //     console.log(`not retrieved ${url}`);
+  //     // notRetrieved.push(url);
+  //     // } else console.log(`found ${url} in dynamic, not adding to notRetrieved list`);
+  //   }
+  // });
 
   console.log(
     `dynamic: ${dynamicURLs.length} static: ${staticURLs.length} missing: ${missing.length}`
@@ -120,15 +134,17 @@ var retrieveMissing = function (missing) {
   missing.forEach(function (url) {
     if (!destinationURLs.some((s) => matchURLs(s, url, program.matchType))) {
       missingResources.push(url);
-    } else
-      console.log(`found ${url} in destination, not adding to missing list`);
+    }
+    // else
+    //   console.log(`found ${url} in destination, not adding to missing list`);
   });
 
-  console.log(
-    `destination: ${destinationURLs.length} missing: ${missing.length} not retrieved: ${missingResources.length}`
-  );
-  console.log(missingResources);
+  // console.log(
+  //   `destination: ${destinationURLs.length} missing: ${missing.length} not retrieved: ${missingResources.length}`
+  // );
+  console.log(missing.length, missingResources.length);
+  // console.log(missingResources);
 };
 
 var missing = getOrigMissing();
-retrieveMissing(missing);
+// retrieveMissing(missing);
