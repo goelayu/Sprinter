@@ -19,6 +19,7 @@
 const fs = require("fs");
 const program = require("commander");
 const netParser = require("./lib/network.js");
+const glob = require("glob");
 
 program
   .version("0.0.1")
@@ -76,9 +77,9 @@ var combDest = function () {
 
 var getOrigMissing = function () {
   // read the source page's static and dynamic fetches
-  var static = fs.readFileSync(`${program.source}/static/fetch.log`, "utf8");
+  var static = fs.readFileSync(glob.sync(`${program.source}/static/*/*cdx`)[0], "utf8");
   var dynamic = fs.readFileSync(
-    `${program.source}/dynamic/network.log`,
+    `${program.source}/dynamic/network.json`,
     "utf8"
   );
 
@@ -86,13 +87,12 @@ var getOrigMissing = function () {
     dynamicURLs = [];
 
   //parse each network log separetely
-  static.split("\n").forEach(function (line) {
-    if (line.indexOf("--") > -1) {
-      var url = line.split(" ")[3];
+  static.split("\n").forEach(function (line,i) {
+    if (i>0) {
+      var url = line.split(" ")[0];
       staticURLs.push(url);
     }
   });
-
   // remove undefined URLs and decode URI
   staticURLs = staticURLs.filter((f) => f).map((m) => decodeURIComponent(m));
 
