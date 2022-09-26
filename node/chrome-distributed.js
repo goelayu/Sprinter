@@ -246,29 +246,10 @@ var genBrowserArgs = (proxies) => {
         },
       });
     }
-
-    // if (program.tracing) {
-    //   await page.tracing.stop();
-    //   // stop tracing for all frames
-    //   // var frames = page.frames();
-    //   // for (var i = 0; i < frames.length; i++) {
-    //   //   // if (page.mainFrame() !== frames[i]) {
-    //   //     var frameTracer = page.frameTracers[frames[i]._id];
-    //   //     if (frameTracer) {
-    //   //       await frameTracer.stop();
-    //   //     }
-    //   //   // }
-    //   // }
-    // }
   });
 
   cluster.on("taskerror", (err, data) => {
     console.log(`Error crawling ${data.url}: ${err.message}`);
-    program.network &&
-      fs.writeFileSync(
-        `${data.outputDir}/network.log`,
-        JSON.stringify(data.nLogs)
-      );
   });
 
   // Crawl the urls
