@@ -24,7 +24,7 @@ EOF
     exit 1
 fi
 
-MAINSCRIPT=../node/crawler-wprgo.js
+MAINSCRIPT=../node/chrome-distributed.js
 
 mkdir -p $2/$3;
 mkdir -p $1/$3;
