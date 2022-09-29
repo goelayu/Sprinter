@@ -1,7 +1,3 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
 package main
 
 import (
@@ -21,7 +17,6 @@ import (
 	"strings"
 	"sync"
 	"flag"
-	"strconv"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -596,22 +591,22 @@ func main() {
 		log.Fatal(err)
 	}
 
-	editFn := func(req *http.Request, resp *http.Response) (*http.Request, *http.Response, error) {
-		// Simply add a new text to each body
+	// editFn := func(req *http.Request, resp *http.Response) (*http.Request, *http.Response, error) {
+	// 	// Simply add a new text to each body
 		
-		newBody := "console.log('new body');"
-		newBodyBytes := []byte(newBody)
-		resp.Body = io.NopCloser(bytes.NewReader(newBodyBytes))
-		resp.ContentLength = int64(len(newBodyBytes))
-		resp.Header.Set("Content-Length", strconv.Itoa(len(newBodyBytes)))
+	// 	newBody := "console.log('new body');"
+	// 	newBodyBytes := []byte(newBody)
+	// 	resp.Body = io.NopCloser(bytes.NewReader(newBodyBytes))
+	// 	resp.ContentLength = int64(len(newBodyBytes))
+	// 	resp.Header.Set("Content-Length", strconv.Itoa(len(newBodyBytes)))
 		
-		// remove the content-encoding header
-		resp.Header.Del("Content-Encoding")
-		return req, resp, nil
-	}
+	// 	// remove the content-encoding header
+	// 	resp.Header.Del("Content-Encoding")
+	// 	return req, resp, nil
+	// }
 
 
-	modArchive, err := inputArchive.Edit(editFn)
+	modArchive, err := inputArchive.Edit(instrument)
 
 	if err != nil {
 		log.Fatal(err)
