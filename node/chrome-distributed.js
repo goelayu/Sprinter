@@ -8,21 +8,19 @@
 
 const program = require("commander");
 const { Events } = require("chrome-remote-interface-extra");
-const { Tracing } = require("chrome-remote-interface-extra");
 const fs = require("fs");
 const util = require("util");
 const child_process = require("child_process");
 const exec = util.promisify(child_process.exec);
 const { Cluster } = require("puppeteer-cluster");
-const { options } = require("yargs");
 const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
 const PageClient = require("./lib/PageClient.js");
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
 const GOPATH =
-  "/vault-swift/goelayu/research-ideas/crawling-opt/crawlers/wprgo/go";
+  "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
 const WPRDIR =
-  "/vault-swift/goelayu/research-ideas/crawling-opt/crawlers/wprgo/pkg/mod/github.com/catapult-project/catapult/web_page_replay_go@v0.0.0-20220815222316-b3421074fa70";
+  "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/pkg/mod/github.com/catapult-project/catapult/web_page_replay_go@v0.0.0-20220815222316-b3421074fa70";
 
 program
   .option("-u, --urls <urls>", "file containing list of urls to crawl")
@@ -42,10 +40,12 @@ program
     parseInt
   )
   .option("--noproxy", "disable proxy usage")
+  .option("--proxy <proxy>", "proxy directory to use")
   .option("--screenshot", "take screenshot of each page")
   .option("-s, --store", "store the downloaded resources. By default store all")
   .option("-n, --network", "dump network data")
   .option("--tracing", "dump tracing data")
+  .option("--mode <mode>", "mode of the proxy, can't be used with --noproxy")
   .parse(process.argv);
 
 class Proxy {
@@ -57,10 +57,11 @@ class Proxy {
   }
 
   async start() {
-    var cmd = `GOROOT=${GOROOT} GOPATH=${GOPATH} go run src/wpr.go record\
+    var cmd = `GOROOT=${GOROOT} GOPATH=${GOPATH} go run src/wpr.go ${program.mode}\
     --http_port ${this.http_port} --https_port ${this.https_port}\
     ${this.dataOutput}`;
     (this.stdout = ""), (this.stderr = "");
+    console.log(cmd);
     this.process = child_process.spawn(cmd, { shell: true, cwd: WPRDIR });
     this.process.stdout.on("data", (data) => {
       this.stdout += data;
@@ -68,12 +69,10 @@ class Proxy {
     this.process.stderr.on("data", (data) => {
       this.stderr += data;
     });
-    // this.process.on("exit", (code) => {
-    //   fs.writeFileSync(this.logOutput, stdout + stderr);
-    // });
   }
 
   dump() {
+    console.log(`writing to ${this.logOutput}`);
     fs.writeFileSync(this.logOutput, this.stdout + this.stderr);
   }
 
@@ -89,12 +88,13 @@ class Proxy {
 }
 
 class ProxyManager {
-  constructor(nProxies, outputDir) {
+  constructor(nProxies, proxyDir, logDir) {
     this.nProxies = nProxies;
     this.proxies = [];
     this.startHttpPort = 8000;
     this.startHttpsPort = 9000;
-    this.outputDir = outputDir;
+    this.logDir = logDir;
+    this.outputDir = proxyDir;
   }
 
   async createProxies() {
@@ -102,7 +102,7 @@ class ProxyManager {
       var http_port = this.startHttpPort + i;
       var https_port = this.startHttpsPort + i;
       var dataOutput = `${this.outputDir}/data-${i}.wprgo`;
-      var logOutput = `${this.outputDir}/log-${i}`;
+      var logOutput = `${this.logDir}/log-${i}`;
       var p = new Proxy({ http_port, https_port, dataOutput, logOutput });
       this.proxies.push(p);
     }
@@ -179,8 +179,12 @@ var genBrowserArgs = (proxies) => {
   // Initialize the proxies if flag enabled
   var proxies = [];
   if (!program.noproxy) {
+    if (!program.mode) {
+      console.log("Please specify a mode for the proxy");
+      process.exit(1);
+    }
     console.log("Initializing proxies...");
-    var proxyManager = new ProxyManager(program.concurrency, program.output);
+    var proxyManager = new ProxyManager(program.concurrency, program.proxy, program.output);
     await proxyManager.createProxies();
     proxies = proxyManager.getAll();
   }
