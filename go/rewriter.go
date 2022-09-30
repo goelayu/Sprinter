@@ -11,6 +11,7 @@ import (
 	"os"
 	"bytes"
 	"os/exec"
+	"strconv"
 )
 
 func check(e error) {
@@ -55,9 +56,9 @@ func extractBody(body string, h http.Header) string {
 }
 
 func invokeNode(body string, t string, name string) []byte {
-	SCRIPTPATH := "../progam_analysis/instrument.js"
+	SCRIPTPATH := "../program_analysis/instrument.js"
 	// store body in a temp file
-	tempFile, err := os.CreateTemp("", "insttmp")
+	tempFile, err := os.CreateTemp("./", "insttmp")
 	if err != nil {
 		fmt.Println("Error creating temp file", err)
 		panic(err)
@@ -67,10 +68,16 @@ func invokeNode(body string, t string, name string) []byte {
 	_, err = tempFile.WriteString(body)
 	check(err)
 
-	cmdString := fmt.Sprintf("node %s -i %s -t %s -n %s", SCRIPTPATH, tempFile.Name(), t, name)
+	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s'", SCRIPTPATH, tempFile.Name(), t, name)
+	fmt.Println(cmdString)
 	cmd := exec.Command("bash", "-c", cmdString)
 	_, err = cmd.Output()
-	check(err)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err != nil {
+		fmt.Println(err.Error() + ": " + stderr.String())
+		panic(err)
+	}
 
 	// read the temp file
 	newbody, _ := io.ReadAll(tempFile)
@@ -84,11 +91,14 @@ func instrument(req *http.Request, resp *http.Response) (*http.Request, *http.Re
 	t := resp.Header.Get("Content-Type")
 	name,_ := filenamify.Filenamify(req.URL.Path, filenamify.Options{})
 
-	if strings.Contains(strings.ToLower(t),"javascript") {
+	if strings.Contains(strings.ToLower(t),"javascript") || strings.Contains(strings.ToLower(t),"html") {
 		// extract body bytes
+		fmt.Println("Instrumenting", req.URL.Path)
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		newbody := invokeNode(extractBody(string(bodyBytes), resp.Header), t, name)
 		resp.Body = io.NopCloser(bytes.NewReader(newbody))
+		resp.ContentLength = int64(len(newbody))
+		resp.Header.Set("Content-Length", strconv.Itoa(len(newbody)))
 	}
 
 	return req, resp, nil
