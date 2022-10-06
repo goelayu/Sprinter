@@ -95,10 +95,13 @@ async function launch() {
     enableScreenshot: program.screenshot,
     userAgent: program.userAgent,
     outputDir: program.output,
+    logTime: true,
     verbose: true
   });
 
   await pclient.start();
+
+  console.log(`total number of frames loaded is ${page.frames().length}`);
 
   if (program.mhtml) await getMhtml(cdp);
 

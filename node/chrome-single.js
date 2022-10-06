@@ -152,14 +152,15 @@ var loadPageInChrome = async function (page, browser, cdp) {
       var nLogs = [],
         pageError = null;
       console.log(`Launching url ${url}`);
-      var outputDir = `${program.output}/${extractHostname(url)}`;
+      // var outputDir = `${program.output}/${extractHostname(url)}`;
+      var outputDir = program.output;
       
       initNetHandlers(cdp, nLogs);
       program.store && initRespHandler(page, outputDir, browser, filePromises);
       await page
         .goto(url, {
           timeout: timeout,
-          // waituntil: "networkidle2",
+          waituntil: "networkidle2",
         })
         .catch((err) => {
           console.log("Timer fired before page could be loaded", err);

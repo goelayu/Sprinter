@@ -59,3 +59,8 @@ var totalSize = function(input){
 
 if (program.type == "dl") return getResourceDLTime(program.input);
 if (program.type == "size") return totalSize(program.input);
+
+
+var add = function(a,b){
+  return a+b;
+}

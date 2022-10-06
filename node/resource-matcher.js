@@ -26,17 +26,14 @@ program
   .option("-s, --source [source]", "The source file")
   .option("-d, --destination [destination]", "The destination file(s)")
   .option("--match-type [matchType]", "The type of match to perform")
+  .option("-v, --verbose", "Verbose output")
   .parse(process.argv);
 
 if (!program.source || !program.destination) {
   console.log("Please specify a source and destination file");
   process.exit(1);
-} else if (program.source == program.destination) {
-  // console.log("Source and destination files cannot be the same");
-  process.exit(1);
 }
 
-// console.log(program.destination)
 
 var ignoreUrl = function (n) {
   var type = n.type;
@@ -75,6 +72,10 @@ var combDest = function () {
   return destinationURLs;
 };
 
+var _sum = function (a, b) {
+  return a + b;
+}
+
 var getOrigMissing = function () {
   // read the source page's static and dynamic fetches
   var static = fs.readFileSync(glob.sync(`${program.source}/static/*/*cdx`)[0], "utf8");
@@ -99,16 +100,19 @@ var getOrigMissing = function () {
   var dynParsed = netParser.parseNetworkLogs(JSON.parse(dynamic));
   for (var n of dynParsed) {
     if (!ignoreUrl(n)) {
-      dynamicURLs.push(n.url);
+      dynamicURLs.push(n);
     }
   }
   // compare the two lists and return the missing resources
-  var missing = [];
-  dynamicURLs.forEach(function (url) {
-    if (!staticURLs.some((s) => matchURLs(s, url, program.matchType))) {
-      console.log(`missing ${url}`);
-      missing.push(url);
-    } else console.log(`found ${url} in static, not adding to missing list`);
+  var missing = [], missingSize = 0, totalSize = 0;
+  dynamicURLs.forEach(function (n) {
+    n.size && (totalSize += n.size);
+    if (!staticURLs.some((s) => matchURLs(s, n.url, program.matchType))) {
+      program.verbose && console.log(`[dyn-stat] missing ${n.url} of size ${n.size}`);
+      missing.push(n.url);
+      n.size && (missingSize += n.size);
+    } else if (program.verbose)
+      console.log(`[dyn-stat]found ${n.url} in static`);
   });
 
   //print the resources in static that are not in dynamic
@@ -124,6 +128,7 @@ var getOrigMissing = function () {
   console.log(
     `dynamic: ${dynamicURLs.length} static: ${staticURLs.length} missing: ${missing.length}`
   );
+  console.log(`dynamic size: ${totalSize} missing size: ${missingSize}`);
   return missing;
 };
 
@@ -135,8 +140,8 @@ var retrieveMissing = function (missing) {
     if (!destinationURLs.some((s) => matchURLs(s, url, program.matchType))) {
       missingResources.push(url);
     }
-    // else
-    //   console.log(`found ${url} in destination, not adding to missing list`);
+    else if (program.verbose)
+      console.log(`found ${url} in destination, not adding to missing list`);
   });
 
   // console.log(

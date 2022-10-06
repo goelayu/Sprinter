@@ -4,6 +4,7 @@
  */
 
 const fs = require("fs");
+const { Tracing } = require("chrome-remote-interface-extra");
 
 var initCDP = async function (cdp) {
   await cdp.send("Page.enable");
@@ -30,6 +31,20 @@ var initNetHandlers = function (cdp, nLogs) {
   });
 };
 
+var enableTracingPerFrame = function (page, outputDir) {
+  page.on("framenavigated", async (frame) => {
+    // if (frame === page.mainFrame()) return;
+    console.log(
+      `starting tracing for frame ${frame._id} with url ${frame.url()} with session Id ${frame._client._sessionId}`
+    );
+    // var frameTracer = new Tracing(frame._client);
+    // page.frameTracers[frame._id] = frameTracer;
+    // await frameTracer.start({
+    //   path: `${outputDir}/${frame._id}.trace.json`,
+    // });
+  });
+};
+
 class PageClient {
   /**
    * @param {Page|CDPConnection} client
@@ -49,11 +64,13 @@ class PageClient {
    * and finally dumps the captured metrics to a file
    */
   async start() {
-    var nLogs = [], startTime, endTime;
+    var nLogs = [],
+      startTime,
+      endTime;
 
-    // create output directory if it doesn't exist already
+    // create output directory recursively if it doesn't exist already
     if (!fs.existsSync(this._options.outputDir)) {
-      fs.mkdirSync(this._options.outputDir);
+      fs.mkdirSync(this._options.outputDir, { recursive: true });
     }
 
     if (this._options.webDriver) {
@@ -65,7 +82,8 @@ class PageClient {
 
     if (this._options.userAgent) {
       await this._page.setUserAgent(this._options.userAgent);
-      this._options.verbose && console.log("User agent set to: ", this._options.userAgent);
+      this._options.verbose &&
+        console.log("User agent set to: ", this._options.userAgent);
     }
 
     if (this._options.enableNetwork) {
@@ -79,21 +97,38 @@ class PageClient {
       await this._page.tracing.start({
         path: this._options.outputDir + "/trace.json",
       });
+      this._page.frameTracers = {};
+      // enableTracingPerFrame(this._page, this._options.outputDir);
       this._options.verbose && console.log("Tracing enabled");
     }
 
-    if (this._options.logTime){
+    if (this._options.logTime) {
       startTime = process.hrtime();
     }
+
+    // await this._page._client.send("Target.setAutoAttach", {
+    //   autoAttach: true,
+    //   flatten: true,
+    //   windowOpen: true,
+    //   waitForDebuggerOnStart: true, // is set to false in pptr
+    // });
+
+    // this._page._client.on("Target.attachedToTarget", async (event) => {
+    //   console.log('attached to target');
+    //   console.log(event.targetInfo);
+    // });
     // load the page
     await this._page
-      .goto(this._options.url, { timeout: this._options.timeout * 1000 })
+      .goto(this._options.url, {
+        timeout: this._options.timeout * 1000,
+        waituntill: "networkidle2",
+      })
       .catch((err) => {
         console.log(err);
         this._options.closeBrowserOnError && this._page.browser().close();
       });
 
-    if (this._options.logTime){
+    if (this._options.logTime) {
       endTime = process.hrtime(startTime);
       console.log("Page load time: ", endTime[0] + endTime[1] / 1e9);
     }
@@ -109,10 +144,20 @@ class PageClient {
 
     if (this._options.enableTracing) {
       await this._page.tracing.stop();
+      // var frames = this._page.frames();
+      // for (var i = 0; i < frames.length; i++) {
+      //   // if (page.mainFrame() !== frames[i]) {
+      //     var frameTracer = this._page.frameTracers[frames[i]._id];
+      //     if (frameTracer) {
+      //       await frameTracer.stop();
+      //     }
+      // }
     }
 
-    if (this._options.screenshot){
-      await this._page.screenshot({path: this._options.outputDir + "/screenshot.png"});
+    if (this._options.screenshot) {
+      await this._page.screenshot({
+        path: this._options.outputDir + "/screenshot.png",
+      });
     }
   }
 }
