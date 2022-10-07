@@ -56,19 +56,19 @@ var computeOverlap = function () {
     allnets = [];
   Object.values(pathNets).forEach(function (net) {
     for (var n of net) {
-      if (allnets.some((n) => matchURLs(n.url, net[0].url, 1))) {
-        intBytes += net[0].size;
+      if (allnets.some((a) => matchURLs(a.url, n.url, 1))) {
+        intBytes += n.size;
       }
-      totalBytes += net[0].size;
+      totalBytes += n.size;
     }
     allnets = allnets.concat(net);
   });
-
-  console.log(
-    `${intBytes/(1000)} ${totalBytes/1000} ${
-      intBytes / totalBytes
-    }`
-  );
+  console.log(intBytes / totalBytes);
+  // console.log(
+  //   `${intBytes/(1000)} ${totalBytes/1000} ${
+  //     intBytes / totalBytes
+  //   }`
+  // );
 };
 
 computeOverlap();

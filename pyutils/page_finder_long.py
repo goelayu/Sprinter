@@ -119,7 +119,11 @@ class WebCrawler():
                                 newURL = urlunparse(parsedURL._replace(**{"scheme":urlObj.scheme}))
                                 eachLink = newURL
                             if eachLink not in VISITED_URLS: #Check again for internal URL's
-                                #print(" Found child link " + eachLink)
+                                # print(" Found child link " + eachLink)
+                                # ensure root URL is a prefix of child URL
+                                if urlObj.url not in eachLink:
+                                    # print("Root URL is not a prefix of child URL. Skipping " + eachLink)
+                                    continue
                                 CRAWL_BUFFER.append(eachLink)
                                 with self._lock:
                                     self.count += 1
