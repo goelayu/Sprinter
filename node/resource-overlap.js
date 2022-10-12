@@ -26,7 +26,7 @@ var ignoreUrl = function (n) {
   return (
     n.request.method != "GET" ||
     n.url.indexOf("data") == 0 ||
-    !n.type ||
+    n.type.indexOf('script') < 0 ||
     !n.size ||
     n.response.status != 200
   );

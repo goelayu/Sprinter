@@ -3,7 +3,7 @@
  * of CDP (as used inside chrome-remote-interface)
  */
 
-const puppeteer = require("puppeteer");
+var puppeteer = require("puppeteer");
 const program = require("commander");
 const fs = require("fs");
 const AdblockerPlugin = require("puppeteer-extra-plugin-adblocker");
@@ -64,7 +64,7 @@ async function launch() {
   if (program.filter) {
     console.log("apply filtering");
     puppeteer = require("puppeteer-extra");
-    puppeteer.use(AdblockerPlugin({ useCache: false }));
+    puppeteer.use(AdblockerPlugin({ useCache: false, blockTrackers: true  }));
   }
 
   var browser;
@@ -82,7 +82,7 @@ async function launch() {
   //     await page.coverage.startJSCoverage();
 
   //Set global timeout to force kill the browser
-  var gTimeoutValue = program.testing ? 1000000 : program.timeout + 10000;
+  var gTimeoutValue = program.testing ? 10000000 : program.timeout + 10000;
   console.log("global time out value", gTimeoutValue, program.timeout);
   var globalTimer = globalTimeout(browser, cdp, gTimeoutValue);
   
