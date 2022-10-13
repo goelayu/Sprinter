@@ -33,10 +33,13 @@ function parseNetworkLogs(netLog) {
       case "Network.requestWillBeSent":
         if (requestId in requestIdToObject) {
           /*requestId observed before*/
+          var n = requestIdToObject[requestId];
           if (!("redirectResponse" in payLoad)) {
             /*Unclear as to how multiple responseIds without redirection*/
             // console.error('Duplicate request Id', requestId);
-            var dummyStatement = null;
+            // update the URLs
+            // requestIdToObject[requestId].url = payLoad.request.url;
+            // continue;
           } else {
             /*
                     Is a redirect response
@@ -48,7 +51,7 @@ function parseNetworkLogs(netLog) {
               redirect.response.headers.location =
                 redirect.response.headers.Location;
             redirect.requestStart_o = payLoad.timestamp;
-            redirect.url = redirect.response.headers.location;
+            redirect.url = payLoad.request.url;
 
             //update the timing of the previous network request
             var prevReq = getPreviousReq(netObject);
