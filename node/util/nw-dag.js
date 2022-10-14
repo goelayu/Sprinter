@@ -22,6 +22,7 @@ if (!program.input) {
 var shortenURL = function (url, type) {
   var parsed = URL.parse(url);
   if (!parsed.hostname || !parsed.pathname) return url;
+  return url;
 
   // get last 20chars of path 
   // not that path contains query params as well, but pathname does not
@@ -84,8 +85,10 @@ function createDepGraph() {
   var graph = new Graph();
 
   var urlToNode = new Map(), id = 0;
+  var documentURL = netObj[0].redirects.length ? netObj[0].redirects[0].url : netObj[0].url;
   for (var n of netObj) {
     if (ignoreUrl(n)) continue;
+    if (n.initiator.url == documentURL && n.type.toLowerCase().indexOf("script") == -1) continue;
 
     // get the first redirect URL if redirected
     var _url = n.redirects.length ? n.redirects[0].url : n.url,
@@ -94,9 +97,12 @@ function createDepGraph() {
     var node = new Node(n, id++);
     graph.addNode(node);
     urlToNode.set(origUrl, node);
+
+
     switch (n.initiator.type) {
       case "parser":
         var initiatorNode = urlToNode.get(n.initiator.url);
+        if (!initiatorNode) break;
         var shortInitUrl = shortenURL(n.initiator.url, initiatorNode._netObj.type);
         var edge = {source:shortInitUrl, target:n.url};
         graph.addEdge(edge);
@@ -104,9 +110,10 @@ function createDepGraph() {
       case "script":
         // get the last script in the stack
         var _url =
-          n.initiator.stack.callFrames[n.initiator.stack.callFrames.length - 1]
-            .url;
+          n.initiator.stack ? n.initiator.stack.callFrames[n.initiator.stack.callFrames.length - 1]
+            .url : n.initiator.url;
         var initiatorNode = urlToNode.get(_url);
+        if (!initiatorNode) break;
         var shortInitUrl = shortenURL(_url, initiatorNode._netObj.type);
         var edge = {source:shortInitUrl, target:n.url};
         graph.addEdge(edge);
@@ -121,9 +128,8 @@ var sanityCheckGraph = function(graph){
   var nodes = graph.nodes;
   var edges = graph.edges;
   var nodeMap = new Map();
-  console.log(nodes.length, [...new Set(nodes.map(n=>n.name))].length);
+  // console.log(nodes.length, [...new Set(nodes.map(n=>n.name))].length);
   for (var n of nodes){
-    console.log(n.name);
     nodeMap.set(n.name, n);
   }
   for (var e of edges){
@@ -133,9 +139,25 @@ var sanityCheckGraph = function(graph){
   }
 }
 
+// remove nodes with no edges
+var cleanGraph = function(graph){
+  var nodes = graph.nodes;
+  var edges = graph.edges;
+
+  var connectedNodes = new Set();
+  for (var e of edges){
+    connectedNodes.add(e.source);
+    connectedNodes.add(e.target);
+  }
+
+  graph.nodes = nodes.filter(n=>connectedNodes.has(n.name));
+
+}
+
 function dumpGraph(){
   var graph = createDepGraph();
   sanityCheckGraph(graph);
+  cleanGraph(graph);
   var json = graph.toJSON();
   // do not stringify the _netObj field
   fs.writeFileSync(program.output, JSON.stringify(json, function (key, value){

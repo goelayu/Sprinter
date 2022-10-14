@@ -69,10 +69,10 @@ func graphCircle() *charts.Graph {
 func graphFromJSON(input string) *charts.Graph {
 	graph := charts.NewGraph()
 	graph.SetGlobalOptions(
-		charts.WithTitleOpts(opts.Title{
-			Title: "NW dependency",
-		}),
-		charts.WithInitializationOpts(opts.Initialization{Width: "100%", Height: "100vh"}),
+		// charts.WithTitleOpts(opts.Title{
+		// 	Title: "NW dependency",
+		// }),
+		charts.WithInitializationOpts(opts.Initialization{Width: "100%", Height: "95vh"}),
 	)
 
 	f, err := ioutil.ReadFile(input)
@@ -92,10 +92,10 @@ func graphFromJSON(input string) *charts.Graph {
 
 	graph.AddSeries("graph", data.Nodes, data.Links).
 		SetSeriesOptions(
-			charts.WithLabelOpts(opts.Label{Show: true, Position: "right"}),
+			charts.WithLabelOpts(opts.Label{Color: "black", Position: "right"}),
 			charts.WithGraphChartOpts(
 				opts.GraphChart{
-					Force:  &opts.GraphForce{Repulsion: 1000, EdgeLength: 100},
+					Force:  &opts.GraphForce{EdgeLength: 250, Repulsion: 120},
 					Layout: "force",
 				}),
 		)
@@ -123,13 +123,18 @@ func graphFromJSON(input string) *charts.Graph {
 type GraphExamples struct{}
 
 func main() {
-	input := flag.String("input", "", "Input archive file")
+	input1 := flag.String("input1", "", "Input archive file")
+	input2 := flag.String("input2", "", "Input archive file")
 	output := flag.String("output", "", "Output archive file")
 
 	flag.Parse()
 
-	if *input == "" {
-		log.Fatal("Missing input file")
+	if *input1 == "" {
+		log.Fatal("Missing input 1 file")
+	}
+
+	if *input2 == "" {
+		log.Fatal("Missing input 2 file")
 	}
 
 	if *output == "" {
@@ -137,10 +142,11 @@ func main() {
 	}
 
 	page := components.NewPage()
-
+	page.SetLayout(components.PageCenterLayout)
 
 	page.AddCharts(
-		graphFromJSON(*input),
+		graphFromJSON(*input1),
+		graphFromJSON(*input2),
 	)
 
 	f, err := os.Create(*output)
