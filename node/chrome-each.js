@@ -29,6 +29,7 @@ program
     "--chrome-dir [value]",
     "path to the chrome user directory, only useful if loadIter is present"
   )
+  .option("-p, --payload", "enable capturing payload")
   .option("-e, --exisiting-browser [value]", "use existing browser")
   .option("--filter", "filters all the archive-irrelevant files")
   .option("--deterministic", "turn deterministic execution mode")
@@ -89,6 +90,7 @@ async function launch() {
   var pclient = new PageClient(page, cdp, {
     url: program.url,
     enableNetwork: program.network,
+    enablePayload: program.payload,
     enableConsole: program.logs,
     enableJSProfile: program.jsProfile,
     enableTracing: program.tracing,

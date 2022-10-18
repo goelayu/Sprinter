@@ -45,6 +45,31 @@ var enableTracingPerFrame = function (page, outputDir) {
   });
 };
 
+var captureResponses = async function (responses){
+  return await Promise.all(
+    responses.raw.map(async (response) => {
+      var url = response.url();
+      var headers = response.headers();
+      var status = response.status();
+      var data;
+      if (
+        status // we actually have an status for the response
+        && !(status > 299 && status < 400) // not a redirect
+        && !(status === 204) // not a no-content response
+      ) {
+        data = await response.text();
+      }
+      var respObj = {
+        url: url,
+        headers: headers,
+        status: status,
+        data: data,
+      };
+      return respObj;
+    })
+  );
+}
+
 class PageClient {
   /**
    * @param {Page|CDPConnection} client
@@ -66,7 +91,8 @@ class PageClient {
   async start() {
     var nLogs = [],
       startTime,
-      endTime;
+      endTime, 
+      responses = {raw:[], final:[]};
 
     // create output directory recursively if it doesn't exist already
     if (!fs.existsSync(this._options.outputDir)) {
@@ -92,6 +118,14 @@ class PageClient {
       initNetHandlers(this._cdp, nLogs);
       this._options.verbose && console.log("Network logging enabled");
     }
+
+    if (this._options.enablePayload) {
+      this._page.on("response", async (response) => {
+        responses.raw.push(response);
+      });
+      this._options.verbose && console.log("Payload logging enabled");
+    }
+
 
     if (this._options.enableTracing) {
       await this._page.tracing.start({
@@ -140,6 +174,18 @@ class PageClient {
         this._options.outputDir + "/network.json",
         JSON.stringify(nLogs, null, 2)
       );
+    }
+
+    if (this._options.enablePayload) {
+      // await this._page.off("response", () => {});
+      responses.final = await captureResponses(responses);
+
+      fs.writeFileSync(
+        this._options.outputDir + "/payload.json",
+        JSON.stringify(responses.final, null, 2)
+      );
+      this._options.verbose && console.log("Payload logged");
+      
     }
 
     if (this._options.enableTracing) {
