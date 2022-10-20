@@ -7,9 +7,9 @@
 
 const fs = require("fs");
 const program = require("commander");
-const netParser = require("../../node/lib/network.js");
+const netParser = require("../../lib/network.js");
 const URL = require("url");
-const extractStrings = require('./extract-info.js');
+const extractStrings = require("./extract-info.js");
 const { extractFromScripts, extractFromHTML } = require("./extract-info.js");
 
 program
@@ -19,6 +19,7 @@ program
     "Input directory containing all the relevant JSONs"
   )
   .option("-o, --output [file]", "Output file")
+  .option("-v, --verbose", "Verbose output")
   .parse(process.argv);
 
 if (!program.input) {
@@ -61,17 +62,20 @@ var extractStrLiterals = function (input) {
     if (!r.data) continue;
     var type = r.headers["content-type"];
     var literals;
-    if (type && type.includes("script"))
+    if (type && type.includes("script")) {
+      program.verbose && console.log("Extracting from script", r.url);
       literals = extractFromScripts(r.data);
-    else if (type && type.includes("html"))
+    } else if (type && type.includes("html")) {
+      program.verbose && console.log("Extracting from HTML", r.url);
       literals = extractFromHTML(r.data);
-    else continue;
+    } else continue;
     res.push({
       url: r.url,
       literals: literals,
+      date: new Date(r.date),
     });
   }
-  return res;
+  return res.sort((a, b) => a.date - b.date);
 };
 
 var mapper = function () {
@@ -79,14 +83,13 @@ var mapper = function () {
   var strLiterals = extractStrLiterals(`${program.input}/payload.json`);
 
   var res = {};
-
-  for (var o of strLiterals) {
-    for (var l of o.literals) {
-      for (var u of dynamicURLs) {
-        var path = u.path;
-        var href = u.href;
-        if (href == o.url) continue;
-        if (!(href in res)) res[href] = [];
+  for (var u of dynamicURLs) {
+    path = u.href;
+    href = u.href;
+    res[href] = [];
+    for (var o of strLiterals) {
+      if (u.href == o.url) break;
+      for (var l of o.literals) {
         if (path.includes(l)) {
           if (res[href].map((x) => x.literal).includes(l)) continue;
           res[href].push({
@@ -98,6 +101,23 @@ var mapper = function () {
     }
   }
 
+  // for (var o of strLiterals) {
+  //   for (var l of o.literals) { // o is an object with url and literals
+  //     for (var u of dynamicURLs) {
+  //       var path = u.path;
+  //       var href = u.href;
+  //       if (href == o.url) break;
+  //       if (!(href in res)) res[href] = [];
+  //       if (path.includes(l)) {
+  //         if (res[href].map((x) => x.literal).includes(l)) continue;
+  //         res[href].push({
+  //           url: o.url,
+  //           literal: l,
+  //         });
+  //       }
+  //     }
+  //   }
+  // }
   return res;
 };
 
@@ -109,7 +129,7 @@ var topStringMatches = function (resMap) {
     );
     var topMatches = [];
     var parsedUrl = URL.parse(url);
-    var path = parsedUrl.path;
+    var path = parsedUrl.href;
     for (var m of matches) {
       if (path.includes(m.literal)) {
         topMatches.push(m);
