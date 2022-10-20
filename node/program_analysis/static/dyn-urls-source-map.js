@@ -101,24 +101,6 @@ var mapper = function () {
       }
     }
   }
-
-  // for (var o of strLiterals) {
-  //   for (var l of o.literals) { // o is an object with url and literals
-  //     for (var u of dynamicURLs) {
-  //       var path = u.path;
-  //       var href = u.href;
-  //       if (href == o.url) break;
-  //       if (!(href in res)) res[href] = [];
-  //       if (path.includes(l)) {
-  //         if (res[href].map((x) => x.literal).includes(l)) continue;
-  //         res[href].push({
-  //           url: o.url,
-  //           literal: l,
-  //         });
-  //       }
-  //     }
-  //   }
-  // }
   return res;
 };
 
@@ -142,6 +124,41 @@ var topStringMatches = function (resMap) {
   return res;
 };
 
+var fractionMatched = function (matches, url) {
+  // mmap: map from URL to list of matches
+
+  var parsedUrl = URL.parse(url);
+  var path = parsedUrl.href;
+  var ranges = [];
+  for (var m of matches) {
+    var start = path.indexOf(m.literal);
+    var end = start + m.literal.length;
+    ranges.push([start, end]);
+    var dummyfill = "\u03A9".repeat(m.literal.length);
+    path = path.replace(m.literal, dummyfill);
+  }
+  var total = parsedUrl.path.length,
+    matched = 0;
+  var pathInd = parsedUrl.href.indexOf(parsedUrl.path);
+  for (var r of ranges) {
+    if (r[0] >= pathInd) matched += r[1] - r[0];
+    if (r[0] < pathInd && r[1] >= pathInd) matched += r[1] - pathInd ;
+  }
+  return matched / total;
+};
+
+var totalFraction = function (mmap) {
+  var total = 0;
+  Object.keys(mmap).forEach(function (url) {
+    var t = fractionMatched(mmap[url], url);
+    // console.log(url, mmap[url], t);
+    total += t;
+  });
+  return total / Object.keys(mmap).length;
+};
+
 var urlMap = mapper();
 var topMatches = topStringMatches(urlMap);
-fs.writeFileSync(program.output, JSON.stringify(topMatches, null, 2), "utf8");
+var fraction = totalFraction(topMatches);
+console.log("Fraction of URL matched by string literals", fraction);
+// fs.writeFileSync(program.output, JSON.stringify(topMatches, null, 2), "utf8");
