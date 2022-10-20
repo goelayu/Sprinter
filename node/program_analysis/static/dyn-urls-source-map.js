@@ -72,10 +72,11 @@ var extractStrLiterals = function (input) {
     res.push({
       url: r.url,
       literals: literals,
-      date: new Date(r.date),
+      date: new Date(r.headers["date"]),
     });
   }
-  return res.sort((a, b) => a.date - b.date);
+  // return res.sort((a, b) => a.date - b.date);
+  return res;
 };
 
 var mapper = function () {
