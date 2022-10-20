@@ -14,20 +14,22 @@ from collections import deque
 VISITED_URLS = {}
 CRAWLED_URLS = {}
 CRAWL_BUFFER = deque([])
-CRAWLER_DEFAULT_WORKERS = 4
+CRAWLER_DEFAULT_WORKERS = 10
 WORKER_WAIT_INTERVAL = 1 #seconds
 MAX_COUNT_LIMIT = None
+TIMEOUT = 120
 
 class WorkerThread(threading.Thread):
     def __init__(self, crawler, name):
         threading.Thread.__init__(self)
         self.__crawler = crawler
         self.name = name
+        self.start_time = time.time()
         
     def run(self):
         '''Start function for each thread'''
         
-        while not self.__crawler.kill and self.is_alive():
+        while not self.__crawler.kill and self.is_alive() and TIMEOUT > (time.time() - self.start_time):
             try:
                 if len(CRAWL_BUFFER) > 0:
                     strURL = CRAWL_BUFFER.popleft()
@@ -171,6 +173,7 @@ class WebCrawler():
             self.kill = True
             boolStatus = False
         return boolStatus
+        
 
 def saveDataToFile(listData):
     '''Save output data in a file under current directory'''
