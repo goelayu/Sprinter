@@ -57,7 +57,11 @@ var captureResponses = async function (responses){
         && !(status > 299 && status < 400) // not a redirect
         && !(status === 204) // not a no-content response
       ) {
+        try {
         data = await response.text();
+        } catch (e) {
+        data = null;
+        }
       }
       var respObj = {
         url: url,

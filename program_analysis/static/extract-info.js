@@ -6,12 +6,42 @@
 
 const parser = require("@babel/parser");
 const traverse = require("@babel/traverse").default;
+const htmlparser2 = require("htmlparser2");
+const esprima = require("esprima");
 
+function isValidJs(testString) {
+  var isValid = true;
+  try {
+    esprima.parse(testString);
+  }
+  catch(e) {
+    isValid = false;
+  }
+  return isValid;
+}
 
-var extractStrings = function (input) {
+var extractFromHTML = function (input) {
+  var stringLiterals = [];
+  var parser = new htmlparser2.Parser({
+    onattribute: function (name, value) {
+      stringLiterals.push(value);
+    },
+    ontext: function (text) {
+      if (isValidJs(text)) {
+        stringLiterals = stringLiterals.concat(extractFromScripts(text));
+      }
+    }
+  });
+  parser.write(input);
+  parser.end();
+  return stringLiterals;
+};
+
+var extractFromScripts = function (input) {
   var ast = parser.parse(input, {
     sourceType: "module",
-    plugins: ["jsx"]
+    plugins: ["jsx"],
+    errorRecovery: true,
   });
   var stringLiterals = [];
   traverse(ast, {
@@ -25,4 +55,7 @@ var extractStrings = function (input) {
   return stringLiterals;
 }
 
-module.exports = extractStrings;
+module.exports = {
+  extractFromHTML: extractFromHTML,
+  extractFromScripts: extractFromScripts
+}
