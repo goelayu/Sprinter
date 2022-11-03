@@ -101,14 +101,15 @@ class Graph {
 
     function addEdge(source, target) {
       if (!transitiveEdges[source]) transitiveEdges[source] = [];
-      transitiveEdges[source].push(target);
+      if (transitiveEdges[source].indexOf(target) == -1)
+        transitiveEdges[source].push(target);
 
-      for (var s in transitiveEdges) {
-        if (s == source) continue;
-        if (transitiveEdges[s].indexOf(source) > -1) {
-          transitiveEdges[s].push(target);
-        }
-      }
+      // for (var s in transitiveEdges) {
+      //   if (s == source) continue;
+      //   if (transitiveEdges[s].indexOf(source) > -1) {
+      //     transitiveEdges[s].push(target);
+      //   }
+      // }
     }
 
     for (var e of this.edges) {
@@ -166,5 +167,5 @@ var cleanGraph = function (graph) {
 };
 
 module.exports = {
-  Graph: Graph
-}
+  Graph: Graph,
+};

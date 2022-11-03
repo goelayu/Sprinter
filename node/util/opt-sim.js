@@ -10,6 +10,8 @@ const program = require("commander");
 const netParser = require("../lib/network.js");
 const traceParser = require("../lib/trace-parser.js");
 const dag = require("../lib/nw-dag.js");
+const URL = require("url");
+const crypto = require("crypto");
 
 program
   .version("0.0.1")
@@ -26,18 +28,26 @@ if (!program.input) {
   process.exit(1);
 }
 
+var shortenURL = function(url) {
+  var p = URL.parse(url);
+  return url;
+  return p.hostname + p.pathname;
+};
+
 (function () {
   var fileMem = {},
     totalScriptTime = (savedScriptTime = 0),
-    fetchesSame = (fetchesTotal = 0);
+    fetchesSame = (fetchesTotal = 0), totalScripts = 0, scriptsThatFetch = 0;
   fs.readFileSync(program.input, "utf8")
     .split("\n")
     .forEach(function (line) {
       if (!line) return;
       var localSaved = (localTotal = 0);
       try {
+        program.verbose && console.log(`--------${line}--------`);
         var trace = JSON.parse(fs.readFileSync(`${line}/trace.json`, "utf8"));
         var net = JSON.parse(fs.readFileSync(`${line}/network.json`, "utf8"));
+        var payload = JSON.parse(fs.readFileSync(`${line}/payload.json`, "utf8"));
         var netObj = netParser.parseNetworkLogs(net);
         var graph = new dag.Graph(netObj);
         graph.createTransitiveEdges()
@@ -47,8 +57,14 @@ if (!program.input) {
           if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
           var timings = execTimings.get(n.url);
           if (!timings) continue;
-          var key = n.url + n.size;
+          var payloadObj = payload.filter(p => p.url == n.url)[0];
+          var hash;
+          if (!payloadObj) hash = n.size;
+          else hash = crypto.createHash("md5").update(payloadObj.data).digest("hex");
+          var key = n.url + hash
           var eval = timings.scriptEvaluation;
+
+          fetches[n.url] && fetches[n.url].length && scriptsThatFetch++;
           if (fileMem[key]) {
             // var t = fileMem[key]["scriptEvaluation"];
             eval && (savedScriptTime += eval) && (localSaved += eval);
@@ -62,14 +78,14 @@ if (!program.input) {
                 if (c == f.sort().join(",")) {
                   fetchesSame++;
                   execFound = true;
-                  program.verbose && console.log(`Fetches for ${n.url} are same as before: ${c}`);
+                  program.verbose && console.log(`Fetches for ${n.url} are same as before: ${JSON.stringify(f.sort().map(shortenURL))}`);
                   break;
                 }
               }
               if (!execFound) {
                 fetchesTotal++;
                 fileMem[key]["fetches"].push(fCurr);
-                program.verbose && console.log(`Fetches for ${n.url} are different: ${c}`);
+                program.verbose && console.log(`Fetches for ${n.url} are different: ${JSON.stringify(fCurr.sort().map(shortenURL))}`);
               }
             }
           } else {
@@ -82,8 +98,9 @@ if (!program.input) {
             var f = (fileMem[key]["fetches"] = []),
               _f = fetches[n.url];
             _f && _f.length && f.push(_f);
-            _f && _f.length && program.verbose && console.log(`first time fetches for ${n.url}: ${_f.sort().join(",")}`);
+            _f && _f.length && program.verbose && console.log(`first time fetches for ${n.url}: ${JSON.stringify(_f.sort().map(shortenURL))}`);
           }
+          totalScripts++;
         }
       } catch (e) {
         console.log(e);
@@ -91,5 +108,5 @@ if (!program.input) {
       // console.log(localSaved, localTotal);
     });
   console.log(totalScriptTime, savedScriptTime);
-  console.log(fetchesSame, fetchesTotal);
+  console.log(fetchesSame, fetchesTotal, scriptsThatFetch, totalScripts);
 })();
