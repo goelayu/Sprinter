@@ -37,7 +37,8 @@ var shortenURL = function(url) {
 (function () {
   var fileMem = {},
     totalScriptTime = (savedScriptTime = 0),
-    fetchesSame = (fetchesTotal = 0), totalScripts = 0, scriptsThatFetch = 0;
+    fetchesSame = (fetchesTotal = 0), totalScripts = 0, scriptsThatFetch = 0,
+    tPages = newPages = 0;
   fs.readFileSync(program.input, "utf8")
     .split("\n")
     .forEach(function (line) {
@@ -53,6 +54,7 @@ var shortenURL = function(url) {
         graph.createTransitiveEdges()
         var fetches = graph.transitiveEdges;
         var execTimings = traceParser.getExecutionTimingsByURL(trace, net);
+        tPages++;
         for (var n of netObj) {
           if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
           var timings = execTimings.get(n.url);
@@ -65,6 +67,7 @@ var shortenURL = function(url) {
           var eval = timings.scriptEvaluation;
 
           fetches[n.url] && fetches[n.url].length && scriptsThatFetch++;
+          var unseenFile = false;
           if (fileMem[key]) {
             // var t = fileMem[key]["scriptEvaluation"];
             eval && (savedScriptTime += eval) && (localSaved += eval);
@@ -89,6 +92,7 @@ var shortenURL = function(url) {
               }
             }
           } else {
+            unseenFile = true;
             if (eval) {
               fileMem[key] = { scriptEvaluation: eval };
               totalScriptTime += eval;
@@ -102,11 +106,13 @@ var shortenURL = function(url) {
           }
           totalScripts++;
         }
+        if (unseenFile) newPages++;
       } catch (e) {
         console.log(e);
       }
       // console.log(localSaved, localTotal);
     });
   console.log(totalScriptTime, savedScriptTime);
-  console.log(fetchesSame, fetchesTotal, scriptsThatFetch, totalScripts);
+  console.log(fetchesSame, fetchesTotal, scriptsThatFetch, Object.keys(fileMem).length, totalScripts);
+  console.log(tPages, newPages);
 })();
