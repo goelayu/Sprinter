@@ -23,7 +23,7 @@ var instrumentJS = function (js) {
 }
 
 var instrumentHTML = function (html) {
-
+  return html;
 }
 
 var main = function () {

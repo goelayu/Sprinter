@@ -1,9 +1,20 @@
+const child_process = require("child_process");
+const util = require("util");
+const exec = util.promisify(child_process.exec);
+const fs = require("fs");
+
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
 const GOPATH =
   "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
 const WPRDIR =
   "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/pkg/mod/github.com/catapult-project/catapult/web_page_replay_go@v0.0.0-20220815222316-b3421074fa70";
 
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+  
 
 class Proxy {
   constructor(options) {
@@ -71,7 +82,7 @@ class ProxyManager {
     await Promise.all(this.proxies.map((p) => p.start()));
 
     // wait for all proxies to start
-    await sleep(2000);
+    await sleep(3000);
   }
 
   async stopIth(i) {
@@ -87,4 +98,32 @@ class ProxyManager {
   }
 }
 
-module.exports = ProxyManager;
+var genBrowserArgs = (proxies) => {
+  var args = [],
+    template = {
+      executablePath: "/usr/bin/google-chrome-stable",
+      ignoreHTTPSErrors: true,
+      headless: true,
+      args: [
+        "--ignore-certificate-errors",
+        "--ignore-certificate-errors-spki-list=PhrPvGIaAMmd29hj8BCZOq096yj7uMpRNHpn5PDxI6I",
+      ],
+    };
+  for (var i = 0; i < proxies.length; i++) {
+    var proxy = proxies[i];
+    var proxyFlags = [
+      `--host-resolver-rules="MAP *:80 127.0.0.1:${proxy.http_port},MAP *:443 127.0.0.1:${proxy.https_port},EXCLUDE localhost`,
+      `--proxy-server=http=https://127.0.0.1:${proxy.https_port}`,
+    ];
+    var browserArgs = Object.assign({}, template);
+    browserArgs.args = browserArgs.args.concat(proxyFlags);
+    args.push(browserArgs);
+  }
+  // console.log(args)
+  return args;
+};
+
+module.exports = {
+  ProxyManager,
+  genBrowserArgs,
+}

@@ -31,6 +31,21 @@ var initNetHandlers = function (cdp, nLogs) {
   });
 };
 
+var initConsoleHandlers = function (cdp, cLogs) {
+  const console_observe = [
+    "Runtime.consoleAPICalled",
+    "Runtime.exceptionThrown",
+  ];
+
+  console_observe.forEach((method) => {
+    cdp.on(method, (params) => {
+      cLogs.push({ [method]: params });
+    });
+  });
+};
+
+
+
 var enableTracingPerFrame = function (page, outputDir) {
   page.on("framenavigated", async (frame) => {
     // if (frame === page.mainFrame()) return;
@@ -94,9 +109,13 @@ class PageClient {
    */
   async start() {
     var nLogs = [],
+      cLogs = [],
       startTime,
       endTime, 
       responses = {raw:[], final:[]};
+
+    // always turn CDP on
+    await initCDP(this._cdp);
 
     // create output directory recursively if it doesn't exist already
     if (!fs.existsSync(this._options.outputDir)) {
@@ -117,10 +136,13 @@ class PageClient {
     }
 
     if (this._options.enableNetwork) {
-      await initCDP(this._cdp);
-      nLogs = [];
       initNetHandlers(this._cdp, nLogs);
       this._options.verbose && console.log("Network logging enabled");
+    }
+
+    if (this._options.enableConsole) {
+      initConsoleHandlers(this._cdp, cLogs);
+      this._options.verbose && console.log("Console logging enabled");
     }
 
     if (this._options.enablePayload) {
@@ -177,6 +199,13 @@ class PageClient {
       fs.writeFileSync(
         this._options.outputDir + "/network.json",
         JSON.stringify(nLogs, null, 2)
+      );
+    }
+
+    if (this._options.enableConsole) {
+      fs.writeFileSync(
+        this._options.outputDir + "/console.json",
+        JSON.stringify(cLogs, null, 2)
       );
     }
 
