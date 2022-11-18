@@ -56,7 +56,7 @@ func extractBody(body string, h http.Header) string {
 }
 
 func invokeNode(body string, t string, name string) []byte {
-	SCRIPTPATH := "../program_analysis/instrument.js"
+	SCRIPTPATH := "../node/program_analysis/instrument.js"
 	// store body in a temp file
 	tempFile, err := os.CreateTemp("./", "insttmp")
 	if err != nil {
@@ -71,17 +71,20 @@ func invokeNode(body string, t string, name string) []byte {
 	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s'", SCRIPTPATH, tempFile.Name(), t, name)
 	fmt.Println(cmdString)
 	cmd := exec.Command("bash", "-c", cmdString)
-	_, err = cmd.Output()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
+
+	_, err = cmd.Output()
 	if err != nil {
 		fmt.Println(err.Error() + ": " + stderr.String())
 		panic(err)
 	}
 
 	// read the temp file
-	newbody, _ := io.ReadAll(tempFile)
-
+	tempFile.Seek(0, 0)
+	newbody, err := io.ReadAll(tempFile)
+	check(err)
+	// fmt.Println("newbody is", string(newbody))
 	return newbody
 }
 
@@ -99,6 +102,11 @@ func instrument(req *http.Request, resp *http.Response) (*http.Request, *http.Re
 		resp.Body = io.NopCloser(bytes.NewReader(newbody))
 		resp.ContentLength = int64(len(newbody))
 		resp.Header.Set("Content-Length", strconv.Itoa(len(newbody)))
+		
+		//delete encoding if it exists
+		if resp.Header.Get("Content-Encoding") != "" {
+			resp.Header.Del("Content-Encoding")
+		}
 	}
 
 	return req, resp, nil
