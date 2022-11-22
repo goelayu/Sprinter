@@ -26,10 +26,14 @@ function isGlobalScope(path) {
  * @param {*} path 
  */
 var isGlobalIdentifier = function (path, globalScope) {
-  return path.node.name != "undefined" && path.node.name != "null" &&
-  path.parent.type != "FunctionDeclaration" &&
+  return path.node.name != "undefined" && 
+  path.node.name != "null" &&
+  (path.parent.type == "FunctionDeclaration" ?
+    path.parent.id != path.node : true) &&
   (!path.scope.hasBinding(path.node.name, true) ||
-    globalScope.hasOwnBinding(path.node.name));
+    globalScope.hasOwnBinding(path.node.name)) && 
+  ( path.parent.type == "MemberExpression" ?
+    path.parent.property != path.node : true);
 };
 
 

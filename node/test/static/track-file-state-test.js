@@ -30,10 +30,20 @@ describe("Extract all globals", function () {
   describe("extract globals 3", function () {
     it("undeclared globals", function () {
       const PREFIX = 'tracer';
-      var input = `var a=b+c+d;function foo(){a=a+e+f;return zs;}`;
-      var expected = `${PREFIX}.a=${PREFIX}.b+${PREFIX}.c+${PREFIX}.d;function foo(){${PREFIX}.a=${PREFIX}.a+${PREFIX}.e+${PREFIX}.f;return ${PREFIX}.zs;}`;
+      var input = `var a=b+c+d;function foo(c){a=a+e+f;return zs;}`;
+      var expected = `${PREFIX}.a=${PREFIX}.b+${PREFIX}.c+${PREFIX}.d;function foo(c){${PREFIX}.a=${PREFIX}.a+${PREFIX}.e+${PREFIX}.f;return ${PREFIX}.zs;}`;
       var output = stateTracker.extractRelevantState(input, {PREFIX});
       assert.equal(output, expected);
     })
+  });
+
+  describe("extract globals 4", function () {
+    it("only modified identifiers", function () {
+      const PREFIX = 'tracer';
+      var input = `function foo(){b=c.d;e=f.g;h=i.j;}`;
+      var expected = `function foo(){${PREFIX}.b=${PREFIX}.c.d;${PREFIX}.e=${PREFIX}.f.g;${PREFIX}.h=${PREFIX}.i.j;}`;
+      var output = stateTracker.extractRelevantState(input, {PREFIX});
+      assert.equal(output, expected);
+    });
   });
 })
