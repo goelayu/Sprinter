@@ -28,13 +28,21 @@ var extractRelevantState = function (input){
   });
   var relevantState = new Set();
   traverse(ast, {
-    Identifier(path) {
-      console.log("Identifier: ", path.node.name);
-      if (isGlobal(path)) {
-        console.log(path.node.name);
-        relevantState.add(path.node.name);
+    Program(path) {
+      for (var global in path.scope.globals) {
+        relevantState.add(path.scope.globals[global]);
       }
-    }
+      for (var global in path.scope.bindings) {
+        relevantState.add(path.scope.bindings[global].identifier);
+      }
+    },
+    // Identifier(path) {
+    //   console.log("Identifier: ", path.node.name);
+    //   if (isGlobal(path)) {
+    //     console.log(path.node.name);
+    //     relevantState.add(path.node.name);
+    //   }
+    // }
   });
   return [...relevantState];
 }
