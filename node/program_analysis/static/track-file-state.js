@@ -33,13 +33,18 @@ var isGlobalIdentifier = function (path, globalScope) {
   (!path.scope.hasBinding(path.node.name, true) ||
     globalScope.hasOwnBinding(path.node.name)) && 
   ( path.parent.type == "MemberExpression" ?
-    path.parent.property != path.node : true);
+    path.parent.property != path.node : true) && 
+  ( path.parent.type == "CallExpression" ?
+    path.parent.callee != path.node : true);
 };
 
 
 var rewriteGlobal = function (path, prefix) {
   var name = path.node.name;
-  var newIdentifier = parser.parseExpression(`${prefix}.${name}`);
+  var newIdentifier;
+  if (name == 'window')
+    newIdentifier = parser.parseExpression(`${prefix}`);
+  else newIdentifier = parser.parseExpression(`${prefix}.${name}`);
   path.replaceWith(newIdentifier);
   path.skip();
 };
