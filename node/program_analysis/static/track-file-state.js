@@ -16,8 +16,8 @@ const {GlobalDefaults} = require('./browserGlobals.js');
  * Checks if path is in global scoped
  * @param {Path} path
  */
-function isGlobalScope(path) {
-  return path.scope == path.scope.getProgramParent();
+function isGlobalScopeDecl(path) {
+  return path.scope.getProgramParent().hasBinding(path.node.declarations[0].id.name);
 }
 
 /**
@@ -39,6 +39,12 @@ var isGlobalIdentifier = function (path, globalScope) {
     path.parent.callee != path.node : true) && 
   ( path.parent.type == "NewExpression" ? 
     path.parent.callee != path.node : true) &&
+  ( path.parent.type == "ObjectProperty" ?
+    path.parent.key != path.node : true) &&
+  ( path.parent.type == "LabeledStatement" ?
+    path.parent.label != path.node : true) &&
+  ( path.parent.type == "BreakStatement" ?
+    path.parent.label != path.node : true) &&
   GlobalDefaults.indexOf(path.node.name) == -1;
 };
 
@@ -58,7 +64,8 @@ var decltomemExpr = function (decl, prefix) {
   decl.node.declarations.forEach((decl,idx) => {
     idx > 0 ? resStr += ", " : null;
     if (decl.init) {
-      resStr += `${decl.id.name} = ${generate(decl.init).code}`;
+      if (decl.init.extra && decl.init.extra.parenthesized) resStr += `${decl.id.name} = (${generate(decl.init).code})`;
+      else resStr += `${decl.id.name} = ${generate(decl.init).code}`;
     } else {
       resStr += `${decl.id.name} = undefined`;
     }
@@ -82,7 +89,7 @@ var extractRelevantState = function (input, opts) {
     },
     // rewrite global variable declarations
     VariableDeclaration(path) {
-      if (!isGlobalScope(path)) return;
+      if (!isGlobalScopeDecl(path)) return;
       decltomemExpr(path, PREFIX);
     },
     Identifier(path) {

@@ -4,6 +4,7 @@
 
 const fs = require("fs");
 const program  = require("commander");
+const stateTracker = require('./static/track-file-state.js');
 
 program
     .version('0.0.1')
@@ -19,7 +20,9 @@ if (!program.input) {
 }
 
 var instrumentJS = function (js) {
-  return "console.log('hello world');";
+  const PREFIX = 'window';
+  output = stateTracker.extractRelevantState(js, { PREFIX });
+  return output;
 }
 
 var instrumentHTML = function (html) {
@@ -29,9 +32,9 @@ var instrumentHTML = function (html) {
 var main = function () {
     var input = fs.readFileSync(program.input, "utf8");
     var output;
-    if (program.type.includes("javascript"))
+    if (program.type.includes("javascript")){
       output = instrumentJS(input);
-      else output = instrumentHTML(input);
+    } else output = instrumentHTML(input);
     fs.writeFileSync(program.input, output);
 }
 
