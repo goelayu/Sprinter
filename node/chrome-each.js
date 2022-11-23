@@ -7,9 +7,8 @@ var puppeteer = require("puppeteer");
 const program = require("commander");
 const fs = require("fs");
 const AdblockerPlugin = require("puppeteer-extra-plugin-adblocker");
-const PageClient = require('./lib/PageClient')
+const PageClient = require("./lib/PageClient");
 const Proxy = require("./lib/wpr-proxy");
-
 
 program
   .option("-o, --output [output]", "path to the output directory")
@@ -38,8 +37,14 @@ program
   .option("--wait", "waits before exiting chrome")
   .option("-t, --tracing", "capture tracing information")
   .option("-k, --kill", "kill the browser after the run")
-  .option("--proxy [value]", "proxy directory where recorded files will be stored")
-  .option("--mode [value]", "mode of the proxy, required to be specified with --proxy")
+  .option(
+    "--proxy [value]",
+    "proxy directory where recorded files will be stored"
+  )
+  .option(
+    "--mode [value]",
+    "mode of the proxy, required to be specified with --proxy"
+  )
   .parse(process.argv);
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -49,14 +54,14 @@ const DISTILLDOM = `${__dirname}/../dom-distill/lib/domdistiller.js`;
 const HANDLERS = `${__dirname}/chrome-ctx-scripts/fetch-listeners.js`;
 
 // merge two dictionaries
-var merge = function(src, dst){
-  for (var key in src){
-    if (src.hasOwnProperty(key)){
+var merge = function (src, dst) {
+  for (var key in src) {
+    if (src.hasOwnProperty(key)) {
       dst[key] = src[key];
     }
   }
   return dst;
-}
+};
 
 async function launch() {
   var options = {
@@ -79,19 +84,24 @@ async function launch() {
   if (program.filter) {
     console.log("apply filtering");
     puppeteer = require("puppeteer-extra");
-    puppeteer.use(AdblockerPlugin({ useCache: false, blockTrackers: true  }));
+    puppeteer.use(AdblockerPlugin({ useCache: false, blockTrackers: true }));
   }
 
-  if (program.proxy){
+  if (program.proxy) {
     console.log("Using WPR proxy to record pages");
-    var proxyManager = new Proxy.ProxyManager(1, program.proxy, program.output, program.mode);
+    var proxyManager = new Proxy.ProxyManager(
+      1,
+      program.proxy,
+      program.output,
+      program.mode
+    );
     await proxyManager.createProxies();
     proxies = proxyManager.getAll();
 
     // create browser args
     var _browserArgs = Proxy.genBrowserArgs(proxies);
-   options = merge( _browserArgs[0], options);
-   console.log(options);
+    options = merge(_browserArgs[0], options);
+    console.log(options);
   }
 
   var browser;
@@ -106,13 +116,11 @@ async function launch() {
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/602.1 (KHTML, like Gecko) splash Version/10.0 Safari/602.1"
   );
 
-
-
   //Set global timeout to force kill the browser
   var gTimeoutValue = program.testing ? 10000000 : program.timeout + 10000;
   console.log("global time out value", gTimeoutValue, program.timeout);
   var globalTimer = globalTimeout(browser, cdp, gTimeoutValue);
-  
+
   var pclient = new PageClient(page, cdp, {
     url: program.url,
     enableNetwork: program.network,
@@ -124,7 +132,7 @@ async function launch() {
     userAgent: program.userAgent,
     outputDir: program.output,
     logTime: true,
-    verbose: true
+    verbose: true,
   });
 
   await pclient.start();
@@ -140,7 +148,9 @@ async function launch() {
   } else await browser.disconnect();
 
   if (program.proxy) {
-    await proxyManager.stopAll();
+    if (!program.testing) {
+      await proxyManager.stopAll();
+    }
   }
 
   //delete the timeout and exit script
@@ -353,7 +363,7 @@ var dump = function (data, file) {
   fs.writeFileSync(file, JSON.stringify(data));
 };
 
-launch()
+launch();
 // .catch((err) => {
 //   console.log(`error while launching ${err}`);
 //   // process.exit();
