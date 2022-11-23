@@ -56,6 +56,26 @@ describe("Extract all globals", function () {
       assert.equal(output, expected);
     });
   });
+
+  describe("extract globals 6", function () {
+    it("try catch scope", function () {
+      const PREFIX = "tracer";
+      var input = `try{ var a = 2,b; d = 4; let e = 5;}finally{var f = 6;}`;
+      var expected = `try{${PREFIX}.a=2,${PREFIX}.b=undefined;${PREFIX}.d=4;let e=5;}finally{${PREFIX}.f=6;}`;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
+
+  describe("extract globals 7", function () {
+    it("paranthesis for var", function () {
+      const PREFIX = "tracer";
+      var input = `var a = (b,c,d),d=4,e=(9);`;
+      var expected = `${PREFIX}.a=(${PREFIX}.b,${PREFIX}.c,${PREFIX}.d),${PREFIX}.d=4,${PREFIX}.e=9;`;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
 });
 
 describe("browser context testing", function () {
@@ -74,6 +94,26 @@ describe("browser context testing", function () {
       const PREFIX = "tracer";
       var input = `var bl = new Bluetooth(); var bl2 = new customBlueTooth();function foo(){var l = bl.getLevel(); var l2 = Blob.someproperty; var l3 = nonblob;}`;
       var expected = `tracer.bl=new Bluetooth();tracer.bl2=new customBlueTooth();function foo(){var l=tracer.bl.getLevel();var l2=Blob.someproperty;var l3=tracer.nonblob;}`;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
+
+  describe("browser context 3", function () {
+    it("google snippets", function () {
+      const PREFIX = "window";
+      var input = `try {
+        var s_, s_aa = function(a, b) {
+        if (Error.captureStackTrace)
+            Error.captureStackTrace(this, s_aa);
+        else {
+            var c = Error().stack;
+            c && (this.stack = c)
+        }
+        a && (this.message = String(a));
+        void 0 !== b && (this.cause = b)
+    } } finally {}`;
+      var expected = `${PREFIX}.a=${PREFIX};${PREFIX}.b=${PREFIX}.c;function foo(){var window=4;window.b=234;return window;}`;
       var output = stateTracker.extractRelevantState(input, { PREFIX });
       assert.equal(output, expected);
     });
