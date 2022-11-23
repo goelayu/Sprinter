@@ -101,9 +101,7 @@ class ProxyManager {
 var genBrowserArgs = (proxies) => {
   var args = [],
     template = {
-      executablePath: "/usr/bin/google-chrome-stable",
       ignoreHTTPSErrors: true,
-      headless: true,
       args: [
         "--ignore-certificate-errors",
         "--ignore-certificate-errors-spki-list=PhrPvGIaAMmd29hj8BCZOq096yj7uMpRNHpn5PDxI6I",
