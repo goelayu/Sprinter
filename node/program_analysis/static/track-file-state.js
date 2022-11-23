@@ -10,6 +10,7 @@
 const traverse = require("@babel/traverse").default;
 const parser = require("@babel/parser");
 const generate = require("@babel/generator").default;
+const {GlobalDefaults} = require('./browserGlobals.js');
 
 /**
  * Checks if path is in global scoped
@@ -35,7 +36,10 @@ var isGlobalIdentifier = function (path, globalScope) {
   ( path.parent.type == "MemberExpression" ?
     path.parent.property != path.node : true) && 
   ( path.parent.type == "CallExpression" ?
-    path.parent.callee != path.node : true);
+    path.parent.callee != path.node : true) && 
+  ( path.parent.type == "NewExpression" ? 
+    path.parent.callee != path.node : true) &&
+  GlobalDefaults.indexOf(path.node.name) == -1;
 };
 
 

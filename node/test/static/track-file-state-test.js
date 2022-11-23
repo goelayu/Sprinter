@@ -68,4 +68,14 @@ describe("browser context testing", function () {
       assert.equal(output, expected);
     });
   });
+
+  describe("browser context 2", function () {
+    it("Ignore Browser defaults", function () {
+      const PREFIX = "tracer";
+      var input = `var bl = new Bluetooth(); var bl2 = new customBlueTooth();function foo(){var l = bl.getLevel(); var l2 = Blob.someproperty; var l3 = nonblob;}`;
+      var expected = `tracer.bl=new Bluetooth();tracer.bl2=new customBlueTooth();function foo(){var l=tracer.bl.getLevel();var l2=Blob.someproperty;var l3=tracer.nonblob;}`;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
 });
