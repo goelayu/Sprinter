@@ -86,6 +86,13 @@ var extractRelevantState = function (input, opts) {
   traverse(ast, {
     Program(path) {
       globalScope = path.scope;
+      var prefix=`
+      (function () {
+        if (typeof window !== 'undefined') {
+          window.${PREFIX}.__stackHead__ = ${opts.name})
+        }
+      })()`;
+        `
     },
     // rewrite global variable declarations
     VariableDeclaration(path) {
