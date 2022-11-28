@@ -20,8 +20,10 @@ if (!program.input) {
 }
 
 var instrumentJS = function (js) {
-  const PREFIX = 'window';
-  output = stateTracker.extractRelevantState(js, { PREFIX });
+  const PREFIX = 'window.__proxy__';
+  const name = program.name;
+  var addStack = true;
+  output = stateTracker.extractRelevantState(js, { PREFIX, name, addStack });
   return output;
 }
 

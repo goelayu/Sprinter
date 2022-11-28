@@ -10,50 +10,59 @@
 const traverse = require("@babel/traverse").default;
 const parser = require("@babel/parser");
 const generate = require("@babel/generator").default;
-const {GlobalDefaults} = require('./browserGlobals.js');
+const { GlobalDefaults } = require("./browserGlobals.js");
 
 /**
  * Checks if path is in global scoped
  * @param {Path} path
  */
 function isGlobalScopeDecl(path) {
-  return path.scope.getProgramParent().hasBinding(path.node.declarations[0].id.name);
+  return path.scope
+    .getProgramParent()
+    .hasBinding(path.node.declarations[0].id.name);
 }
 
 /**
  * Checks is identifier is global or not:
- * Either no scope binding exists, or 
+ * Either no scope binding exists, or
  * the scope binding is global
- * @param {*} path 
+ * @param {*} path
  */
 var isGlobalIdentifier = function (path, globalScope) {
-  return path.node.name != "undefined" && 
-  path.node.name != "null" &&
-  (path.parent.type == "FunctionDeclaration" ?
-    path.parent.id != path.node : true) &&
-  (!path.scope.hasBinding(path.node.name, true) ||
-    globalScope.hasOwnBinding(path.node.name)) && 
-  ( path.parent.type == "MemberExpression" ?
-    path.parent.property != path.node : true) && 
-  ( path.parent.type == "CallExpression" ?
-    path.parent.callee != path.node : true) && 
-  ( path.parent.type == "NewExpression" ? 
-    path.parent.callee != path.node : true) &&
-  ( path.parent.type == "ObjectProperty" ?
-    path.parent.key != path.node : true) &&
-  ( path.parent.type == "LabeledStatement" ?
-    path.parent.label != path.node : true) &&
-  ( path.parent.type == "BreakStatement" ?
-    path.parent.label != path.node : true) &&
-  GlobalDefaults.indexOf(path.node.name) == -1;
+  return (
+    path.node.name != "undefined" &&
+    path.node.name != "null" &&
+    (path.parent.type == "FunctionDeclaration"
+      ? path.parent.id != path.node
+      : true) &&
+    (!path.scope.hasBinding(path.node.name, true) ||
+      globalScope.hasOwnBinding(path.node.name)) &&
+    (path.parent.type == "MemberExpression"
+      ? path.parent.property != path.node
+      : true) &&
+    (path.parent.type == "CallExpression"
+      ? path.parent.callee != path.node
+      : true) &&
+    (path.parent.type == "NewExpression"
+      ? path.parent.callee != path.node
+      : true) &&
+    (path.parent.type == "ObjectProperty"
+      ? path.parent.key != path.node
+      : true) &&
+    (path.parent.type == "LabeledStatement"
+      ? path.parent.label != path.node
+      : true) &&
+    (path.parent.type == "BreakStatement"
+      ? path.parent.label != path.node
+      : true) &&
+    GlobalDefaults.indexOf(path.node.name) == -1
+  );
 };
-
 
 var rewriteGlobal = function (path, prefix) {
   var name = path.node.name;
   var newIdentifier;
-  if (name == 'window')
-    newIdentifier = parser.parseExpression(`${prefix}`);
+  if (name == "window") newIdentifier = parser.parseExpression(`${prefix}`);
   else newIdentifier = parser.parseExpression(`${prefix}.${name}`);
   path.replaceWith(newIdentifier);
   path.skip();
@@ -61,10 +70,11 @@ var rewriteGlobal = function (path, prefix) {
 
 var decltomemExpr = function (decl, prefix) {
   var resStr = "";
-  decl.node.declarations.forEach((decl,idx) => {
-    idx > 0 ? resStr += ", " : null;
+  decl.node.declarations.forEach((decl, idx) => {
+    idx > 0 ? (resStr += ", ") : null;
     if (decl.init) {
-      if (decl.init.extra && decl.init.extra.parenthesized) resStr += `${decl.id.name} = (${generate(decl.init).code})`;
+      if (decl.init.extra && decl.init.extra.parenthesized)
+        resStr += `${decl.id.name} = (${generate(decl.init).code})`;
       else resStr += `${decl.id.name} = ${generate(decl.init).code}`;
     } else {
       resStr += `${decl.id.name} = undefined`;
@@ -86,13 +96,14 @@ var extractRelevantState = function (input, opts) {
   traverse(ast, {
     Program(path) {
       globalScope = path.scope;
-      var prefix=`
+      var prefix = `
       (function () {
         if (typeof window !== 'undefined') {
-          window.${PREFIX}.__stackHead__ = ${opts.name})
+          window.${PREFIX}.__stackHead__ = ${opts.name};
         }
-      })()`;
-        `
+      })();
+      `;
+      opts.addStack && path.node.body.unshift(parser.parse(prefix).program.body[0]);
     },
     // rewrite global variable declarations
     VariableDeclaration(path) {
@@ -103,10 +114,10 @@ var extractRelevantState = function (input, opts) {
       if (isGlobalIdentifier(path, globalScope)) {
         rewriteGlobal(path, PREFIX);
       }
-    }
+    },
   });
-  
-  return generate(ast,{retainLines:true,compact:true},input).code;
+
+  return generate(ast, { retainLines: true, compact: true }, input).code;
 };
 
 exports.extractRelevantState = extractRelevantState;

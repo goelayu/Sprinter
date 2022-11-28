@@ -82,9 +82,10 @@ describe("browser context testing", function () {
   describe("browser context 1", function () {
     it("window object", function () {
       const PREFIX = "tracer";
+      const name = "test";
       var input = `var a = window; b = window.c;function foo(){var window = 4; window.b = 234; return window;}`;
       var expected = `${PREFIX}.a=${PREFIX};${PREFIX}.b=${PREFIX}.c;function foo(){var window=4;window.b=234;return window;}`;
-      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      var output = stateTracker.extractRelevantState(input, { PREFIX, name });
       assert.equal(output, expected);
     });
   });
