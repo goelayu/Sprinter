@@ -84,7 +84,7 @@ func invokeNode(body string, t string, name string) []byte {
 	tempFile.Seek(0, 0)
 	newbody, err := io.ReadAll(tempFile)
 	check(err)
-	// fmt.Println("newbody is", string(newbody))
+	fmt.Println("newbody is", string(newbody))
 	return newbody
 }
 

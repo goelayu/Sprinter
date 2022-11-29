@@ -121,6 +121,14 @@ async function launch() {
   console.log("global time out value", gTimeoutValue, program.timeout);
   var globalTimer = globalTimeout(browser, cdp, gTimeoutValue);
 
+  process.on('SIGINT', function() {
+    console.log("Caught interrupt signal");
+    if (program.proxy) {
+      proxyManager.stopAll();
+    }
+    process.exit();
+  });
+
   var pclient = new PageClient(page, cdp, {
     url: program.url,
     enableNetwork: program.network,
