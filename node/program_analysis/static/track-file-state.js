@@ -94,16 +94,22 @@ var extractRelevantState = function (input, opts) {
   var PREFIX = opts.PREFIX;
   var globalScope;
   traverse(ast, {
-    Program(path) {
-      globalScope = path.scope;
-      var prefix = `
+    Program: {
+      enter(path) {
+        globalScope = path.scope;
+      },
+      exit(path) {
+        var prefix = `
       (function () {
         if (typeof window !== 'undefined') {
-          window.${PREFIX}.__stackHead__ = ${opts.name};
+          window.__stackHead__ = '${opts.name}';
         }
       })();
       `;
-      opts.addStack && path.node.body.unshift(parser.parse(prefix).program.body[0]);
+        opts.addStack &&
+          path.node.body.unshift(parser.parse(prefix).program.body[0]);
+        path.skip();
+      },
     },
     // rewrite global variable declarations
     VariableDeclaration(path) {

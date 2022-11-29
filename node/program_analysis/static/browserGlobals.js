@@ -749,6 +749,7 @@ exports.GlobalDefaults = [
 	'defaultStatus',
 	'defaultstatus',
 	'devicePixelRatio',
+	'document',
 	'dump',
 	'event',
 	'external',

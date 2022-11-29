@@ -5,6 +5,7 @@
 const fs = require("fs");
 const program  = require("commander");
 const stateTracker = require('./static/track-file-state.js');
+const DYNPATH = '/vault-swift/goelayu/balanced-crawler/node/program_analysis/dynamic/tracer.js'
 
 program
     .version('0.0.1')
@@ -28,7 +29,8 @@ var instrumentJS = function (js) {
 }
 
 var instrumentHTML = function (html) {
-  return html;
+  var dynLib = fs.readFileSync(DYNPATH, "utf8");
+  return `<script>${dynLib}</script>` + html;
 }
 
 var main = function () {

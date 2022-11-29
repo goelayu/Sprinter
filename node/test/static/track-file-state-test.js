@@ -99,24 +99,4 @@ describe("browser context testing", function () {
       assert.equal(output, expected);
     });
   });
-
-  describe("browser context 3", function () {
-    it("google snippets", function () {
-      const PREFIX = "window";
-      var input = `try {
-        var s_, s_aa = function(a, b) {
-        if (Error.captureStackTrace)
-            Error.captureStackTrace(this, s_aa);
-        else {
-            var c = Error().stack;
-            c && (this.stack = c)
-        }
-        a && (this.message = String(a));
-        void 0 !== b && (this.cause = b)
-    } } finally {}`;
-      var expected = `${PREFIX}.a=${PREFIX};${PREFIX}.b=${PREFIX}.c;function foo(){var window=4;window.b=234;return window;}`;
-      var output = stateTracker.extractRelevantState(input, { PREFIX });
-      assert.equal(output, expected);
-    });
-  });
 });

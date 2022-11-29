@@ -69,7 +69,9 @@
     var handler = {
       get: function (target, key) {
         var method = Reflect.get(target, key);
-        if (typeof method === "function") return method;
+        if (typeof method === "function"
+        || method === null
+        || method === undefined) return method;
 
         if (key == "__isProxy__") return true;
         if (key == "__getTarget__") return target;
@@ -93,7 +95,7 @@
         return p;
       },
       set: function (target, name, value) {
-        if (value.__isProxy__) value = value.__getTarget__;
+        if (value && value.__isProxy__) value = value.__getTarget__;
         logger(target, name, value,"write");
         target[name] = value;
         return true;
