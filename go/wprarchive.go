@@ -154,21 +154,36 @@ func OpenArchive(path string) (*Archive, error) {
 
 // ForEach applies f to all requests in the archive.
 func (a *Archive) ForEach(f func(req *http.Request, resp *http.Response) error) error {
+	errors := make(chan error, len(a.Requests))
+	var wg sync.WaitGroup
 	for _, urlmap := range a.Requests {
-		for urlString, requests := range urlmap {
-			fullURL, _ := url.Parse(urlString)
-			for index, archivedRequest := range requests {
-				req, resp, err := archivedRequest.unmarshal(fullURL.Scheme)
-				if err != nil {
-					log.Printf("Error unmarshaling request #%d for %s: %v", index, urlString, err)
-					continue
-				}
-				if err := f(req, resp); err != nil {
-					return err
+		wg.Add(1)
+		log.Printf("urlmap: %v", urlmap)
+		go func(urlmap map[string][]*ArchivedRequest) {
+			for urlString, requests := range urlmap {
+				fullURL, _ := url.Parse(urlString)
+				for index, archivedRequest := range requests {
+					req, resp, err := archivedRequest.unmarshal(fullURL.Scheme)
+					if err != nil {
+						log.Printf("Error unmarshaling request #%d for %s: %v", index, urlString, err)
+						continue
+					}
+					if err := f(req, resp); err != nil {
+						errors <- err
+					}
 				}
 			}
-		}
+			errors <- nil
+			wg.Done()
+		}(urlmap)
 	}
+	wg.Wait()
+	close(errors)
+	// for err := range errors {
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 	return nil
 }
 
@@ -411,7 +426,7 @@ func (a *Archive) StartNewReplaySession() {
 // The edited archive is returned, leaving the current archive is unchanged.
 func (a *Archive) Edit(edit func(req *http.Request, resp *http.Response) (*http.Request, *http.Response, error)) (*Archive, error) {
 	clone := newArchive()
-	err := a.ForEach(func(oldReq *http.Request, oldResp *http.Response) error {
+	err := a.ForEach(func(oldReq *http.Request, oldResp *http.Response) error {		
 		newReq, newResp, err := edit(oldReq, oldResp)
 		if err != nil {
 			return err
