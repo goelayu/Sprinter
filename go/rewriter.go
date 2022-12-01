@@ -55,7 +55,7 @@ func extractBody(body string, h http.Header) string {
 	return body
 }
 
-func invokeNode(body string, t string, name string) []byte {
+func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 	SCRIPTPATH := "../node/program_analysis/instrument.js"
 	// store body in a temp file
 	tempFile, err := os.CreateTemp("./", "insttmp")
@@ -63,10 +63,21 @@ func invokeNode(body string, t string, name string) []byte {
 		fmt.Println("Error creating temp file", err)
 		panic(err)
 	}
-	defer os.Remove(tempFile.Name())
+	// defer os.Remove(tempFile.Name())
 
 	_, err = tempFile.WriteString(body)
 	check(err)
+
+	// create a copy of tempFile if keepOrig is true
+	if keepOrig {
+		origFile, err := os.Create(tempFile.Name() + ".copy")
+		if err != nil {
+			fmt.Println("Error creating temp file", err)
+			panic(err)
+		}
+		origFile.WriteString(body)
+		origFile.Close()
+	}
 
 	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s'", SCRIPTPATH, tempFile.Name(), t, name)
 	fmt.Println(cmdString)
@@ -84,7 +95,7 @@ func invokeNode(body string, t string, name string) []byte {
 	tempFile.Seek(0, 0)
 	newbody, err := io.ReadAll(tempFile)
 	check(err)
-	fmt.Println("newbody is", string(newbody))
+	// fmt.Println("newbody is", string(newbody))
 	return newbody
 }
 
@@ -96,9 +107,9 @@ func instrument(req *http.Request, resp *http.Response) (*http.Request, *http.Re
 
 	if strings.Contains(strings.ToLower(t),"javascript") || strings.Contains(strings.ToLower(t),"html") {
 		// extract body bytes
-		fmt.Println("Instrumenting", req.URL.Path)
+		// fmt.Println("Instrumenting", req.URL.Path)
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		newbody := invokeNode(extractBody(string(bodyBytes), resp.Header), t, name)
+		newbody := invokeNode(extractBody(string(bodyBytes), resp.Header), t, name, true)
 		resp.Body = io.NopCloser(bytes.NewReader(newbody))
 		resp.ContentLength = int64(len(newbody))
 		resp.Header.Set("Content-Length", strconv.Itoa(len(newbody)))
