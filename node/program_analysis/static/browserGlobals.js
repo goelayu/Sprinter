@@ -1048,7 +1048,7 @@ exports.GlobalDefaults = [
 'WeakSets',
 'Int8Array',
 'Uint8Array',
-'Uint8ClampedArray'
+'Uint8ClampedArray',
 'Int16Array',
 'Uint16Array',
 'Int32Array',

@@ -100,3 +100,15 @@ describe("browser context testing", function () {
     });
   });
 });
+
+describe("Preserve semantics", function () {
+  describe("Preserve semantics 1", function () {
+    it("preserve equality semantics", function () {
+      const PREFIX = "tracer";
+      var input = `if (globalVar == globalVar2) { var a = 1; }`;
+      var expected = `if(__tracer__.removeProxy(${PREFIX}.globalVar)==__tracer__.removeProxy(${PREFIX}.globalVar2)){tracer.a=1;}`;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
+});

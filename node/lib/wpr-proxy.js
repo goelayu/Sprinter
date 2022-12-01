@@ -60,8 +60,8 @@ class ProxyManager {
   constructor(nProxies, proxyDir, logDir, mode) {
     this.nProxies = nProxies;
     this.proxies = [];
-    this.startHttpPort = 8000;
-    this.startHttpsPort = 9000;
+    this.startHttpPort = 8000+Math.floor(Math.random()*1000);
+    this.startHttpsPort = 9000+Math.floor(Math.random()*1000);
     this.logDir = logDir;
     this.outputDir = proxyDir;
     this.mode = mode;
@@ -71,7 +71,7 @@ class ProxyManager {
     for (var i = 0; i < this.nProxies; i++) {
       var http_port = this.startHttpPort + i;
       var https_port = this.startHttpsPort + i;
-      var dataOutput = `${this.outputDir}/data-${i}.wprgo`;
+      var dataOutput = `${this.outputDir}`;
       var logOutput = `${this.logDir}/log-${i}`;
       var mode = this.mode;
       var p = new Proxy({ http_port, https_port, dataOutput, logOutput, mode });

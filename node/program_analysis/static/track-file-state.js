@@ -121,6 +121,18 @@ var extractRelevantState = function (input, opts) {
         rewriteGlobal(path, PREFIX);
       }
     },
+    BinaryExpression: {
+      exit(path) {
+        var operators = ["==", "!=", "===", "!==", "instanceof"];
+        if (operators.indexOf(path.node.operator) != -1) {
+          var newCode = parser.parseExpression(
+            `__tracer__.removeProxy(${generate(path.node.left).code}) ${path.node.operator} __tracer__.removeProxy(${generate(path.node.right).code})`
+          );
+          path.replaceWith(newCode);
+          path.skip();
+        }
+      }
+    }
   });
 
   return generate(ast, { retainLines: true, compact: true }, input).code;

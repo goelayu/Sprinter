@@ -109,7 +109,7 @@ func instrument(req *http.Request, resp *http.Response) (*http.Request, *http.Re
 		// extract body bytes
 		// fmt.Println("Instrumenting", req.URL.Path)
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		newbody := invokeNode(extractBody(string(bodyBytes), resp.Header), t, name, true)
+		newbody := invokeNode(extractBody(string(bodyBytes), resp.Header), t, name, false)
 		resp.Body = io.NopCloser(bytes.NewReader(newbody))
 		resp.ContentLength = int64(len(newbody))
 		resp.Header.Set("Content-Length", strconv.Itoa(len(newbody)))
