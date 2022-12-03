@@ -63,7 +63,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 		fmt.Println("Error creating temp file", err)
 		panic(err)
 	}
-	// defer os.Remove(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	_, err = tempFile.WriteString(body)
 	check(err)

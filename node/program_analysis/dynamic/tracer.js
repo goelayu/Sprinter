@@ -9,10 +9,11 @@
   window.__stackHead__ = null;
 
   class __Tracer__ {
-    constructor() {
+    constructor(heap) {
       this.__stack__ = [];
       this.__stackHead__ = null;
       this.__tracedata__ = {};
+      this.__heap = heap;
     }
 
     removeProxy(obj) {
@@ -21,10 +22,22 @@
       }
       return obj;
     }
-  }
 
-  var tracer = new __Tracer__();
-  window.__tracer__ = tracer;
+    resolveTraceData() {
+      this.__heap.resolveIds();
+      var t = window.__tracedata__;
+      var res = {};
+      for (var file in t) {
+        res[file] = t[file];
+        for (var i = 0; i < res[file].length; i++) {
+          var [type, id, key, method] = res[file][i];
+          res[file][i] = [type, this.__heap.idToStr[id], key, method];
+        }
+      }
+      this.finalTraceData = res;
+      return res;
+    }
+  }
 
   var proxyWrapper = function () {
     class HeapMap {
@@ -46,33 +59,34 @@
         return this.objectToNode.get(obj);
       }
 
-      addEdge(obj1, obj2) {
+      addEdge(obj1, key, obj2) {
         var n1 = this.addNode(obj1);
         var n2 = this.addNode(obj2);
-        n1.addEdge(n2);
+        n1.addEdge(n2, key);
         return n1;
       }
 
       resolveIds() {
-        this.idToStr = {0: "window"};
+        this.idToStr = { 0: "window" };
         var allIds = new Set();
         this.nodes.forEach((n) => {
           allIds.add(n.id);
         });
         allIds = Array.from(allIds);
-        while (allIds.length > 0) {
-          var id = allIds.shift();
-          if (this.idToStr[id]) {
-            var p = this.idToStr[id];
-            var n = this.idToNode.get(id);
-            for (var k of n.children.keys()) {
-              var cn = n.children[k];
-              this.idToStr[cn.id] = `${p}[${k}]`;
+        for (var k = 0; k < 2; k++) {
+          for (var i = 0; i < allIds.length; i++) {
+            var id = allIds[i];
+            if (this.idToStr[id]) {
+              var p = this.idToStr[id];
+              var n = this.idToNode.get(id);
+              for (var k in n.children) {
+                var cn = n.children[k];
+                if (!this.idToStr[cn.id]) this.idToStr[cn.id] = `${p}[${k}]`;
+              }
             }
-          } else {
-            allIds.push(id);
           }
         }
+      }
     }
 
     class HeapNode {
@@ -96,9 +110,12 @@
     var heap = new HeapMap();
     heap.addNode(window);
 
+    var tracer = new __Tracer__(heap);
+    window.__tracer__ = tracer;
+
     var logger = function (target, key, method, type) {
       if (typeof method == "function" || typeof method == "object") {
-        method != null && heap.addEdge(target, method);
+        method != null && heap.addEdge(target, key, method);
       } else {
         var n = heap.addNode(target);
         if (!window.__stackHead__) throw new Error("Stack head is null");
