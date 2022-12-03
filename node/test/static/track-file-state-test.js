@@ -111,4 +111,14 @@ describe("Preserve semantics", function () {
       assert.equal(output, expected);
     });
   });
+
+  describe("Preserve semantics 2", function () {
+    it("preserve prototypes", function () {
+      const PREFIX = "tracer";
+      var input = `var a = new Array(); a.prototype = Array.prototype;`;
+      var expected = `${PREFIX}.a=new Array();${PREFIX}.a.prototype=__tracer__.removeProxy(Array.prototype);`;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
 });

@@ -132,6 +132,21 @@ var extractRelevantState = function (input, opts) {
           path.skip();
         }
       }
+    },
+    AssignmentExpression: {
+      exit(path) {
+        var left = path.get("left");
+        var right = path.get("right");
+        if ((left.toString().indexOf("prototype") != -1 || 
+        left.toString().indexOf("__proto__") != -1) &&
+        right.node.type != "FunctionExpression") {
+          var newCode = parser.parseExpression(
+            `${generate(path.node.left).code} = __tracer__.removeProxy(${generate(path.node.right).code})`
+          );
+          path.replaceWith(newCode);
+          path.skip(); 
+        }
+      }
     }
   });
 

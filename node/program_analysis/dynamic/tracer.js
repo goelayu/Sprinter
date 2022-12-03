@@ -130,7 +130,7 @@
       }
     };
 
-    var ignoreKeys = ["__proto__", "toJSON", "apply", "call"];
+    var ignoreKeys = ["__proto__", "toJSON", "apply", "call","prototype"];
     var handler = {
       get: function (target, key) {
         if (key == "__isProxy__") return true;
@@ -165,9 +165,25 @@
         target[name] = value;
         return true;
       },
+
       apply: function (target, thisArg, argumentsList) {
         if (thisArg && thisArg.__isProxy__) thisArg = thisArg.__target__;
         return Reflect.apply(target, thisArg, argumentsList);
+      },
+
+      construct: function (target, args, newPrototype) {
+        if (newPrototype && newPrototype.__isProxy__)
+          newPrototype = newPrototype.__target__;
+        return Reflect.construct(target, args, newPrototype);
+      },
+
+      setPrototypeOf: function (target, prototype) {
+        if (prototype && prototype.__isProxy__) prototype = prototype.__target__;
+        return Reflect.setPrototypeOf(target, prototype);
+      },
+
+      getPrototypeOf: function (target) {
+        return Reflect.getPrototypeOf(target);
       },
     };
     return handler;
