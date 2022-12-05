@@ -22,21 +22,13 @@ function isGlobalScopeDecl(path) {
     .hasBinding(path.node.declarations[0].id.name);
 }
 
-/**
- * Checks is identifier is global or not:
- * Either no scope binding exists, or
- * the scope binding is global
- * @param {*} path
- */
-var isGlobalIdentifier = function (path, globalScope) {
+var isTrackableIdentifier = function (path) {
   return (
     path.node.name != "undefined" &&
     path.node.name != "null" &&
     (path.parent.type == "FunctionDeclaration"
       ? path.parent.id != path.node
       : true) &&
-    (!path.scope.hasBinding(path.node.name, true) ||
-      globalScope.hasOwnBinding(path.node.name)) &&
     (path.parent.type == "MemberExpression"
       ? path.parent.property != path.node
       : true) &&
@@ -56,6 +48,29 @@ var isGlobalIdentifier = function (path, globalScope) {
       ? path.parent.label != path.node
       : true) &&
     GlobalDefaults.indexOf(path.node.name) == -1
+  );
+};
+
+var isClosureIdentifier = function (path) {
+  if (path.scope.hasOwnBinding(path.node.name, true)) return false;
+  var scope = path.scope.parent;
+  while (scope.path.type != "Program") {
+    if (scope.hasOwnBinding(path.node.name, true)) return scope;
+    scope = scope.parent;
+  }
+  return false;
+}
+
+/**
+ * Checks is identifier is global or not:
+ * Either no scope binding exists, or
+ * the scope binding is global
+ * @param {*} path
+ */
+var isGlobalIdentifier = function (path, globalScope) {
+  return (
+    (!path.scope.hasBinding(path.node.name, true) ||
+      globalScope.hasOwnBinding(path.node.name))
   );
 };
 
@@ -93,6 +108,8 @@ var extractRelevantState = function (input, opts) {
   });
   var PREFIX = opts.PREFIX;
   var globalScope;
+  var closureScopes = {};
+
   traverse(ast, {
     Program: {
       enter(path) {
@@ -117,8 +134,15 @@ var extractRelevantState = function (input, opts) {
       decltomemExpr(path, PREFIX);
     },
     Identifier(path) {
+      if (!isTrackableIdentifier(path)) return;
       if (isGlobalIdentifier(path, globalScope)) {
         rewriteGlobal(path, PREFIX);
+      } else if (isClosureIdentifier(path)) {
+        var scope = isClosureIdentifier(path);
+        if (!closureScopes[scope.uid]) {
+          closureScopes[scope.uid] = {};
+        }
+        closureScopes[scope.uid][path.node.name] = true;
       }
     },
     BinaryExpression: {
@@ -147,6 +171,20 @@ var extractRelevantState = function (input, opts) {
           path.skip(); 
         }
       }
+    }, 
+    Function: {
+      exit(path) {
+        if (path.node.type == 'ObjectMethod' || path.node.type == 'ClassMethod') return;
+        if (!closureScopes[path.scope.uid]) return;
+        var uid = path.scope.uid;
+        var names = Object.keys(closureScopes[path.scope.uid]);
+        var clStr = `
+        var __closure__${uid} = {${names.join(",")}, ${
+          names.map((n)=>{return `set_${n}: function (val) {${n} = val;}`}).join(",")
+        }};
+        var __closureProxy__${uid} = __tracer__.createProxy(__closure__${uid});
+        `;
+
     }
   });
 
