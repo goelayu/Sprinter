@@ -12,7 +12,8 @@
     constructor(rootObj, rootName) {
       this.log = {};
       this.heap = new HeapMap(rootObj, rootName);
-      this.handler = proxyWrapper(this.heap, this.log);
+      var scope = rootName.indexOf("window") == 0 ? 'global': 'closure';
+      this.handler = proxyWrapper(this.heap, this.log, scope);
       this.proxy = new Proxy(rootObj, this.handler);
     }
 
@@ -114,7 +115,7 @@
     }
   }
 
-  var proxyWrapper = function (heap, logStore) {
+  var proxyWrapper = function (heap, logStore, scope) {
 
     var logger = function (target, key, method, type) {
       if (typeof method == "function" || typeof method == "object") {
@@ -162,6 +163,8 @@
         if (value && value.__isProxy__) value = value.__target__;
         logger(target, name, value, "write");
         target[name] = value;
+        if (scope == 'closure')
+          target[`set_${name}`] && target[`set_${name}`](value);
         return true;
       },
 
@@ -190,7 +193,7 @@
     return handler;
   };
 
-  window.__tracer = new __Tracer__();
-  window.__proxy__ = new logger(window, "window");
-  
+  window.__tracer__ = new __Tracer__();
+  window.__proxy__ = window.__tracer__.createLogger(window, "window");
+
 })();

@@ -136,4 +136,14 @@ var __closureProxy1=__tracer__.createLogger(__closure1,'closure1');var l=3;funct
       assert.equal(output, expected);
     });
   });
+
+  describe("Closure syntax 2", function () {
+    it("no closure variable read", function () {
+      const PREFIX = "tracer";
+      var input = `function outer(){var l=3,j=4; function inner(){ll=4; return lk;}}`;
+      var expected =`function outer(){var l=3,j=4;function inner(){tracer.ll=4;return tracer.lk;}}`;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
 })

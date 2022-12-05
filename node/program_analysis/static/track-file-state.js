@@ -52,10 +52,14 @@ var isTrackableIdentifier = function (path) {
 };
 
 var isClosureIdentifier = function (path) {
-  if (path.scope.hasOwnBinding(path.node.name, true)) return false;
+  // get first function scope
+  var funcScope = path.scope.getFunctionParent();
+  // since globals are already handled, 
+  // if this variable is a not a local, it is a closure variable
+  if (!funcScope || funcScope.hasOwnBinding(path.node.name)) return false;
   var scope = path.scope.parent;
   while (scope.path.type != "Program") {
-    if (scope.hasOwnBinding(path.node.name, true)) return scope;
+    if (scope.hasOwnBinding(path.node.name)) return scope;
     scope = scope.parent;
   }
   return false;
