@@ -8,12 +8,33 @@
   window.__tracedata__ = {};
   window.__stackHead__ = null;
 
+  class logger {
+    constructor(rootObj, rootName) {
+      this.log = {};
+      this.heap = new HeapMap(rootObj, rootName);
+      this.handler = proxyWrapper(this.heap, this.log);
+      this.proxy = new Proxy(rootObj, this.handler);
+    }
+
+    resolveLogData() {
+      this.heap.resolveIds();
+      var t = this.log;
+      var res = {};
+      for (var file in t) {
+        res[file] = t[file];
+        for (var i = 0; i < res[file].length; i++) {
+          var [type, id, key, method] = res[file][i];
+          res[file][i] = [type, this.heap.idToStr[id], key, method];
+        }
+      }
+      this.finalTraceData = res;
+      return res;
+    }
+  }
+
   class __Tracer__ {
-    constructor(heap) {
-      this.__stack__ = [];
-      this.__stackHead__ = null;
-      this.__tracedata__ = {};
-      this.__heap = heap;
+    constructor() {
+      this.loggers = [];
     }
 
     removeProxy(obj) {
@@ -23,95 +44,77 @@
       return obj;
     }
 
-    resolveTraceData() {
-      this.__heap.resolveIds();
-      var t = window.__tracedata__;
-      var res = {};
-      for (var file in t) {
-        res[file] = t[file];
-        for (var i = 0; i < res[file].length; i++) {
-          var [type, id, key, method] = res[file][i];
-          res[file][i] = [type, this.__heap.idToStr[id], key, method];
-        }
-      }
-      this.finalTraceData = res;
-      return res;
+    createLogger(obj, objName) {
+      var l = new logger(obj, objName);
+      this.loggers.push(l);
+      return l.proxy;
     }
   }
 
-  var proxyWrapper = function () {
-    class HeapMap {
-      constructor() {
-        this.id = -1;
-        this.objectToNode = new Map();
-        this.idToNode = new Map();
-        this.nodes = [];
-      }
+  class HeapMap {
+    constructor(rootObj, rootName) {
+      this.id = -1;
+      this.objectToNode = new Map();
+      this.idToNode = new Map();
+      this.nodes = [];
+      this.root = this.addNode(rootObj);
+      this.rootName = rootName;
+    }
 
-      addNode(obj) {
-        if (!this.objectToNode.has(obj)) {
-          this.id += 1;
-          var n = new HeapNode(this.id, obj);
-          this.idToNode.set(n.id, n);
-          this.objectToNode.set(obj, n);
-          this.nodes.push(n);
-        }
-        return this.objectToNode.get(obj);
+    addNode(obj) {
+      if (!this.objectToNode.has(obj)) {
+        this.id += 1;
+        var n = new HeapNode(this.id, obj);
+        this.idToNode.set(n.id, n);
+        this.objectToNode.set(obj, n);
+        this.nodes.push(n);
       }
+      return this.objectToNode.get(obj);
+    }
 
-      addEdge(obj1, key, obj2) {
-        var n1 = this.addNode(obj1);
-        var n2 = this.addNode(obj2);
-        n1.addEdge(n2, key);
-        return n1;
-      }
+    addEdge(obj1, key, obj2) {
+      var n1 = this.addNode(obj1);
+      var n2 = this.addNode(obj2);
+      n1.addEdge(n2, key);
+      return n1;
+    }
 
-      resolveIds() {
-        this.idToStr = { 0: "window" };
-        var allIds = new Set();
-        this.nodes.forEach((n) => {
-          allIds.add(n.id);
-        });
-        allIds = Array.from(allIds);
-        for (var k = 0; k < 2; k++) {
-          for (var i = 0; i < allIds.length; i++) {
-            var id = allIds[i];
-            if (this.idToStr[id]) {
-              var p = this.idToStr[id];
-              var n = this.idToNode.get(id);
-              for (var k in n.children) {
-                var cn = n.children[k];
-                if (!this.idToStr[cn.id]) this.idToStr[cn.id] = `${p}[${k}]`;
-              }
+    resolveIds() {
+      this.idToStr = { 0: this.rootName };
+      var allIds = new Set();
+      this.nodes.forEach((n) => {
+        allIds.add(n.id);
+      });
+      allIds = Array.from(allIds);
+      for (var k = 0; k < 2; k++) {
+        for (var i = 0; i < allIds.length; i++) {
+          var id = allIds[i];
+          if (this.idToStr[id]) {
+            var p = this.idToStr[id];
+            var n = this.idToNode.get(id);
+            for (var k in n.children) {
+              var cn = n.children[k];
+              if (!this.idToStr[cn.id]) this.idToStr[cn.id] = `${p}[${k}]`;
             }
           }
         }
       }
     }
+  }
 
-    class HeapNode {
-      constructor(id, obj) {
-        this.id = id;
-        this.obj = obj;
-        this.children = {};
-      }
-
-      addEdge(node, key) {
-        // if (!this.children.hasOwnProperty(key)) {
-        //   this.children[key] = [];
-        // }
-        // if (this.children[key].indexOf(node) == -1) {
-        //   this.children[key].push(node);
-        // }
-        this.children[key] = node;
-      }
+  class HeapNode {
+    constructor(id, obj) {
+      this.id = id;
+      this.obj = obj;
+      this.children = {};
     }
 
-    var heap = new HeapMap();
-    heap.addNode(window);
+    addEdge(node, key) {
+      this.children[key] = node;
+    }
+  }
 
-    var tracer = new __Tracer__(heap);
-    window.__tracer__ = tracer;
+  var proxyWrapper = function (heap, logStore) {
 
     var logger = function (target, key, method, type) {
       if (typeof method == "function" || typeof method == "object") {
@@ -119,18 +122,14 @@
       } else {
         var n = heap.addNode(target);
         if (!window.__stackHead__) throw new Error("Stack head is null");
-        if (!window.__tracedata__[window.__stackHead__])
-          window.__tracedata__[window.__stackHead__] = [];
-        window.__tracedata__[window.__stackHead__].push([
-          type,
-          n.id,
-          key,
-          method,
-        ]);
+        if (!logStore[window.__stackHead__])
+          logStore[window.__stackHead__] = [];
+        logStore[window.__stackHead__].push([type, n.id, key, method]);
       }
     };
 
-    var ignoreKeys = ["__proto__", "toJSON", "apply", "call","prototype"];
+    var ignoreKeys = ["__proto__", "toJSON", "apply", "call", "prototype"];
+
     var handler = {
       get: function (target, key) {
         if (key == "__isProxy__") return true;
@@ -178,7 +177,8 @@
       },
 
       setPrototypeOf: function (target, prototype) {
-        if (prototype && prototype.__isProxy__) prototype = prototype.__target__;
+        if (prototype && prototype.__isProxy__)
+          prototype = prototype.__target__;
         return Reflect.setPrototypeOf(target, prototype);
       },
 
@@ -186,9 +186,11 @@
         return Reflect.getPrototypeOf(target);
       },
     };
+
     return handler;
   };
 
-  var proxy = new Proxy(window, proxyWrapper());
-  window.__proxy__ = proxy;
+  window.__tracer = new __Tracer__();
+  window.__proxy__ = new logger(window, "window");
+  
 })();
