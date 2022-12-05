@@ -59,7 +59,7 @@ var isClosureIdentifier = function (path) {
     scope = scope.parent;
   }
   return false;
-}
+};
 
 /**
  * Checks is identifier is global or not:
@@ -69,8 +69,8 @@ var isClosureIdentifier = function (path) {
  */
 var isGlobalIdentifier = function (path, globalScope) {
   return (
-    (!path.scope.hasBinding(path.node.name, true) ||
-      globalScope.hasOwnBinding(path.node.name))
+    !path.scope.hasBinding(path.node.name, true) ||
+    globalScope.hasOwnBinding(path.node.name)
   );
 };
 
@@ -79,6 +79,13 @@ var rewriteGlobal = function (path, prefix) {
   var newIdentifier;
   if (name == "window") newIdentifier = parser.parseExpression(`${prefix}`);
   else newIdentifier = parser.parseExpression(`${prefix}.${name}`);
+  path.replaceWith(newIdentifier);
+  path.skip();
+};
+
+var rewriteClosure = function (path, prefix) {
+  var name = path.node.name;
+  var newIdentifier = parser.parseExpression(`${prefix}.${name}`);  
   path.replaceWith(newIdentifier);
   path.skip();
 };
@@ -143,6 +150,7 @@ var extractRelevantState = function (input, opts) {
           closureScopes[scope.uid] = {};
         }
         closureScopes[scope.uid][path.node.name] = true;
+        rewriteClosure(path, `__closureProxy${scope.uid}`);
       }
     },
     BinaryExpression: {
@@ -150,42 +158,54 @@ var extractRelevantState = function (input, opts) {
         var operators = ["==", "!=", "===", "!==", "instanceof"];
         if (operators.indexOf(path.node.operator) != -1) {
           var newCode = parser.parseExpression(
-            `__tracer__.removeProxy(${generate(path.node.left).code}) ${path.node.operator} __tracer__.removeProxy(${generate(path.node.right).code})`
+            `__tracer__.removeProxy(${generate(path.node.left).code}) ${
+              path.node.operator
+            } __tracer__.removeProxy(${generate(path.node.right).code})`
           );
           path.replaceWith(newCode);
           path.skip();
         }
-      }
+      },
     },
     AssignmentExpression: {
       exit(path) {
         var left = path.get("left");
         var right = path.get("right");
-        if ((left.toString().indexOf("prototype") != -1 || 
-        left.toString().indexOf("__proto__") != -1) &&
-        right.node.type != "FunctionExpression") {
+        if (
+          (left.toString().indexOf("prototype") != -1 ||
+            left.toString().indexOf("__proto__") != -1) &&
+          right.node.type != "FunctionExpression"
+        ) {
           var newCode = parser.parseExpression(
-            `${generate(path.node.left).code} = __tracer__.removeProxy(${generate(path.node.right).code})`
+            `${generate(path.node.left).code} = __tracer__.removeProxy(${
+              generate(path.node.right).code
+            })`
           );
           path.replaceWith(newCode);
-          path.skip(); 
+          path.skip();
         }
-      }
-    }, 
+      },
+    },
     Function: {
       exit(path) {
-        if (path.node.type == 'ObjectMethod' || path.node.type == 'ClassMethod') return;
+        if (path.node.type == "ObjectMethod" || path.node.type == "ClassMethod")
+          return;
         if (!closureScopes[path.scope.uid]) return;
         var uid = path.scope.uid;
         var names = Object.keys(closureScopes[path.scope.uid]);
         var clStr = `
-        var __closure__${uid} = {${names.join(",")}, ${
-          names.map((n)=>{return `set_${n}: function (val) {${n} = val;}`}).join(",")
-        }};
-        var __closureProxy__${uid} = __tracer__.createProxy(__closure__${uid});
+        var __closure${uid} = {${names.join(",")}, ${names
+          .map((n) => {
+            return `set_${n}: function (val) {${n} = val;}`;
+          })
+          .join(",")}};
+        var __closureProxy${uid} = __tracer__.createLogger(__closure${uid},'closure${uid}');
         `;
-
-    }
+        var cl = parser.parse(clStr).program.body;
+        path.node.body.body.unshift(cl[1]);
+        path.node.body.body.unshift(cl[0]);
+      },
+    },
   });
 
   return generate(ast, { retainLines: true, compact: true }, input).code;

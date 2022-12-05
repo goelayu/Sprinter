@@ -122,3 +122,18 @@ describe("Preserve semantics", function () {
     });
   });
 });
+
+describe("Closure syntax testing", function(){
+  
+  describe("Closure syntax 1", function () {
+    it("closure variable read", function () {
+      const PREFIX = "tracer";
+      var input = `function outer(){var l=3; function inner(){l=4; return l;}}`;
+      var expected =`function outer(){
+var __closure1={l,set_l:function(val){l=val;}};
+var __closureProxy1=__tracer__.createLogger(__closure1,'closure1');var l=3;function inner(){__closureProxy1.l=4;return __closureProxy1.l;}}`;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
+})
