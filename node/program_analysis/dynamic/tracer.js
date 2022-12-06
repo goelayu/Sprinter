@@ -9,10 +9,11 @@
   window.__stackHead__ = null;
 
   class logger {
-    constructor(rootObj, rootName) {
+    constructor(rootObj, rootName, heap) {
       this.log = {};
-      this.heap = new HeapMap(rootObj, rootName);
-      var scope = rootName.indexOf("window") == 0 ? 'global': 'closure';
+      this.rootName = rootName;
+      this.heap = heap ? heap : new HeapMap(rootObj, rootName);
+      var scope = rootName.indexOf("window") == 0 ? "global" : "closure";
       this.handler = proxyWrapper(this.heap, this.log, scope);
       this.proxy = new Proxy(rootObj, this.handler);
     }
@@ -36,6 +37,7 @@
   class __Tracer__ {
     constructor() {
       this.loggers = [];
+      this.objToHeaps = new Map();
     }
 
     removeProxy(obj) {
@@ -46,9 +48,25 @@
     }
 
     createLogger(obj, objName) {
-      var l = new logger(obj, objName);
+      var heap = this.objToHeaps.get(objName) ? this.objToHeaps.get(objName) : null;
+      var l = new logger(obj, objName, heap);
+      this.objToHeaps.set(objName, l.heap);
       this.loggers.push(l);
       return l.proxy;
+    }
+
+    resolveLogData() {
+      var res = {};
+      for (var i = 0; i < this.loggers.length; i++) {
+        var l = this.loggers[i];
+        var t = l.resolveLogData();
+        for (var file in t) {
+          if (!res[file]) res[file] = [];
+          res[file] = res[file].concat(t[file]);
+        }
+      }
+      this.finalTraceData = res;
+      return res;
     }
   }
 
@@ -81,6 +99,7 @@
     }
 
     resolveIds() {
+      if (this.idsResolved) return;
       this.idToStr = { 0: this.rootName };
       var allIds = new Set();
       this.nodes.forEach((n) => {
@@ -100,6 +119,7 @@
           }
         }
       }
+      this.idsResolved = true;
     }
   }
 
@@ -116,17 +136,21 @@
   }
 
   var proxyWrapper = function (heap, logStore, scope) {
-
     var logger = function (target, key, method, type) {
+      var id = window.__stackHead__;
       if (typeof method == "function" || typeof method == "object") {
         method != null && heap.addEdge(target, key, method);
-      } else {
-        var n = heap.addNode(target);
-        if (!window.__stackHead__) throw new Error("Stack head is null");
-        if (!logStore[window.__stackHead__])
-          logStore[window.__stackHead__] = [];
-        logStore[window.__stackHead__].push([type, n.id, key, method]);
+        // if (type == "read") return;
       }
+      var n = heap.addNode(target);
+      if (!id) throw new Error("Stack head is null");
+      if (!logStore[id]) logStore[id] = [];
+      var prev;
+      if (logStore[id].length > 0) {
+        prev = logStore[id][logStore[id].length - 1];
+        if (type == "read" && prev[0] == "read" && prev[3] == target) logStore[id].pop();
+      }
+      logStore[id].push([type, n.id, key, method]);
     };
 
     var ignoreKeys = ["__proto__", "toJSON", "apply", "call", "prototype"];
@@ -163,7 +187,7 @@
         if (value && value.__isProxy__) value = value.__target__;
         logger(target, name, value, "write");
         target[name] = value;
-        if (scope == 'closure')
+        if (scope == "closure")
           target[`set_${name}`] && target[`set_${name}`](value);
         return true;
       },
@@ -195,5 +219,4 @@
 
   window.__tracer__ = new __Tracer__();
   window.__proxy__ = window.__tracer__.createLogger(window, "window");
-
 })();
