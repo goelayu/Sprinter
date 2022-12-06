@@ -48,7 +48,9 @@
     }
 
     createLogger(obj, objName) {
-      var heap = this.objToHeaps.get(objName) ? this.objToHeaps.get(objName) : null;
+      var heap = this.objToHeaps.get(objName)
+        ? this.objToHeaps.get(objName)
+        : null;
       var l = new logger(obj, objName, heap);
       this.objToHeaps.set(objName, l.heap);
       this.loggers.push(l);
@@ -113,8 +115,9 @@
             var p = this.idToStr[id];
             var n = this.idToNode.get(id);
             for (var k in n.children) {
-              var cn = n.children[k];
-              if (!this.idToStr[cn.id]) this.idToStr[cn.id] = `${p}[${k}]`;
+              for (var cn of n.children[k]) {
+                if (!this.idToStr[cn.id]) this.idToStr[cn.id] = `${p}[${k}]`;
+              }
             }
           }
         }
@@ -131,7 +134,9 @@
     }
 
     addEdge(node, key) {
-      this.children[key] = node;
+      if (!Object.prototype.hasOwnProperty.call(this.children, key))
+        this.children[key] = [];
+      this.children[key].push(node);
     }
   }
 
@@ -148,7 +153,8 @@
       var prev;
       if (logStore[id].length > 0) {
         prev = logStore[id][logStore[id].length - 1];
-        if (type == "read" && prev[0] == "read" && prev[3] == target) logStore[id].pop();
+        if (type == "read" && prev[0] == "read" && prev[3] == target)
+          logStore[id].pop();
       }
       logStore[id].push([type, n.id, key, method]);
     };
