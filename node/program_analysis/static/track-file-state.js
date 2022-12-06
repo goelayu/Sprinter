@@ -54,12 +54,12 @@ var isTrackableIdentifier = function (path) {
 var isClosureIdentifier = function (path) {
   // get first function scope
   var funcScope = path.scope.getFunctionParent();
-  // since globals are already handled, 
+  // since globals are already handled,
   // if this variable is a not a local, it is a closure variable
   if (!funcScope || funcScope.hasOwnBinding(path.node.name)) return false;
   var scope = path.scope.parent;
   while (scope.path.type != "Program") {
-    if (scope.hasOwnBinding(path.node.name)) return scope;
+    if (scope.hasOwnBinding(path.node.name, true)) return scope;
     scope = scope.parent;
   }
   return false;
@@ -89,7 +89,7 @@ var rewriteGlobal = function (path, prefix) {
 
 var rewriteClosure = function (path, prefix) {
   var name = path.node.name;
-  var newIdentifier = parser.parseExpression(`${prefix}.${name}`);  
+  var newIdentifier = parser.parseExpression(`${prefix}.${name}`);
   path.replaceWith(newIdentifier);
   path.skip();
 };
@@ -109,6 +109,23 @@ var decltomemExpr = function (decl, prefix) {
   var newIdentifier = parser.parseExpression(resStr);
   decl.replaceWith(newIdentifier);
   // decl.skip();
+};
+
+var getClosureProxyStr = function (path, scopes) {
+  var resStr = "";
+  for (var uid in scopes) {
+    var names = Object.keys(scopes[uid]);
+    var clStr = `
+        var __closure${uid} = {${names.join(",")}, ${names
+      .map((n) => {
+        return `set_${n}: function (val) {${n} = val;}`;
+      })
+      .join(",")}};
+        var __closureProxy${uid} = __tracer__.createLogger(__closure${uid},'closure${uid}');
+        `;
+    resStr += clStr;
+  }
+  return resStr;
 };
 
 var extractRelevantState = function (input, opts) {
@@ -149,12 +166,15 @@ var extractRelevantState = function (input, opts) {
       if (isGlobalIdentifier(path, globalScope)) {
         rewriteGlobal(path, PREFIX);
       } else if (isClosureIdentifier(path)) {
-        var scope = isClosureIdentifier(path);
-        if (!closureScopes[scope.uid]) {
-          closureScopes[scope.uid] = {};
-        }
-        closureScopes[scope.uid][path.node.name] = true;
-        rewriteClosure(path, `__closureProxy${scope.uid}`);
+        var clScope = isClosureIdentifier(path);
+        var fnScope = path.scope.getFunctionParent();
+        if (!fnScope)
+          throw new Error("No function scope found for closure var");
+        if (!closureScopes[fnScope.uid]) closureScopes[fnScope.uid] = {};
+        if (!closureScopes[fnScope.uid][clScope.uid])
+          closureScopes[fnScope.uid][clScope.uid] = {};
+        closureScopes[fnScope.uid][clScope.uid][path.node.name] = true;
+        rewriteClosure(path, `__closureProxy${clScope.uid}`);
       }
     },
     BinaryExpression: {
@@ -196,18 +216,11 @@ var extractRelevantState = function (input, opts) {
           return;
         if (!closureScopes[path.scope.uid]) return;
         var uid = path.scope.uid;
-        var names = Object.keys(closureScopes[path.scope.uid]);
-        var clStr = `
-        var __closure${uid} = {${names.join(",")}, ${names
-          .map((n) => {
-            return `set_${n}: function (val) {${n} = val;}`;
-          })
-          .join(",")}};
-        var __closureProxy${uid} = __tracer__.createLogger(__closure${uid},'closure${uid}');
-        `;
+        var scopes = closureScopes[path.scope.uid];
+        var clStr = getClosureProxyStr(path, scopes);
         var cl = parser.parse(clStr).program.body;
-        path.node.body.body.unshift(cl[1]);
-        path.node.body.body.unshift(cl[0]);
+        for (var i = cl.length - 1; i >= 0; i--)
+          path.node.body.body.unshift(cl[i]);
       },
     },
   });
