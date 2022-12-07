@@ -151,6 +151,17 @@ async function launch() {
 
   if (program.memory) await getMemory(page);
 
+  if (program.custom){
+    var entries = program.custom.split(',');
+    for (var e of entries){
+      switch (e){
+        case 'state':
+          await getFileState(page);
+          break;
+      }
+    }
+  }
+
   if (!program.testing && program.kill) {
     await browser.close();
   } else await browser.disconnect();
@@ -186,6 +197,16 @@ async function autoScroll(page) {
 
 var sleep = function (ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+var getFileState = async function (page) {
+  var state = await page.evaluate(() => {
+    window.__tracer__.resolveLogData();
+    return window.__tracer__.serializeLogData();
+  });
+  program.verbose && console.log(`extracting javaScript state` );
+  var path = `${program.output}/state.json`;
+  dump(state, path);
 };
 
 var getCustomFilters = function () {
