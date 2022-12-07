@@ -12,7 +12,11 @@ import (
 	"bytes"
 	"os/exec"
 	"strconv"
+	"sync/atomic"
+	"sync"
 )
+
+var FILEID uint64 = 0
 
 func check(e error) {
 	if e != nil {
@@ -57,6 +61,7 @@ func extractBody(body string, h http.Header) string {
 
 func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 	SCRIPTPATH := "../node/program_analysis/instrument.js"
+	var mu sync.Mutex
 	// store body in a temp file
 	tempFile, err := os.CreateTemp("./", "insttmp")
 	if err != nil {
@@ -79,8 +84,11 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 		origFile.Close()
 	}
 
-	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s'", SCRIPTPATH, tempFile.Name(), t, name)
+	mu.Lock()
+	fileid := atomic.AddUint64(&FILEID, 1)
+	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s' -f %d", SCRIPTPATH, tempFile.Name(), t, name, fileid)
 	fmt.Println(cmdString)
+	mu.Unlock()
 	cmd := exec.Command("bash", "-c", cmdString)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -118,6 +126,7 @@ func instrument(req *http.Request, resp *http.Response) (*http.Request, *http.Re
 		if resp.Header.Get("Content-Encoding") != "" {
 			resp.Header.Del("Content-Encoding")
 		}
+
 	}
 
 	return req, resp, nil

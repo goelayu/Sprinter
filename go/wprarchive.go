@@ -426,6 +426,7 @@ func (a *Archive) StartNewReplaySession() {
 // The edited archive is returned, leaving the current archive is unchanged.
 func (a *Archive) Edit(edit func(req *http.Request, resp *http.Response) (*http.Request, *http.Response, error)) (*Archive, error) {
 	clone := newArchive()
+	var mu sync.Mutex
 	err := a.ForEach(func(oldReq *http.Request, oldResp *http.Response) error {		
 		newReq, newResp, err := edit(oldReq, oldResp)
 		if err != nil {
@@ -437,6 +438,9 @@ func (a *Archive) Edit(edit func(req *http.Request, resp *http.Response) (*http.
 			}
 			return nil
 		}
+		// lock before adding request
+		mu.Lock()
+		defer mu.Unlock()
 		// TODO: allow changing scheme or protocol?
 		return clone.addArchivedRequest(newReq, newResp, AddModeAppend)
 	})
