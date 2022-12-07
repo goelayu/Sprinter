@@ -25,8 +25,8 @@
       for (var file in t) {
         res[file] = t[file];
         for (var i = 0; i < res[file].length; i++) {
-          var [type, id, key, method] = res[file][i];
-          res[file][i] = [type, this.heap.idToStr[id], key, method];
+          var [type, id, key, method, rootName] = res[file][i];
+          res[file][i] = [type, this.heap.idToStr[id], key, method, rootName];
         }
       }
       this.finalTraceData = res;
@@ -77,15 +77,16 @@
     }
 
     serializeLogData() {
-      if (!this.finalTraceData) {
+      var orig = this.finalTraceData;
+      if (!orig) {
         console.log("Please call resolveLogData() before serializing");
         return;
       }
       var res = {};
-      for (var file in this.finalTraceData) {
+      for (var file in orig) {
         var myClosures = {};
         this.fileClosures[file].forEach((x) => (myClosures[x] = true));
-        var f = res[file].filter((x) => x[1] && !myClosures[x[3]]);
+        var f = orig[file].filter((x) => x[1] && !myClosures[x[4]]);
         res[file] = [];
         for (var i = 0; i < f.length; i++) {
           try {

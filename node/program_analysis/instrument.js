@@ -12,6 +12,7 @@ program
     .option('-i, --input [input]', 'The input file')
     .option('-t, --type [type]', 'The type of file to instrument')
     .option('-n, --name [name]', 'The name of the instrumented file')
+    .option('-f, --identifier [identifier]', 'The identifier of the instrumented file')
     .parse(process.argv);
 
   
@@ -24,7 +25,8 @@ var instrumentJS = function (js) {
   const PREFIX = 'window.__proxy__';
   const name = program.name;
   var addStack = true;
-  output = stateTracker.extractRelevantState(js, { PREFIX, name, addStack });
+  var scriptNo = program.identifier;
+  output = stateTracker.extractRelevantState(js, { PREFIX, name, addStack, scriptNo });
   return output;
 }
 

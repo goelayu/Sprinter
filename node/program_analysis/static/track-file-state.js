@@ -111,7 +111,7 @@ var decltomemExpr = function (decl, prefix) {
   // decl.skip();
 };
 
-var getClosureProxyStr = function (path, scopes) {
+var getClosureProxyStr = function (path, scopes, sn) {
   var resStr = "";
   for (var uid in scopes) {
     var names = Object.keys(scopes[uid]);
@@ -121,7 +121,7 @@ var getClosureProxyStr = function (path, scopes) {
         return `set_${n}: function (val) {${n} = val;}`;
       })
       .join(",")}};
-        var __closureProxy${uid} = __tracer__.createLogger(__closure${uid},'closure${uid}');
+        var __closureProxy${uid} = __tracer__.createLogger(__closure${uid},'closure${sn}_${uid}');
         `;
     resStr += clStr;
   }
@@ -138,6 +138,7 @@ var extractRelevantState = function (input, opts) {
   var globalScope;
   var closureScopes = {};
   var closureList = [];
+  var sn = opts.scriptNo;
 
   traverse(ast, {
     Program: {
@@ -150,7 +151,7 @@ var extractRelevantState = function (input, opts) {
         if (typeof window !== 'undefined') {
           window.__stackHead__ = '${opts.name}';
         }
-        __tracer__.setFileClosure(__stackHead__, [${closureList.join(",")}]);
+        __tracer__.setFileClosure(__stackHead__, [${[...new Set(closureList)].join(",")}]);
       })();
       `;
         opts.addStack &&
@@ -169,7 +170,7 @@ var extractRelevantState = function (input, opts) {
         rewriteGlobal(path, PREFIX);
       } else if (isClosureIdentifier(path)) {
         var clScope = isClosureIdentifier(path);
-        closureList.push(`'closure${clScope.uid}'`);
+        closureList.push(`'closure${sn}_${clScope.uid}'`);
         var fnScope = path.scope.getFunctionParent();
         if (!fnScope)
           throw new Error("No function scope found for closure var");
@@ -220,7 +221,7 @@ var extractRelevantState = function (input, opts) {
         if (!closureScopes[path.scope.uid]) return;
         var uid = path.scope.uid;
         var scopes = closureScopes[path.scope.uid];
-        var clStr = getClosureProxyStr(path, scopes);
+        var clStr = getClosureProxyStr(path, scopes, sn);
         var cl = parser.parse(clStr).program.body;
         for (var i = cl.length - 1; i >= 0; i--)
           path.node.body.body.unshift(cl[i]);
