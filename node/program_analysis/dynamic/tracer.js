@@ -172,7 +172,7 @@
 
   var proxyWrapper = function (heap, logStore, scope) {
     var skipLogCondtion = function (target, key, method, type) {
-      return type == "read" && typeof method == "function";
+      return typeof method == "function" || typeof method == "object";
     };
 
     var logger = function (target, key, method, type) {
