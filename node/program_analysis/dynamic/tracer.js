@@ -38,6 +38,7 @@
     constructor() {
       this.loggers = [];
       this.objToHeaps = new Map();
+      this.fileClosures = {};
     }
 
     removeProxy(obj) {
@@ -57,6 +58,10 @@
       return l.proxy;
     }
 
+    setFileClosure(file, closure) {
+      this.fileClosures[file] = closure;
+    }
+
     resolveLogData() {
       var res = {};
       for (var i = 0; i < this.loggers.length; i++) {
@@ -68,6 +73,30 @@
         }
       }
       this.finalTraceData = res;
+      return res;
+    }
+
+    serializeLogData() {
+      if (!this.finalTraceData) {
+        console.log("Please call resolveLogData() before serializing");
+        return;
+      }
+      var res = {};
+      for (var file in this.finalTraceData) {
+        var myClosures = {};
+        this.fileClosures[file].forEach((x) => (myClosures[x] = true));
+        var f = res[file].filter((x) => x[1] && !myClosures[x[3]]);
+        res[file] = [];
+        for (var i = 0; i < f.length; i++) {
+          try {
+            var str = JSON.stringify(f[i]);
+            res[file].push(str);
+          } catch (e) {
+            // no-op
+          }
+        }
+      }
+      this.serialLog = res;
       return res;
     }
   }
@@ -141,6 +170,10 @@
   }
 
   var proxyWrapper = function (heap, logStore, scope) {
+    var skipLogCondtion = function (target, key, method, type) {
+      return type == "read" && typeof method == "function";
+    };
+
     var logger = function (target, key, method, type) {
       var id = window.__stackHead__;
       if (typeof method == "function" || typeof method == "object") {
@@ -156,7 +189,8 @@
         if (type == "read" && prev[0] == "read" && prev[3] == target)
           logStore[id].pop();
       }
-      logStore[id].push([type, n.id, key, method]);
+      if (skipLogCondtion(target, key, method, type)) return;
+      logStore[id].push([type, n.id, key, method, heap.rootName]);
     };
 
     var ignoreKeys = ["__proto__", "toJSON", "apply", "call", "prototype"];

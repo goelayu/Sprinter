@@ -137,6 +137,7 @@ var extractRelevantState = function (input, opts) {
   var PREFIX = opts.PREFIX;
   var globalScope;
   var closureScopes = {};
+  var closureList = [];
 
   traverse(ast, {
     Program: {
@@ -149,6 +150,7 @@ var extractRelevantState = function (input, opts) {
         if (typeof window !== 'undefined') {
           window.__stackHead__ = '${opts.name}';
         }
+        __tracer__.setFileClosure(__stackHead__, [${closureList.join(",")}]);
       })();
       `;
         opts.addStack &&
@@ -167,6 +169,7 @@ var extractRelevantState = function (input, opts) {
         rewriteGlobal(path, PREFIX);
       } else if (isClosureIdentifier(path)) {
         var clScope = isClosureIdentifier(path);
+        closureList.push(`'closure${clScope.uid}'`);
         var fnScope = path.scope.getFunctionParent();
         if (!fnScope)
           throw new Error("No function scope found for closure var");
