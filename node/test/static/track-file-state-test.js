@@ -76,6 +76,26 @@ describe("Extract all globals", function () {
       assert.equal(output, expected);
     });
   });
+
+  describe("extract globals 8", function () {
+    it("same variable declared multiple places", function () {
+      const PREFIX = "tracer";
+      var input = `var a = 1; function f(){var a; a=2;};`;
+      var expected = `${PREFIX}.a=1;function f(){var a;a=2;};`;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
+
+  describe("extract globals 9", function () {
+    it("variable declarations in for-in", function () {
+      const PREFIX = "tracer";
+      var input = `for (var i in a){};`;
+      var expected = `for(var i in ${PREFIX}.a){};`;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
 });
 
 describe("browser context testing", function () {

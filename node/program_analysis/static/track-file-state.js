@@ -18,12 +18,17 @@ const types = require("@babel/types");
  * @param {Path} path
  */
 function isGlobalScopeDecl(path) {
-  return (
-    path.scope
-      .getProgramParent()
-      .hasBinding(path.node.declarations[0].id.name) &&
-    path.parent.type != "ForInStatement"
-  );
+  var funcScope = path.scope.getFunctionParent();
+  return !funcScope &&
+  (path.node.kind != "let" || path.scope == path.scope.getProgramParent())
+  && !path.parentPath.isFor();
+  // return (
+  //   !funcScope || 
+  //   path.scope
+  //     .getProgramParent()
+  //     .hasBinding(path.node.declarations[0].id.name) &&
+  //   path.parent.type != "ForInStatement"
+  // );
 }
 
 var isTrackableIdentifier = function (path) {
@@ -57,11 +62,20 @@ var isTrackableIdentifier = function (path) {
     (path.parent.type == "BreakStatement"
       ? path.parent.label != path.node
       : true) &&
+    (path.parent.type == "ContinueStatement"
+      ? path.parent.label != path.node
+      : true) &&
     (path.parent.type == "CatchClause"
       ? path.parent.param != path.node
       : true) &&
     (path.parent.type == "ObjectMethod"
       ? path.parent.key != path.node
+      : true) &&
+    (path.parent.type == "ClassMethod"
+      ? path.parent.key != path.node
+      : true) &&
+    (path.parent.type == "VariableDeclarator"
+      ? path.parent.id != path.node
       : true) &&
     GlobalDefaults.indexOf(path.node.name) == -1
   );
@@ -88,10 +102,16 @@ var isClosureIdentifier = function (path) {
  * @param {*} path
  */
 var isGlobalIdentifier = function (path, globalScope) {
-  return (
-    !path.scope.hasBinding(path.node.name, true) ||
-    globalScope.hasOwnBinding(path.node.name)
-  );
+  var scope = path.scope;
+  while (scope.path.type != "Program") {
+    if (scope.hasOwnBinding(path.node.name, true)) return false;
+    scope = scope.parent;
+  }
+  return true;
+  // return (
+  //   !path.scope.hasBinding(path.node.name, true) ||
+  //   globalScope.hasOwnBinding(path.node.name)
+  // );
 };
 
 var rewriteGlobal = function (path, prefix) {
