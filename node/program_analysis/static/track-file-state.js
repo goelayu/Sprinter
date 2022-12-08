@@ -11,16 +11,19 @@ const traverse = require("@babel/traverse").default;
 const parser = require("@babel/parser");
 const generate = require("@babel/generator").default;
 const { GlobalDefaults } = require("./browserGlobals.js");
+const types = require("@babel/types");
 
 /**
  * Checks if path is in global scoped
  * @param {Path} path
  */
 function isGlobalScopeDecl(path) {
-  return path.scope
-    .getProgramParent()
-    .hasBinding(path.node.declarations[0].id.name)
-    && (path.parent.type != "ForInStatement");
+  return (
+    path.scope
+      .getProgramParent()
+      .hasBinding(path.node.declarations[0].id.name) &&
+    path.parent.type != "ForInStatement"
+  );
 }
 
 var isTrackableIdentifier = function (path) {
@@ -34,6 +37,9 @@ var isTrackableIdentifier = function (path) {
       ? path.parent.id != path.node
       : true) &&
     (path.parent.type == "MemberExpression"
+      ? path.parent.property != path.node
+      : true) &&
+    (path.parent.type == "OptionalMemberExpression"
       ? path.parent.property != path.node
       : true) &&
     (path.parent.type == "CallExpression"
@@ -150,6 +156,12 @@ var extractRelevantState = function (input, opts) {
   var closureList = [];
   var sn = opts.scriptNo;
 
+  var helpers = {
+    getSrc: function (path) {
+      return input.slice(path.node.start, path.node.end);
+    },
+  };
+
   traverse(ast, {
     Program: {
       enter(path) {
@@ -161,7 +173,9 @@ var extractRelevantState = function (input, opts) {
         if (typeof window !== 'undefined') {
           window.__stackHead__ = '${opts.name}';
         }
-        __tracer__.setFileClosure(__stackHead__, [${[...new Set(closureList)].join(",")}]);
+        __tracer__.setFileClosure(__stackHead__, [${[
+          ...new Set(closureList),
+        ].join(",")}]);
       })();
       `;
         opts.addStack &&
@@ -232,9 +246,17 @@ var extractRelevantState = function (input, opts) {
         var uid = path.scope.uid;
         var scopes = closureScopes[path.scope.uid];
         var clStr = getClosureProxyStr(path, scopes, sn);
-        var cl = parser.parse(clStr).program.body;
-        for (var i = cl.length - 1; i >= 0; i--)
-          path.node.body.body.unshift(cl[i]);
+        if (!path.node.body.body) {
+          var bodyStr = path.get("body").toString();
+          var newClStr = clStr + bodyStr;
+          var newBody = parser.parse(newClStr).program.body;
+          var newBlock = types.blockStatement(newBody);
+          path.node.body = newBlock;
+        } else {
+          var cl = parser.parse(clStr).program.body;
+          for (var i = cl.length - 1; i >= 0; i--)
+            path.node.body.body.unshift(cl[i]);
+        }
       },
     },
   });
