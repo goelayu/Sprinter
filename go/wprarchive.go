@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -16,7 +17,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"flag"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -154,30 +154,32 @@ func OpenArchive(path string) (*Archive, error) {
 
 // ForEach applies f to all requests in the archive.
 func (a *Archive) ForEach(f func(req *http.Request, resp *http.Response) error) error {
-	errors := make(chan error, len(a.Requests))
+	// errors := make(chan error, len(a.Requests))
 	var wg sync.WaitGroup
 	for _, urlmap := range a.Requests {
-		wg.Add(1)
-		go func(urlmap map[string][]*ArchivedRequest) {
-			for urlString, requests := range urlmap {
-				fullURL, _ := url.Parse(urlString)
-				for index, archivedRequest := range requests {
+		for urlString, requests := range urlmap {
+			fullURL, _ := url.Parse(urlString)
+			for index, archivedRequest := range requests {
+				go func(archivedRequest *ArchivedRequest, fullURL *url.URL, index int) {
+					wg.Add(1)
 					req, resp, err := archivedRequest.unmarshal(fullURL.Scheme)
 					if err != nil {
 						log.Printf("Error unmarshaling request #%d for %s: %v", index, urlString, err)
-						continue
+						return
 					}
-					if err := f(req, resp); err != nil {
-						errors <- err
-					}
-				}
+					// if err := f(req, resp); err != nil {
+					// 	errors <- err
+					// }
+					f(req, resp)
+					wg.Done()
+				}(archivedRequest, fullURL, index)
 			}
-			errors <- nil
-			wg.Done()
-		}(urlmap)
+			// errors <- nil
+			// wg.Done()
+		}
 	}
 	wg.Wait()
-	close(errors)
+	// close(errors)
 	// for err := range errors {
 	// 	if err != nil {
 	// 		return err
@@ -426,7 +428,7 @@ func (a *Archive) StartNewReplaySession() {
 func (a *Archive) Edit(edit func(req *http.Request, resp *http.Response) (*http.Request, *http.Response, error)) (*Archive, error) {
 	clone := newArchive()
 	var mu sync.Mutex
-	err := a.ForEach(func(oldReq *http.Request, oldResp *http.Response) error {		
+	err := a.ForEach(func(oldReq *http.Request, oldResp *http.Response) error {
 		newReq, newResp, err := edit(oldReq, oldResp)
 		if err != nil {
 			return err
@@ -597,6 +599,7 @@ func (a *WritableArchive) Close() error {
 func main() {
 	input := flag.String("input", "", "Input archive file")
 	output := flag.String("output", "", "Output archive file")
+	// logDir := flag.String("log_dir", "", "If non-empty, write log files in this directory")
 
 	flag.Parse()
 
@@ -611,18 +614,17 @@ func main() {
 
 	// editFn := func(req *http.Request, resp *http.Response) (*http.Request, *http.Response, error) {
 	// 	// Simply add a new text to each body
-		
+
 	// 	newBody := "console.log('new body');"
 	// 	newBodyBytes := []byte(newBody)
 	// 	resp.Body = io.NopCloser(bytes.NewReader(newBodyBytes))
 	// 	resp.ContentLength = int64(len(newBodyBytes))
 	// 	resp.Header.Set("Content-Length", strconv.Itoa(len(newBodyBytes)))
-		
+
 	// 	// remove the content-encoding header
 	// 	resp.Header.Del("Content-Encoding")
 	// 	return req, resp, nil
 	// }
-
 
 	modArchive, err := inputArchive.Edit(instrument)
 

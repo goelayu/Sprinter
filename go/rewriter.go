@@ -1,45 +1,59 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-	"compress/gzip"
-	"io"
-	"github.com/andybalholm/brotli"
-	"github.com/flytam/filenamify"
-	"strings"
-	"os"
 	"bytes"
+	"compress/gzip"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
-	"sync/atomic"
+	"strings"
 	"sync"
+	"sync/atomic"
+
+	"github.com/andybalholm/brotli"
+	"github.com/flytam/filenamify"
 )
 
 var FILEID uint64 = 0
 
 func check(e error) {
 	if e != nil {
-			panic(e)
+		panic(e)
 	}
 }
 
 func uncompressBody(body string, t string) string {
 
 	var zreader io.Reader
+	var output []byte
 	reader := bytes.NewReader([]byte(body))
 	// uncompress the body
-	if strings.Contains(strings.ToLower(t),"gzip") {
-		zreader, _ = gzip.NewReader(reader)
-	} else if strings.Contains(strings.ToLower(t),"br") {
+	if strings.Contains(strings.ToLower(t), "gzip") {
+		var err error
+		zreader, err = gzip.NewReader(reader)
+		if err != nil {
+			fmt.Println("Error reading gzip body", err)
+			output = []byte(body)
+		} else {
+			output, err = io.ReadAll(zreader)
+			if err != nil {
+				fmt.Println("Error reading uncompressed body", err)
+				panic(err)
+			}
+		}
+	} else if strings.Contains(strings.ToLower(t), "br") {
 		zreader = brotli.NewReader(reader)
-	}
-
-	// read the uncompressed body
-	output, err := io.ReadAll(zreader)
-	if err != nil {
-		fmt.Println("Error reading uncompressed body", err)
-		panic(err)
+		var err error
+		output, err = io.ReadAll(zreader)
+		if err != nil {
+			fmt.Println("Error reading uncompressed body", err)
+			panic(err)
+		}
+	} else {
+		panic("Unknown compression type: " + t)
 	}
 
 	return string(output)
@@ -68,7 +82,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 		fmt.Println("Error creating temp file", err)
 		panic(err)
 	}
-	defer os.Remove(tempFile.Name())
+	// defer os.Remove(tempFile.Name())
 
 	_, err = tempFile.WriteString(body)
 	check(err)
@@ -95,7 +109,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 
 	_, err = cmd.Output()
 	if err != nil {
-		fmt.Println(err.Error() + ": " + stderr.String())
+		fmt.Println(err.Error() + " with cmd:" + cmdString + "\n" + stderr.String())
 		panic(err)
 	}
 
@@ -111,9 +125,9 @@ func instrument(req *http.Request, resp *http.Response) (*http.Request, *http.Re
 
 	// Identify if the response is a JavaScript response
 	t := resp.Header.Get("Content-Type")
-	name,_ := filenamify.Filenamify(req.URL.Path, filenamify.Options{})
+	name, _ := filenamify.Filenamify(req.URL.Path, filenamify.Options{})
 
-	if strings.Contains(strings.ToLower(t),"javascript") || strings.Contains(strings.ToLower(t),"html") {
+	if strings.Contains(strings.ToLower(t), "javascript") || strings.Contains(strings.ToLower(t), "html") {
 		// extract body bytes
 		// fmt.Println("Instrumenting", req.URL.Path)
 		bodyBytes, _ := io.ReadAll(resp.Body)
@@ -121,7 +135,7 @@ func instrument(req *http.Request, resp *http.Response) (*http.Request, *http.Re
 		resp.Body = io.NopCloser(bytes.NewReader(newbody))
 		resp.ContentLength = int64(len(newbody))
 		resp.Header.Set("Content-Length", strconv.Itoa(len(newbody)))
-		
+
 		//delete encoding if it exists
 		if resp.Header.Get("Content-Encoding") != "" {
 			resp.Header.Del("Content-Encoding")
