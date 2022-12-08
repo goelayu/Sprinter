@@ -19,7 +19,8 @@ const { GlobalDefaults } = require("./browserGlobals.js");
 function isGlobalScopeDecl(path) {
   return path.scope
     .getProgramParent()
-    .hasBinding(path.node.declarations[0].id.name);
+    .hasBinding(path.node.declarations[0].id.name)
+    && (path.parent.type != "ForInStatement");
 }
 
 var isTrackableIdentifier = function (path) {
@@ -27,6 +28,9 @@ var isTrackableIdentifier = function (path) {
     path.node.name != "undefined" &&
     path.node.name != "null" &&
     (path.parent.type == "FunctionDeclaration"
+      ? path.parent.id != path.node
+      : true) &&
+    (path.parent.type == "FunctionExpression"
       ? path.parent.id != path.node
       : true) &&
     (path.parent.type == "MemberExpression"
@@ -46,6 +50,12 @@ var isTrackableIdentifier = function (path) {
       : true) &&
     (path.parent.type == "BreakStatement"
       ? path.parent.label != path.node
+      : true) &&
+    (path.parent.type == "CatchClause"
+      ? path.parent.param != path.node
+      : true) &&
+    (path.parent.type == "ObjectMethod"
+      ? path.parent.key != path.node
       : true) &&
     GlobalDefaults.indexOf(path.node.name) == -1
   );

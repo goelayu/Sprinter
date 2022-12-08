@@ -158,7 +158,6 @@ func (a *Archive) ForEach(f func(req *http.Request, resp *http.Response) error) 
 	var wg sync.WaitGroup
 	for _, urlmap := range a.Requests {
 		wg.Add(1)
-		log.Printf("urlmap: %v", urlmap)
 		go func(urlmap map[string][]*ArchivedRequest) {
 			for urlString, requests := range urlmap {
 				fullURL, _ := url.Parse(urlString)
