@@ -72,7 +72,7 @@ class ProxyManager {
       var http_port = this.startHttpPort + i;
       var https_port = this.startHttpsPort + i;
       var dataOutput = `${this.outputDir}`;
-      var logOutput = `${this.logDir}/log-${i}`;
+      var logOutput = `${this.logDir}/${this.mode}.log`;
       var mode = this.mode;
       var p = new Proxy({ http_port, https_port, dataOutput, logOutput, mode });
       this.proxies.push(p);
