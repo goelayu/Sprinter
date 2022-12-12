@@ -87,6 +87,7 @@ var isClosureIdentifier = function (path) {
   // since globals are already handled,
   // if this variable is a not a local, it is a closure variable
   if (!funcScope || funcScope.hasOwnBinding(path.node.name)) return false;
+  if (path.scope.hasOwnBinding(path.node.name)) return false; // a local scope created with {} inside a function
   var scope = path.scope.parent;
   while (scope.path.type != "Program") {
     if (scope.hasOwnBinding(path.node.name, true)) return scope;
@@ -260,7 +261,7 @@ var extractRelevantState = function (input, opts) {
     },
     Function: {
       exit(path) {
-        if (path.node.type == "ObjectMethod" || path.node.type == "ClassMethod")
+        if (path.node.type == "ClassMethod")
           return;
         if (!closureScopes[path.scope.uid]) return;
         var uid = path.scope.uid;
