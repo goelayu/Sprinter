@@ -138,7 +138,7 @@
         allIds.add(n.id);
       });
       allIds = Array.from(allIds);
-      for (var k = 0; k < 2; k++) {
+      for (var iter = 0; iter < 2; iter++) {
         for (var i = 0; i < allIds.length; i++) {
           var id = allIds[i];
           if (this.idToStr[id]) {
@@ -166,7 +166,7 @@
     addEdge(node, key) {
       if (!Object.prototype.hasOwnProperty.call(this.children, key))
         this.children[key] = [];
-      this.children[key].push(node);
+      if (!this.children[key].includes(node)) this.children[key].push(node);
     }
   }
 
@@ -177,12 +177,12 @@
 
     var logger = function (target, key, method, type) {
       var id = window.__stackHead__;
+      if (!id) return;
       if (typeof method == "function" || typeof method == "object") {
         method != null && heap.addEdge(target, key, method);
         // if (type == "read") return;
       }
       var n = heap.addNode(target);
-      if (!id) throw new Error("Stack head is null");
       if (!logStore[id]) logStore[id] = [];
       var prev;
       if (logStore[id].length > 0) {
@@ -260,4 +260,144 @@
 
   window.__tracer__ = new __Tracer__();
   window.__proxy__ = window.__tracer__.createLogger(window, "window");
+
+  /*Creates shim for every dom methods
+     The purpose of the shim is to check for proxy argument types
+  */
+  function createShimForDOMMethods(self) {
+    var HTMLNames = [
+      "HTMLDocument",
+      "HTMLLinkElement",
+      "HTMLElement",
+      "HTMLHtmlElement",
+      "HTMLDivElement",
+      "HTMLAnchorElement",
+      "HTMLSelectElement",
+      "HTMLOptionElement",
+      "HTMLInputElement",
+      "HTMLHeadElement",
+      "HTMLSpanElement",
+      "XULElement",
+      "HTMLBodyElement",
+      "HTMLTableElement",
+      "HTMLTableCellElement",
+      "HTMLTextAreaElement",
+      "HTMLScriptElement",
+      "HTMLAudioElement",
+      "HTMLMediaElement",
+      "HTMLParagraphElement",
+      "DOMImplementation",
+      "HTMLButtonElement",
+      "HTMLLIElement",
+      "HTMLUListElement",
+      "HTMLIFrameElement",
+      "HTMLFormElement",
+      "HTMLHeadingElement",
+      "HTMLImageElement",
+      "IntersectionObserver",
+      "HTMLStyleElement",
+      "HTMLTableRowElement",
+      "HTMLTableSectionElement",
+      "PerformanceObserver",
+      "HTMLBRElement",
+      "Node",
+      "EventTarget",
+      "HTMLCollection",
+      "MutationObserver",
+      "Document",
+      "HTMLCanvasElement",
+      "CanvasRenderingContext2D",
+      "CanvasGradient",
+      "CanvasPattern",
+      "ImageBitMap",
+      "ImageData",
+      "TextMetrics",
+      "Path2D",
+      "CSSCounterStyleRule",
+      "Element",
+      "RegExp",
+      "Crypto",
+      "Object",
+      "Map",
+      "MediaDevices",
+      "StorageManager",
+      "CacheStorage",
+    ];
+
+    HTMLNames.forEach((_class) => {
+      self[_class] &&
+        self[_class].prototype &&
+        Object.getOwnPropertyNames(self[_class].prototype).forEach(
+          (classKey) => {
+            try {
+              if (typeof self[_class].prototype[classKey] == "function") {
+                var origMethod = self[_class].prototype[classKey];
+                if (classKey == "constructor") return;
+                self[_class].prototype[classKey] = function () {
+                  var thisObj = this;
+                  for (var i = 0; i < arguments.length; i++) {
+                    var arg = arguments[i];
+                    if (arg && arg.__isProxy__) arguments[i] = arg.__target__;
+                  }
+                  if (thisObj && thisObj.__isProxy__)
+                    thisObj = thisObj.__target__;
+                  /*If regex testing, return the original method*/
+                  if (
+                    (origMethod.name == "test" || origMethod.name == "exec") &&
+                    arguments[0] &&
+                    arguments[0].__isShimmed__
+                  )
+                    arguments[0] = arguments[0].__orig__;
+
+                  return origMethod.apply(thisObj, arguments);
+                };
+                self[_class].prototype[classKey].__isShimmed__ = true;
+                self[_class].prototype[classKey].__orig__ = origMethod;
+              }
+            } catch (e) {}
+          }
+        );
+    });
+  }
+
+  function customShims(self) {
+    var _create = Object.create;
+    self.Object.create = function () {
+      var thisObj = this;
+      for (var i = 0; i < arguments.length; i++) {
+        var arg = arguments[i];
+        if (arg && arg.__isProxy__) arguments[i] = arg.__target__;
+      }
+      if (thisObj && thisObj.__isProxy__) thisObj = thisObj.__target__;
+      return _create.apply(thisObj, arguments);
+    };
+
+    var _encodeURI = window.encodeURI;
+    self.window.encodeURI = function (uri) {
+      var _t;
+      if (uri && (_t = uri.__target__)) uri = _t;
+      return _encodeURI.call(this, uri);
+    };
+
+    var _encodeURIComponent = window.encodeURIComponent;
+    self.window.encodeURIComponent = function (uri) {
+      var _t;
+      if (uri && (_t = uri.__target__)) uri = _t;
+      return _encodeURIComponent.call(this, uri);
+    };
+
+    var _getComputedStyle = window.getComputedStyle;
+    self.window.getComputedStyle = function () {
+      var thisObj = this;
+      for (var i = 0; i < arguments.length; i++) {
+        var arg = arguments[i];
+        if (arg && arg.__isProxy__) arguments[i] = arg.__target__;
+      }
+      if (thisObj && thisObj.__isProxy__) thisObj = thisObj.__target__;
+      return _getComputedStyle.apply(thisObj, arguments);
+    };
+  }
+
+  customShims(window);
+  createShimForDOMMethods(window);
 })();
