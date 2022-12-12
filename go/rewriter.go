@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/andybalholm/brotli"
 	"github.com/flytam/filenamify"
@@ -82,7 +83,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 		fmt.Println("Error creating temp file", err)
 		panic(err)
 	}
-	// defer os.Remove(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	_, err = tempFile.WriteString(body)
 	check(err)
@@ -103,6 +104,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s' -f %d", SCRIPTPATH, tempFile.Name(), t, name, fileid)
 	fmt.Println(cmdString)
 	mu.Unlock()
+	startTime := time.Now()
 	cmd := exec.Command("bash", "-c", cmdString)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -112,6 +114,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 		fmt.Println(err.Error() + " with cmd:" + cmdString + "\n" + stderr.String())
 		panic(err)
 	}
+	fmt.Println("Instrumentation took", time.Since(startTime))
 
 	// read the temp file
 	tempFile.Seek(0, 0)
