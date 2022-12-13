@@ -5,7 +5,6 @@
 // do not create any global property,
 // unless explicitly specified using the window object
 (function () {
-  window.__tracedata__ = {};
   window.__stackHead__ = null;
 
   class logger {
@@ -49,10 +48,10 @@
     }
 
     createLogger(obj, objName) {
-      var heap = this.objToHeaps.get(objName)
-        ? this.objToHeaps.get(objName)
-        : null;
-      var l = new logger(obj, objName, heap);
+      // var heap = this.objToHeaps.get(objName)
+      //   ? this.objToHeaps.get(objName)
+      //   : null;
+      var l = new logger(obj, objName, null);
       this.objToHeaps.set(objName, l.heap);
       this.loggers.push(l);
       return l.proxy;
@@ -90,7 +89,7 @@
         res[file] = [];
         for (var i = 0; i < f.length; i++) {
           try {
-            var str = JSON.stringify(f[i]);
+            var str = JSON.stringify(f[i].slice(0, 4));
             res[file].push(str);
           } catch (e) {
             // no-op
@@ -172,6 +171,8 @@
 
   var proxyWrapper = function (heap, logStore, scope) {
     var skipLogCondtion = function (target, key, method, type) {
+      return (type == "write" && typeof method == "function" || typeof method == "object") ||
+      (type == "read" && typeof method == "function");
       return typeof method == "function" || typeof method == "object";
     };
 
@@ -201,16 +202,16 @@
         if (key == "__isProxy__") return true;
         if (key == "__target__") return target;
         var method = Reflect.get(target, key);
+        if (method.__isProxy__) method = method.__target__;
+
+        logger(target, key, method, "read");
+
         if (
           (typeof method != "function" && typeof method != "object") ||
           method === null ||
           method === undefined
         )
           return method;
-
-        if (method.__isProxy__) method = method.__target__;
-
-        logger(target, key, method, "read");
 
         var desc = Object.getOwnPropertyDescriptor(target, key);
         if (
