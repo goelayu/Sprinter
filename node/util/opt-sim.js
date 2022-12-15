@@ -12,6 +12,7 @@ const traceParser = require("../lib/trace-parser.js");
 const dag = require("../lib/nw-dag.js");
 const URL = require("url");
 const crypto = require("crypto");
+const filenamify = require("filenamify");
 
 program
   .version("0.0.1")
@@ -34,6 +35,22 @@ var shortenURL = function(url) {
   return p.hostname + p.pathname;
 };
 
+var compareFileState = function (prevSigs, curSig){
+  
+  var cleanSig = function(sig) {
+    return [...new Set(sig.filter(e=>e.indexOf("read")>=0)).sort()];
+  }
+  
+  var prevSigs = prevSigs.map(cleanSig);
+  var curSig = cleanSig(curSig);
+
+  for (var p of prevSigs) {
+    if (p.length != curSig.length) continue;
+    if (JSON.stringify(p) == JSON.stringify(curSig)) return true;
+  }
+  return false;
+}
+
 (function () {
   var fileMem = {},
     totalScriptTime = (savedScriptTime = 0),
@@ -49,6 +66,7 @@ var shortenURL = function(url) {
         var trace = JSON.parse(fs.readFileSync(`${line}/trace.json`, "utf8"));
         var net = JSON.parse(fs.readFileSync(`${line}/network.json`, "utf8"));
         var payload = JSON.parse(fs.readFileSync(`${line}/payload.json`, "utf8"));
+        var fileSig = JSON.parse(fs.readFileSync(`${line}/state.json`, "utf8"));
         var netObj = netParser.parseNetworkLogs(net);
         var graph = new dag.Graph(netObj);
         graph.createTransitiveEdges()
@@ -65,6 +83,8 @@ var shortenURL = function(url) {
           else hash = crypto.createHash("md5").update(payloadObj.data).digest("hex");
           var key = n.url + hash
           var eval = timings.scriptEvaluation;
+          var filesigName = filenamify(URL.parse(n.url).pathname);
+          var curSig = fileSig[filesigName];
 
           fetches[n.url] && fetches[n.url].length && scriptsThatFetch++;
           var unseenFile = false;
@@ -91,6 +111,21 @@ var shortenURL = function(url) {
                 program.verbose && console.log(`Fetches for ${n.url} are different: ${JSON.stringify(fCurr.sort().map(shortenURL))}`);
               }
             }
+
+            if (curSig) {
+              var prevSigs = fileMem[key]["fileSig"];
+              if (prevSigs) {
+                if (compareFileState(prevSigs, curSig)) {
+                  program.verbose && console.log(`File state for ${n.url} is same as before`);
+                } else {
+                  program.verbose && console.log(`File state for ${n.url} is different`);
+                  fileMem[key]["fileSig"].push(curSig);
+                }
+              } else {
+                program.verbose && console.log(`File state for ${n.url} is different`);
+                fileMem[key]["fileSig"] = [curSig];
+              }
+            }
           } else {
             unseenFile = true;
             if (eval) {
@@ -98,6 +133,8 @@ var shortenURL = function(url) {
               totalScriptTime += eval;
               localTotal += eval;
             } else fileMem[key] = { scriptEvaluation: 0 };
+
+            curSig && (fileMem[key]["fileSig"] = [curSig]);
 
             var f = (fileMem[key]["fetches"] = []),
               _f = fetches[n.url];
