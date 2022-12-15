@@ -36,9 +36,8 @@ var shortenURL = function(url) {
 };
 
 var compareFileState = function (prevSigs, curSig){
-  
   var cleanSig = function(sig) {
-    return [...new Set(sig.filter(e=>e.indexOf("read")>=0)).sort()];
+    return [...new Set(sig.filter(e=>e.indexOf("read")>=0).sort())];
   }
   
   var prevSigs = prevSigs.map(cleanSig);
@@ -49,13 +48,13 @@ var compareFileState = function (prevSigs, curSig){
     if (JSON.stringify(p) == JSON.stringify(curSig)) return true;
   }
   return false;
-}
+};
 
 (function () {
   var fileMem = {},
     totalScriptTime = (savedScriptTime = 0),
     fetchesSame = (fetchesTotal = 0), totalScripts = 0, scriptsThatFetch = 0,
-    tPages = newPages = 0;
+    tPages = newPages = 0, eval;
   fs.readFileSync(program.input, "utf8")
     .split("\n")
     .forEach(function (line) {
@@ -63,7 +62,7 @@ var compareFileState = function (prevSigs, curSig){
       var localSaved = (localTotal = 0);
       try {
         program.verbose && console.log(`--------${line}--------`);
-        var trace = JSON.parse(fs.readFileSync(`${line}/trace.json`, "utf8"));
+        // var trace = JSON.parse(fs.readFileSync(`${line}/trace.json`, "utf8"));
         var net = JSON.parse(fs.readFileSync(`${line}/network.json`, "utf8"));
         var payload = JSON.parse(fs.readFileSync(`${line}/payload.json`, "utf8"));
         var fileSig = JSON.parse(fs.readFileSync(`${line}/state.json`, "utf8"));
@@ -71,18 +70,18 @@ var compareFileState = function (prevSigs, curSig){
         var graph = new dag.Graph(netObj);
         graph.createTransitiveEdges()
         var fetches = graph.transitiveEdges;
-        var execTimings = traceParser.getExecutionTimingsByURL(trace, net);
+        // var execTimings = traceParser.getExecutionTimingsByURL(trace, net);
         tPages++;
         for (var n of netObj) {
           if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
-          var timings = execTimings.get(n.url);
-          if (!timings) continue;
+          // var timings = execTimings.get(n.url);
+          // if (!timings) continue;
           var payloadObj = payload.filter(p => p.url == n.url)[0];
           var hash;
           if (!payloadObj) hash = n.size;
           else hash = crypto.createHash("md5").update(payloadObj.data).digest("hex");
           var key = n.url + hash
-          var eval = timings.scriptEvaluation;
+          // var eval = timings.scriptEvaluation;
           var filesigName = filenamify(URL.parse(n.url).pathname);
           var curSig = fileSig[filesigName];
 
@@ -117,9 +116,11 @@ var compareFileState = function (prevSigs, curSig){
               if (prevSigs) {
                 if (compareFileState(prevSigs, curSig)) {
                   program.verbose && console.log(`File state for ${n.url} is same as before`);
+                  fCurr && !execFound && fileMem[key]["fetches"].length != 1 && console.log(`same signature for ${n.url} but fetches are different`)
                 } else {
                   program.verbose && console.log(`File state for ${n.url} is different`);
                   fileMem[key]["fileSig"].push(curSig);
+                  execFound && console.log(`new signature for ${n.url} but fetches are same`)
                 }
               } else {
                 program.verbose && console.log(`File state for ${n.url} is different`);
@@ -145,7 +146,7 @@ var compareFileState = function (prevSigs, curSig){
         }
         if (unseenFile) newPages++;
       } catch (e) {
-        console.log(e);
+        program.verbose && console.log(e);
       }
       // console.log(localSaved, localTotal);
     });
