@@ -188,7 +188,7 @@
       var prev;
       if (logStore[id].length > 0) {
         prev = logStore[id][logStore[id].length - 1];
-        if (type == "read" && prev[0] == "read" && prev[3] == target)
+        if (type == "read" && prev[0] == "read" && prev[3] === target)
           logStore[id].pop();
       }
       if (skipLogCondtion(target, key, method, type)) return;
@@ -202,7 +202,7 @@
         if (key == "__isProxy__") return true;
         if (key == "__target__") return target;
         var method = Reflect.get(target, key);
-        if (method.__isProxy__) method = method.__target__;
+        if (method && method.__isProxy__) method = method.__target__;
 
         logger(target, key, method, "read");
 
