@@ -195,14 +195,19 @@
       logStore[id].push([type, n.id, key, method, heap.rootName]);
     };
 
-    var ignoreKeys = ["__proto__", "toJSON", "apply", "call", "prototype"];
+    var ignoreKeys = ["__proto__", "toJSON", "apply", "call", "prototype", "location"];
+
+    var extractObjFromProxy = function (obj) {
+      if (obj && obj.__isProxy__) return extractObjFromProxy(obj.__target__);
+      return obj;
+    };
 
     var handler = {
       get: function (target, key) {
         if (key == "__isProxy__") return true;
         if (key == "__target__") return target;
         var method = Reflect.get(target, key);
-        if (method && method.__isProxy__) method = method.__target__;
+        method = extractObjFromProxy(method);
 
         logger(target, key, method, "read");
 
