@@ -203,11 +203,13 @@ func (a *Archive) findHostNegotiatedProtocol(host string) string {
 	return "http/1.1"
 }
 
-func assertCompleteURL(url *url.URL) {
+func assertCompleteURL(url *url.URL) error {
 	if url.Host == "" || url.Scheme == "" {
-		log.Printf("Missing host and scheme: %v\n", url)
-		os.Exit(1)
+		err := fmt.Sprintf("Missing host and scheme: %v\n", url)
+		return errors.New(err)
+		// os.Exit(1)
 	}
+	return nil
 }
 
 // FindRequest searches for the given request in the archive.
@@ -386,7 +388,10 @@ const (
 
 func (a *Archive) addArchivedRequest(req *http.Request, resp *http.Response, mode AddMode) error {
 	// Always use the absolute URL in this mapping.
-	assertCompleteURL(req.URL)
+	err := assertCompleteURL(req.URL)
+	if err != nil {
+		return err
+	}
 	archivedRequest, err := serializeRequest(req, resp)
 	if err != nil {
 		return err
