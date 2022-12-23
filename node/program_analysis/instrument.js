@@ -21,7 +21,17 @@ if (!program.input) {
     process.exit(1);
 }
 
+function IsJsonString(str) {
+  try {
+      JSON.parse(str);
+  } catch (e) {
+      return false;
+  }
+  return true;
+}
+
 var instrumentJS = function (js) {
+  if (IsJsonString(js)) return js;
   const PREFIX = 'window.__proxy__';
   const name = program.name;
   var addStack = true;

@@ -165,6 +165,17 @@ var getClosureProxyStr = function (path, scopes, sn) {
   return resStr;
 };
 
+// when body of the function is simply an object expression
+// () => ({a:1})
+var specialArrowFuncRewrite = function (path, clStr, bodyStr) {
+  // clStr is a object expression
+  var ret = types.returnStatement(parser.parseExpression(bodyStr));
+  var clDecl = parser.parse(clStr).program.body;
+  clDecl.push(ret);
+  var newBlock = types.blockStatement(clDecl);
+  path.node.body = newBlock;
+}
+
 var extractRelevantState = function (input, opts) {
   var ast = parser.parse(input, {
     sourceType: "module",
@@ -268,6 +279,9 @@ var extractRelevantState = function (input, opts) {
         var scopes = closureScopes[path.scope.uid];
         var clStr = getClosureProxyStr(path, scopes, sn);
         if (!path.node.body.body) {
+          if (path.node.body.type == "ObjectExpression") {
+            return specialArrowFuncRewrite(path, clStr, path.get("body").toString());
+          }
           var bodyStr = path.get("body").toString();
           var newClStr = clStr + bodyStr;
           var newBody = parser.parse(newClStr).program.body;
