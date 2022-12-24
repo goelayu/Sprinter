@@ -19,11 +19,13 @@ const types = require("@babel/types");
  */
 function isGlobalScopeDecl(path) {
   var funcScope = path.scope.getFunctionParent();
-  return !funcScope &&
-  (path.node.kind != "let" || path.scope == path.scope.getProgramParent())
-  && !path.parentPath.isFor();
+  return (
+    !funcScope &&
+    (path.node.kind != "let" || path.scope == path.scope.getProgramParent()) &&
+    !path.parentPath.isFor()
+  );
   // return (
-  //   !funcScope || 
+  //   !funcScope ||
   //   path.scope
   //     .getProgramParent()
   //     .hasBinding(path.node.declarations[0].id.name) &&
@@ -45,6 +47,9 @@ var isTrackableIdentifier = function (path) {
       ? path.parent.property != path.node
       : true) &&
     (path.parent.type == "OptionalMemberExpression"
+      ? path.parent.property != path.node
+      : true) &&
+    (path.parent.type == "MetaProperty"
       ? path.parent.property != path.node
       : true) &&
     (path.parent.type == "CallExpression"
@@ -71,9 +76,7 @@ var isTrackableIdentifier = function (path) {
     (path.parent.type == "ObjectMethod"
       ? path.parent.key != path.node
       : true) &&
-    (path.parent.type == "ClassMethod"
-      ? path.parent.key != path.node
-      : true) &&
+    (path.parent.type == "ClassMethod" ? path.parent.key != path.node : true) &&
     (path.parent.type == "VariableDeclarator"
       ? path.parent.id != path.node
       : true) &&
@@ -174,7 +177,7 @@ var specialArrowFuncRewrite = function (path, clStr, bodyStr) {
   clDecl.push(ret);
   var newBlock = types.blockStatement(clDecl);
   path.node.body = newBlock;
-}
+};
 
 var extractRelevantState = function (input, opts) {
   var ast = parser.parse(input, {
@@ -240,14 +243,18 @@ var extractRelevantState = function (input, opts) {
     BinaryExpression: {
       exit(path) {
         var operators = ["==", "!=", "===", "!==", "instanceof"];
-        if (operators.indexOf(path.node.operator) != -1) {
-          var newCode = parser.parseExpression(
-            `__tracer__.removeProxy(${generate(path.node.left).code}) ${
-              path.node.operator
-            } __tracer__.removeProxy(${generate(path.node.right).code})`
-          );
-          path.replaceWith(newCode);
-          path.skip();
+        try {
+          if (operators.indexOf(path.node.operator) != -1) {
+            var newCode = parser.parseExpression(
+              `__tracer__.removeProxy(${generate(path.node.left).code}) ${
+                path.node.operator
+              } __tracer__.removeProxy(${generate(path.node.right).code})`
+            );
+            path.replaceWith(newCode);
+            path.skip();
+          }
+        } catch (e) {
+          // supress errors since we are not sure if the code is valid
         }
       },
     },
@@ -255,32 +262,40 @@ var extractRelevantState = function (input, opts) {
       exit(path) {
         var left = path.get("left");
         var right = path.get("right");
-        if (
-          (left.toString().indexOf("prototype") != -1 ||
-            left.toString().indexOf("__proto__") != -1) &&
-          right.node.type != "FunctionExpression"
-        ) {
-          var newCode = parser.parseExpression(
-            `${generate(path.node.left).code} = __tracer__.removeProxy(${
-              generate(path.node.right).code
-            })`
-          );
-          path.replaceWith(newCode);
-          path.skip();
-        }
+        try {
+          if (
+            (left.toString().indexOf("prototype") != -1 ||
+              left.toString().indexOf("__proto__") != -1) &&
+            right.node.type != "FunctionExpression"
+          ) {
+            var newCode = parser.parseExpression(
+              `${generate(path.node.left).code} = __tracer__.removeProxy(${
+                generate(path.node.right).code
+              })`
+            );
+            path.replaceWith(newCode);
+            path.skip();
+          }
+        } catch (e) {}
       },
     },
     Function: {
       exit(path) {
-        if (path.node.type == "ClassMethod")
-          return;
+        if (path.node.type == "ClassMethod") return;
         if (!closureScopes[path.scope.uid]) return;
         var uid = path.scope.uid;
         var scopes = closureScopes[path.scope.uid];
         var clStr = getClosureProxyStr(path, scopes, sn);
         if (!path.node.body.body) {
-          if (path.node.body.type == "ObjectExpression") {
-            return specialArrowFuncRewrite(path, clStr, path.get("body").toString());
+          if (
+            path.node.body.type == "ObjectExpression" ||
+            path.node.body.type == "CallExpression"
+          ) {
+            return specialArrowFuncRewrite(
+              path,
+              clStr,
+              path.get("body").toString()
+            );
           }
           var bodyStr = path.get("body").toString();
           var newClStr = clStr + bodyStr;

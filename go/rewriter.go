@@ -84,7 +84,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 		panic(err)
 	}
 
-	defer os.Remove(tempFile.Name())
+	// defer os.Remove(tempFile.Name())
 
 	_, err = tempFile.WriteString(body)
 	check(err)
@@ -122,6 +122,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 	newbody, err := io.ReadAll(tempFile)
 	check(err)
 	// fmt.Println("newbody is", string(newbody))
+	os.Remove(tempFile.Name())
 	return newbody
 }
 
