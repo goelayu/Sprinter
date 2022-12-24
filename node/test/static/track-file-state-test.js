@@ -96,6 +96,17 @@ describe("Extract all globals", function () {
       assert.equal(output, expected);
     });
   });
+
+  describe("extract globals 10", function () {
+    it("ids in class method", function () {
+      const PREFIX = "tracer";
+      var input = `class A { foo() { a = b; c = d; } }`;
+      var expected = `class A{foo(){a=b;c=d;}}`;
+      debugger;
+      var output = stateTracker.extractRelevantState(input, { PREFIX });
+      assert.equal(output, expected);
+    });
+  });
 });
 
 describe("browser context testing", function () {

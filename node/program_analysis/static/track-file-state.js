@@ -80,7 +80,8 @@ var isTrackableIdentifier = function (path) {
     (path.parent.type == "VariableDeclarator"
       ? path.parent.id != path.node
       : true) &&
-    GlobalDefaults.indexOf(path.node.name) == -1
+    GlobalDefaults.indexOf(path.node.name) == -1 && 
+    path.findParent((path) => path.isClassMethod()) == null
   );
 };
 
