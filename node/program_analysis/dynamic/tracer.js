@@ -418,6 +418,28 @@
       if (thisObj && thisObj.__isProxy__) thisObj = thisObj.__target__;
       return _getComputedStyle.apply(thisObj, arguments);
     };
+
+    var _getPrototypeOf = Object.getPrototypeOf;
+    self.Object.getPrototypeOf = function () {
+      var thisObj = this;
+      for (var i = 0; i < arguments.length; i++) {
+        var arg = arguments[i];
+        if (arg && arg.__isProxy__) arguments[i] = arg.__target__;
+      }
+      if (thisObj && thisObj.__isProxy__) thisObj = thisObj.__target__;
+      return _getPrototypeOf.apply(thisObj, arguments);
+    }
+
+    var _setPrototypeOf = Object.setPrototypeOf;
+    self.Object.setPrototypeOf = function () {
+      var thisObj = this;
+      for (var i = 0; i < arguments.length; i++) {
+        var arg = arguments[i];
+        if (arg && arg.__isProxy__) arguments[i] = arg.__target__;
+      }
+      if (thisObj && thisObj.__isProxy__) thisObj = thisObj.__target__;
+      return _setPrototypeOf.apply(thisObj, arguments);
+    }
   }
 
   customShims(window);

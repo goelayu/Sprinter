@@ -214,6 +214,7 @@ var extractRelevantState = function (input, opts) {
         if (typeof window !== 'undefined') {
           window.__stackHead__ = '${opts.name}';
         }
+        window.__proxy__ === undefined ? (window.__proxy__ = window) : null;
         if (typeof __tracer__ !== 'undefined') {
         __tracer__.setFileClosure(__stackHead__, [${[
           ...new Set(closureList),
