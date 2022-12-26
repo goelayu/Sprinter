@@ -178,7 +178,7 @@ var __closureProxy1=__tracer__.createLogger(__closure1,'closure1');__closureProx
     });
   });
 
-  describe("Closure syntax 1", function () {
+  describe("Closure syntax 3", function () {
     it("multi-closures variable read", function () {
       const PREFIX = "tracer";
       var input = `function outer(){var l=3; function inner(){l=4; var k=5;function inner2(){l++;k++};return l;}}`;

@@ -171,8 +171,11 @@
 
   var proxyWrapper = function (heap, logStore, scope) {
     var skipLogCondtion = function (target, key, method, type) {
-      return (type == "write" && typeof method == "function" || typeof method == "object") ||
-      (type == "read" && typeof method == "function");
+      return (
+        (type == "write" && typeof method == "function") ||
+        typeof method == "object" ||
+        (type == "read" && typeof method == "function")
+      );
       return typeof method == "function" || typeof method == "object";
     };
 
@@ -195,7 +198,14 @@
       logStore[id].push([type, n.id, key, method, heap.rootName]);
     };
 
-    var ignoreKeys = ["__proto__", "toJSON", "apply", "call", "prototype", "location"];
+    var ignoreKeys = [
+      "__proto__",
+      "toJSON",
+      "apply",
+      "call",
+      "prototype",
+      "location",
+    ];
 
     var extractObjFromProxy = function (obj) {
       if (obj && obj.__isProxy__) return extractObjFromProxy(obj.__target__);
@@ -211,10 +221,15 @@
 
         logger(target, key, method, "read");
 
+        if (method === undefined) {
+          if (scope == "closure" && typeof key == "string" && target[`get_${key}`] && typeof target[`get_${key}`] == "function")
+            return target[`get_${key}`]();
+          return method;
+        }
+
         if (
           (typeof method != "function" && typeof method != "object") ||
-          method === null ||
-          method === undefined
+          method === null
         )
           return method;
 
@@ -234,7 +249,7 @@
         if (value && value.__isProxy__) value = value.__target__;
         logger(target, name, value, "write");
         target[name] = value;
-        if (scope == "closure")
+        if (scope == "closure" && typeof name == "string")
           target[`set_${name}`] && target[`set_${name}`](value);
         return true;
       },
@@ -328,6 +343,7 @@
       "MediaDevices",
       "StorageManager",
       "CacheStorage",
+      "WeakMap",
     ];
 
     HTMLNames.forEach((_class) => {

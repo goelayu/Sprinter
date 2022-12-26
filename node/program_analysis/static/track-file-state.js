@@ -92,7 +92,7 @@ var isClosureIdentifier = function (path) {
   // if this variable is a not a local, it is a closure variable
   if (!funcScope || funcScope.hasOwnBinding(path.node.name)) return false;
   if (path.scope.hasOwnBinding(path.node.name)) return false; // a local scope created with {} inside a function
-  var scope = path.scope.parent;
+  var scope = funcScope.parent;
   while (scope.path.type != "Program") {
     if (scope.hasOwnBinding(path.node.name, true)) return scope;
     scope = scope.parent;
@@ -161,7 +161,8 @@ var getClosureProxyStr = function (path, scopes, sn) {
       .map((n) => {
         return `set_${n}: function (val) {${n} = val;}`;
       })
-      .join(",")}};
+      .join(",")},
+      ${names.map((n) => `get_${n}: function () {return ${n};}`).join(",")} };
         var __closureProxy${uid} = __tracer__.createLogger(__closure${uid},'closure${sn}_${uid}');
         `;
     resStr += clStr;
