@@ -107,16 +107,15 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 	mu.Unlock()
 	startTime := time.Now()
 	cmd := exec.Command("bash", "-c", cmdString)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
 
-	_, err = cmd.Output()
+	out, err := cmd.Output()
 	if err != nil {
-		fmt.Println(err.Error() + " with cmd:" + cmdString + "\n" + stderr.String())
+		fmt.Println(err.Error() + " with cmd:" + cmdString + "\n")
 		panic(err)
 	}
 	fmt.Println("Instrumentation took", time.Since(startTime))
 
+	fmt.Println("stdout is", string(out))
 	// read the temp file
 	tempFile.Seek(0, 0)
 	newbody, err := io.ReadAll(tempFile)

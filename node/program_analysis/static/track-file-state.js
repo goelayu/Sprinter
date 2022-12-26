@@ -37,6 +37,9 @@ var isTrackableIdentifier = function (path) {
   return (
     path.node.name != "undefined" &&
     path.node.name != "null" &&
+    (path.parent.type == "AssignmentPattern"
+      ? path.parent.right != path.node
+      : true) &&
     (path.parent.type == "FunctionDeclaration"
       ? path.parent.id != path.node
       : true) &&
@@ -192,6 +195,7 @@ var extractRelevantState = function (input, opts) {
   var closureScopes = {};
   var closureList = [];
   var sn = opts.scriptNo;
+  var deprecatedSyntax = false;
 
   var helpers = {
     getSrc: function (path) {
@@ -210,9 +214,16 @@ var extractRelevantState = function (input, opts) {
         if (typeof window !== 'undefined') {
           window.__stackHead__ = '${opts.name}';
         }
+        if (typeof __tracer__ !== 'undefined') {
         __tracer__.setFileClosure(__stackHead__, [${[
           ...new Set(closureList),
         ].join(",")}]);
+        } else {
+          __tracer__ = {
+            removeProxy: function (e) {return e;},
+            createLogger: function (e,f) {return e;}
+          }
+        }
       })();
       `;
         opts.addStack &&
@@ -290,8 +301,7 @@ var extractRelevantState = function (input, opts) {
         var clStr = getClosureProxyStr(path, scopes, sn);
         if (!path.node.body.body) {
           if (
-            path.node.body.type == "ObjectExpression" ||
-            path.node.body.type == "CallExpression"
+            path.isExpression()
           ) {
             return specialArrowFuncRewrite(
               path,
@@ -311,8 +321,16 @@ var extractRelevantState = function (input, opts) {
         }
       },
     },
+    WithStatement: {
+      exit(path) {
+        deprecatedSyntax = true;
+      }
+    },
   });
 
+  if (deprecatedSyntax) {
+    return input;
+  }
   return generate(ast, { retainLines: true, compact: true }, input).code;
 };
 
