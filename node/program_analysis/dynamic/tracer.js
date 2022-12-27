@@ -217,15 +217,21 @@
         if (key == "__isProxy__") return true;
         if (key == "__target__") return target;
         var method = Reflect.get(target, key);
+
+        if (target.__proto__ === HTMLIFrameElement.prototype)
+          return method;
+        
         method = extractObjFromProxy(method);
 
-        logger(target, key, method, "read");
-
-        if (method === undefined) {
-          if (scope == "closure" && typeof key == "string" && target[`get_${key}`] && typeof target[`get_${key}`] == "function")
-            return target[`get_${key}`]();
-          return method;
+        if (scope == "closure" && typeof key == "string" && target[`get_${key}`] && typeof target[`get_${key}`] == "function"){
+          var maybeNewMethod = target[`get_${key}`]();
+          if (maybeNewMethod !== method){
+            method = maybeNewMethod;
+            target[key] = method;
+          }
         }
+
+        logger(target, key, method, "read");
 
         if (
           (typeof method != "function" && typeof method != "object") ||
