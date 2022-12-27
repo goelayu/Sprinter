@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/andybalholm/brotli"
 	"github.com/flytam/filenamify"
@@ -74,26 +73,26 @@ func extractBody(body string, h http.Header) string {
 	return body
 }
 
-func invokeNode(body string, t string, name string, keepOrig bool) []byte {
+func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, error) {
 	SCRIPTPATH := "../node/program_analysis/instrument.js"
 	var mu sync.Mutex
 	// store body in a temp file
 	tempFile, err := os.CreateTemp("./", "insttmp")
 	if err != nil {
-		fmt.Println("Error creating temp file", err)
 		panic(err)
 	}
 
 	// defer os.Remove(tempFile.Name())
 
 	_, err = tempFile.WriteString(body)
-	check(err)
+	if err != nil {
+		panic(err)
+	}
 
 	// create a copy of tempFile if keepOrig is true
 	if keepOrig {
 		origFile, err := os.Create(tempFile.Name() + ".copy")
 		if err != nil {
-			fmt.Println("Error creating temp file", err)
 			panic(err)
 		}
 		origFile.WriteString(body)
@@ -105,24 +104,29 @@ func invokeNode(body string, t string, name string, keepOrig bool) []byte {
 	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s' -f %d", SCRIPTPATH, tempFile.Name(), t, name, fileid)
 	fmt.Println(cmdString)
 	mu.Unlock()
-	startTime := time.Now()
+	// startTime := time.Now()
 	cmd := exec.Command("bash", "-c", cmdString)
-
-	out, err := cmd.Output()
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err = cmd.Run()
 	if err != nil {
-		fmt.Println(err.Error() + " with cmd:" + cmdString + "\n")
+		err = fmt.Errorf("%s with cmd: %s", stderr.String(), cmdString)
 		panic(err)
 	}
-	fmt.Println("Instrumentation took", time.Since(startTime))
+	// fmt.Println("Instrumentation took", time.Since(startTime))
 
-	fmt.Println("stdout is", string(out))
+	// fmt.Println("stdout is", string(out))
 	// read the temp file
 	tempFile.Seek(0, 0)
 	newbody, err := io.ReadAll(tempFile)
-	check(err)
+	if err != nil {
+		panic(err)
+	}
 	// fmt.Println("newbody is", string(newbody))
 	os.Remove(tempFile.Name())
-	return newbody
+	return newbody, nil
 }
 
 func instrument(req *http.Request, resp *http.Response) (*http.Request, *http.Response, error) {
@@ -135,7 +139,10 @@ func instrument(req *http.Request, resp *http.Response) (*http.Request, *http.Re
 		// extract body bytes
 		// fmt.Println("Instrumenting", req.URL.Path)
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		newbody := invokeNode(extractBody(string(bodyBytes), resp.Header), t, name, false)
+		newbody, err := invokeNode(extractBody(string(bodyBytes), resp.Header), t, name, false)
+		if err != nil {
+			return nil, nil, err
+		}
 		resp.Body = io.NopCloser(bytes.NewReader(newbody))
 		resp.ContentLength = int64(len(newbody))
 		resp.Header.Set("Content-Length", strconv.Itoa(len(newbody)))

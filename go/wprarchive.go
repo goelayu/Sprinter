@@ -14,9 +14,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -154,37 +157,33 @@ func OpenArchive(path string) (*Archive, error) {
 
 // ForEach applies f to all requests in the archive.
 func (a *Archive) ForEach(f func(req *http.Request, resp *http.Response) error) error {
-	// errors := make(chan error, len(a.Requests))
-	var wg sync.WaitGroup
+	errg := new(errgroup.Group)
 	for _, urlmap := range a.Requests {
 		for urlString, requests := range urlmap {
 			fullURL, _ := url.Parse(urlString)
 			for index, archivedRequest := range requests {
-				go func(archivedRequest *ArchivedRequest, fullURL *url.URL, index int) {
-					wg.Add(1)
-					req, resp, err := archivedRequest.unmarshal(fullURL.Scheme)
-					if err != nil {
-						log.Printf("Error unmarshaling request #%d for %s: %v", index, urlString, err)
+				errg.Go(func() error {
+					return func(archivedRequest *ArchivedRequest, fullURL *url.URL, index int) (err error) {
+						req, resp, err := archivedRequest.unmarshal(fullURL.Scheme)
+						if err != nil {
+							log.Printf("Error unmarshaling request #%d for %s: %v", index, urlString, err)
+							return
+						}
+						defer func() {
+							if r := recover(); r != nil {
+								err = r.(error)
+							}
+						}()
+						f(req, resp)
 						return
-					}
-					// if err := f(req, resp); err != nil {
-					// 	errors <- err
-					// }
-					f(req, resp)
-					wg.Done()
-				}(archivedRequest, fullURL, index)
+					}(archivedRequest, fullURL, index)
+				})
 			}
-			// errors <- nil
-			// wg.Done()
 		}
 	}
-	wg.Wait()
-	// close(errors)
-	// for err := range errors {
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
+	if err := errg.Wait(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -604,7 +603,7 @@ func (a *WritableArchive) Close() error {
 func main() {
 	input := flag.String("input", "", "Input archive file")
 	output := flag.String("output", "", "Output archive file")
-	// logDir := flag.String("log_dir", "", "If non-empty, write log files in this directory")
+	logDir := flag.String("log_dir", "", "If non-empty, write log files in this directory")
 
 	flag.Parse()
 
@@ -617,24 +616,20 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// editFn := func(req *http.Request, resp *http.Response) (*http.Request, *http.Response, error) {
-	// 	// Simply add a new text to each body
-
-	// 	newBody := "console.log('new body');"
-	// 	newBodyBytes := []byte(newBody)
-	// 	resp.Body = io.NopCloser(bytes.NewReader(newBodyBytes))
-	// 	resp.ContentLength = int64(len(newBodyBytes))
-	// 	resp.Header.Set("Content-Length", strconv.Itoa(len(newBodyBytes)))
-
-	// 	// remove the content-encoding header
-	// 	resp.Header.Del("Content-Encoding")
-	// 	return req, resp, nil
-	// }
-
 	modArchive, err := inputArchive.Edit(instrument)
 
 	if err != nil {
-		log.Fatal(err)
+		if *logDir != "" {
+			// Write the error to a log file.
+			logFile := filepath.Join(*logDir, "inst.error.log")
+			if err := ioutil.WriteFile(logFile, []byte(err.Error()), 0644); err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			log.Printf("No log directory specified, not writing error log file. Error: %v", err)
+			log.Fatal(err)
+		}
+		os.Exit(1)
 	}
 
 	if *output == "" {
