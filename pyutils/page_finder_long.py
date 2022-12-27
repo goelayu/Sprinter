@@ -17,7 +17,7 @@ CRAWL_BUFFER = deque([])
 CRAWLER_DEFAULT_WORKERS = 10
 WORKER_WAIT_INTERVAL = 1 #seconds
 MAX_COUNT_LIMIT = None
-TIMEOUT = 120
+TIMEOUT = 40 #seconds
 
 class WorkerThread(threading.Thread):
     def __init__(self, crawler, name):
