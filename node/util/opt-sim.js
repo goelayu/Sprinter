@@ -20,7 +20,7 @@ program
     "-i, --input [dir]",
     "Input directory containing all the relevant JSONs"
   )
-  .option("-o, --output [file]", "Output file")
+  .option("-o, --output [file]", "summary file")
   .option("-v, --verbose", "Verbose output")
   .parse(process.argv);
 
@@ -40,12 +40,30 @@ var compareFileState = function (prevSigs, curSig) {
     return [...new Set(sig.filter((e) => e.indexOf("read") >= 0).sort())];
   };
 
+  var _compareFileState = function (sigOne, sigTwo, exact) {
+    if (exact) return JSON.stringify(sigOne) == JSON.stringify(sigTwo);
+
+    for (var s of sigOne) {
+      if (sigTwo.indexOf(s) < 0) {
+        console.log(`${s} from one not found in two`);
+        return false;
+      }
+    }
+    for (var s of sigTwo) {
+      if (sigOne.indexOf(s) < 0) {
+        console.log(`${s} from two not found in one`);
+        return false;
+      }
+    }
+    return true;
+  };
+
   var prevSigs = prevSigs.map(cleanSig);
   var curSig = cleanSig(curSig);
 
   for (var p of prevSigs) {
     if (p.length != curSig.length) continue;
-    if (JSON.stringify(p) == JSON.stringify(curSig)) return true;
+    if (_compareFileState(p, curSig, false)) return true;
   }
   return false;
 };
@@ -67,7 +85,8 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
   }
   for (var f of prevFetches) {
     if (f.length != curFetches.length) continue;
-    if (JSON.stringify(f.sort()) == JSON.stringify(curFetches.sort())) return true;
+    if (JSON.stringify(f.sort()) == JSON.stringify(curFetches.sort()))
+      return true;
   }
   return false;
 };
@@ -79,7 +98,27 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
     totalScripts = 0,
     scriptsThatFetch = 0,
     tPages = (newPages = 0),
-    eval;
+    eval,
+    summary = {
+      all: {
+        totalScripts: 0,
+        uniqueScripts: 0,
+      },
+      fetches: {
+        scriptsThatFetch: 0,
+        uniqueScriptsThatFetch: 0,
+        fetchesSame: 0,
+      },
+      savings: {
+        totalScriptTime: 0,
+        savedTimeSource: 0,
+        savedTimeSig: 0,
+      },
+      pages: {
+        tPages: 0,
+        newPages: 0,
+      },
+    };
   fs.readFileSync(program.input, "utf8")
     .split("\n")
     .forEach(function (line) {
@@ -87,7 +126,7 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
       var localSaved = (localTotal = 0);
       try {
         program.verbose && console.log(`--------${line}--------`);
-        // var trace = JSON.parse(fs.readFileSync(`${line}/trace.json`, "utf8"));
+        var trace = JSON.parse(fs.readFileSync(`${line}/trace.json`, "utf8"));
         var net = JSON.parse(fs.readFileSync(`${line}/network.json`, "utf8"));
         var payload = JSON.parse(
           fs.readFileSync(`${line}/payload.json`, "utf8")
@@ -97,12 +136,13 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
         var graph = new dag.Graph(netObj);
         graph.createTransitiveEdges();
         var fetches = graph.transitiveEdges;
-        // var execTimings = traceParser.getExecutionTimingsByURL(trace, net);
-        tPages++;
+        var execTimings = traceParser.getExecutionTimingsByURL(trace, net);
+        summary.pages.tPages++;
         for (var n of netObj) {
           if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
-          // var timings = execTimings.get(n.url);
-          // if (!timings) continue;
+          var timings = execTimings.get(n.url);
+          if (!timings) continue;
+          summary.all.totalScripts++;
           var payloadObj = payload.filter((p) => p.url == n.url)[0];
           var hash;
           if (!payloadObj) hash = n.size;
@@ -112,31 +152,35 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
               .update(payloadObj.data)
               .digest("hex");
           var key = n.url + hash;
-          // var eval = timings.scriptEvaluation;
+          var eval = timings.scriptEvaluation;
+          eval && (summary.savings.totalScriptTime += eval);
           var filesigName = filenamify(URL.parse(n.url).pathname);
           var curSig = fileSig[filesigName];
 
-          fetches[n.url] && fetches[n.url].length && scriptsThatFetch++;
+          fetches[n.url] &&
+            fetches[n.url].length &&
+            summary.fetches.scriptsThatFetch++;
           var unseenFile = false;
           if (fileMem[key]) {
-            // var t = fileMem[key]["scriptEvaluation"];
-            eval && (savedScriptTime += eval) && (localSaved += eval);
-            eval && (totalScriptTime += eval) && (localTotal += eval);
+            var t = fileMem[key]["scriptEvaluation"];
+            eval &&
+              (summary.savings.savedTimeSource += eval) &&
+              (localSaved += eval);
 
             var fPrev = fileMem[key]["fetches"];
             var fCurr = fetches[n.url];
-            if (fCurr) {
+            if (fCurr && fCurr.length) {
+              summary.fetches.uniqueScriptsThatFetch++;
               var execFound = sameFileFetches(fPrev, fCurr, 1);
               if (execFound) {
-                fetchesSame++;
+                summary.fetches.fetchesSame++;
                 program.verbose &&
                   console.log(
                     `Fetches for ${n.url} are same as before: ${JSON.stringify(
-                      f.sort().map(shortenURL)
+                      fCurr.sort().map(shortenURL)
                     )}`
                   );
               } else {
-                fetchesTotal++;
                 fileMem[key]["fetches"].push(fCurr);
                 program.verbose &&
                   console.log(
@@ -151,6 +195,7 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
               var prevSigs = fileMem[key]["fileSig"];
               if (prevSigs) {
                 if (compareFileState(prevSigs, curSig)) {
+                  eval && (summary.savings.savedTimeSig += eval);
                   program.verbose &&
                     console.log(`File state for ${n.url} is same as before`);
                   fCurr &&
@@ -159,7 +204,11 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
                     console.log(
                       `same signature for ${n.url} but fetches are different`
                     );
-                  fCurr && execFound && console.log(`same signature for ${n.url} and fetches are same`)
+                  fCurr &&
+                    execFound &&
+                    console.log(
+                      `same signature for ${n.url} and fetches are same`
+                    );
                 } else {
                   program.verbose &&
                     console.log(`File state for ${n.url} is different`);
@@ -176,12 +225,9 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
               }
             }
           } else {
+            summary.all.uniqueScripts++;
             unseenFile = true;
-            if (eval) {
-              fileMem[key] = { scriptEvaluation: eval };
-              totalScriptTime += eval;
-              localTotal += eval;
-            } else fileMem[key] = { scriptEvaluation: 0 };
+            fileMem[key] = {};
 
             curSig && (fileMem[key]["fileSig"] = [curSig]);
 
@@ -197,21 +243,14 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
                 )}`
               );
           }
-          totalScripts++;
         }
-        if (unseenFile) newPages++;
+        if (unseenFile) summary.pages.newPages++;
       } catch (e) {
         program.verbose && console.log(e);
       }
-      // console.log(localSaved, localTotal);
     });
-  console.log(totalScriptTime, savedScriptTime);
-  console.log(
-    fetchesSame,
-    fetchesTotal,
-    scriptsThatFetch,
-    Object.keys(fileMem).length,
-    totalScripts
+  fs.writeFileSync(
+    `${program.output}/summary.json`,
+    JSON.stringify(summary, null, 2)
   );
-  console.log(tPages, newPages);
 })();
