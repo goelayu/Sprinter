@@ -194,7 +194,7 @@ var extractRelevantState = function (input, opts) {
   var globalScope;
   var closureScopes = {};
   var closureList = [];
-  var sn = opts.scriptNo;
+  var sn = opts.name;
   var deprecatedSyntax = false;
 
   var helpers = {

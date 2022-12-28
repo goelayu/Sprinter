@@ -144,6 +144,7 @@
             var p = this.idToStr[id];
             var n = this.idToNode.get(id);
             for (var k in n.children) {
+              if (!Array.isArray(n.children[k])) continue; 
               for (var cn of n.children[k]) {
                 if (!this.idToStr[cn.id]) this.idToStr[cn.id] = `${p}[${k}]`;
               }
