@@ -40,6 +40,8 @@ program
     "timeout for each crawl (seconds)",
     parseInt
   )
+  .option("--emulateCPU <emulateCPU>", "emulate CPU (integer)", parseInt)
+  .option("--emulateNetwork <emulateNetwork>", "emulate Network (integer)")
   .option("--noproxy", "disable proxy usage")
   .option("--proxy <proxy>", "proxy directory to use")
   .option("--screenshot", "take screenshot of each page")
@@ -48,85 +50,6 @@ program
   .option("--tracing", "dump tracing data")
   .option("--mode <mode>", "mode of the proxy, can't be used with --noproxy")
   .parse(process.argv);
-
-// class Proxy {
-//   constructor(options) {
-//     this.http_port = options.http_port;
-//     this.https_port = options.https_port;
-//     this.dataOutput = options.dataOutput;
-//     this.logOutput = options.logOutput;
-//   }
-
-//   async start() {
-//     var cmd = `GOROOT=${GOROOT} GOPATH=${GOPATH} go run src/wpr.go ${program.mode}\
-//     --http_port ${this.http_port} --https_port ${this.https_port}\
-//     ${this.dataOutput}`;
-//     (this.stdout = ""), (this.stderr = "");
-//     console.log(cmd);
-//     this.process = child_process.spawn(cmd, { shell: true, cwd: WPRDIR });
-//     this.process.stdout.on("data", (data) => {
-//       this.stdout += data;
-//     });
-//     this.process.stderr.on("data", (data) => {
-//       this.stderr += data;
-//     });
-//   }
-
-//   dump() {
-//     console.log(`writing to ${this.logOutput}`);
-//     fs.writeFileSync(this.logOutput, this.stdout + this.stderr);
-//   }
-
-//   async stop() {
-//     // this.process.kill("SIGINT");
-//     child_process.spawnSync(
-//       `ps aux | grep http_port | grep ${this.http_port} | awk '{print $2}' | xargs kill -SIGINT`,
-//       { shell: true }
-//     );
-//     // await sleep(1000);
-//     this.dump();
-//   }
-// }
-
-// class ProxyManager {
-//   constructor(nProxies, proxyDir, logDir) {
-//     this.nProxies = nProxies;
-//     this.proxies = [];
-//     this.startHttpPort = 8000;
-//     this.startHttpsPort = 9000;
-//     this.logDir = logDir;
-//     this.outputDir = proxyDir;
-//   }
-
-//   async createProxies() {
-//     for (var i = 0; i < this.nProxies; i++) {
-//       var http_port = this.startHttpPort + i;
-//       var https_port = this.startHttpsPort + i;
-//       var dataOutput = `${this.outputDir}/data-${i}.wprgo`;
-//       var logOutput = `${this.logDir}/log-${i}`;
-//       var p = new Proxy({ http_port, https_port, dataOutput, logOutput });
-//       this.proxies.push(p);
-//     }
-
-//     // start all proxies inside Promise.all
-//     await Promise.all(this.proxies.map((p) => p.start()));
-
-//     // wait for all proxies to start
-//     await sleep(2000);
-//   }
-
-//   async stopIth(i) {
-//     await this.proxies[i].stop();
-//   }
-
-//   async stopAll() {
-//     await Promise.all(this.proxies.map((p) => p.stop()));
-//   }
-
-//   getAll() {
-//     return this.proxies;
-//   }
-// }
 
 var bashSanitize = (str) => {
   cmd = "echo '" + str + "' | sanitize";
@@ -200,7 +123,7 @@ var genBrowserArgs = (proxies) => {
   } else {
     opts.puppeteerOptions = { executablePath: "/usr/bin/google-chrome-stable" };
   }
-  console.log(opts);
+  // console.log(opts);
   // Create a browser pool
   var cluster = await Cluster.launch(opts);
 
@@ -231,6 +154,9 @@ var genBrowserArgs = (proxies) => {
       userAgent: program.userAgent,
       outputDir: outputDir,
       verbose: true,
+      logTime: true,
+      emulateCPU: program.emulateCPU,
+      emulateNetwork: program.emulateNetwork,
     });
 
     await pclient.start();

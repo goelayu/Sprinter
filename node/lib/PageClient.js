@@ -166,6 +166,29 @@ class PageClient {
       startTime = process.hrtime();
     }
 
+    if (this._options.emulateCPU) {
+      await this._page.emulateCPUThrottling(this._options.emulateCPU);
+      this._options.verbose && console.log("CPU throttling enabled");
+    }
+
+    if (this._options.emulateNetwork) {
+      //https://github.com/WPO-Foundation/webpagetest/blob/master/www/settings/connectivity.ini.sample
+      var opt = {
+        latency: 150,
+        downloadThroughput: 1600000,
+        uploadThroughput: 768000,
+      };
+      await this._cdp.send("Network.emulateNetworkConditions", {
+        offline: false,
+        latency: opt.latency,
+        downloadThroughput: opt.downloadThroughput,
+        uploadThroughput: opt.uploadThroughput,
+      });
+      this._options.verbose && console.log("Network throttling enabled");
+    }
+
+
+
     // await this._page._client.send("Target.setAutoAttach", {
     //   autoAttach: true,
     //   flatten: true,
@@ -190,7 +213,7 @@ class PageClient {
 
     if (this._options.logTime) {
       endTime = process.hrtime(startTime);
-      console.log("Page load time: ", endTime[0] + endTime[1] / 1e9);
+      console.log(`[${this._options.url}] Page load time: `, endTime[0] + endTime[1] / 1e9);
     }
 
     this._options.verbose && console.log("Page loaded");
