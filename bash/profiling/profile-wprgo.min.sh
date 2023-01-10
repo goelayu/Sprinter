@@ -24,7 +24,7 @@ EOF
     exit 1
 fi
 
-MAINSCRIPT=../node/chrome-distributed.js
+MAINSCRIPT=../../node/chrome-distributed.js
 
 mkdir -p $2/$3;
 mkdir -p $1/$3;
