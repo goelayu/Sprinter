@@ -40,6 +40,7 @@ program
     "timeout for each crawl (seconds)",
     parseInt
   )
+  .option("-p, --payload", "enable capturing payload")
   .option("--emulateCPU <emulateCPU>", "emulate CPU (integer)", parseInt)
   .option("--emulateNetwork <emulateNetwork>", "emulate Network (integer)")
   .option("--noproxy", "disable proxy usage")
@@ -151,17 +152,20 @@ var genBrowserArgs = (proxies) => {
       enableJSProfile: program.jsProfile,
       enableTracing: program.tracing,
       enableScreenshot: program.screenshot,
+      enablePayload: program.payload,
       userAgent: program.userAgent,
       outputDir: outputDir,
-      verbose: true,
+      verbose: false,
       logTime: true,
       emulateCPU: program.emulateCPU,
       emulateNetwork: program.emulateNetwork,
     });
 
-    await pclient.start();
+    await pclient.start().catch((err) => {
+      console.log(err);
+    });
 
-    console.log(`total number of frames loaded is ${page.frames().length}`);
+    // console.log(`total number of frames loaded is ${page.frames().length}`);
 
     if (program.store) {
       const warcGen = new PuppeteerWARCGenerator();
