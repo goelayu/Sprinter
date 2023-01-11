@@ -7,7 +7,7 @@
 
 const fs = require("fs");
 const program = require("commander");
-const netParser = require("./lib/network.js");
+const netParser = require("../lib/network.js");
 
 program.version("0.0.1").option("-p, --paths [paths]").parse(process.argv);
 

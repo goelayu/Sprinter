@@ -18,18 +18,19 @@
 
 const fs = require("fs");
 const program = require("commander");
-const netParser = require("./lib/network.js");
+const netParser = require("../lib/network.js");
 const glob = require("glob");
 
 program
   .version("0.0.1")
-  .option("-s, --source [source]", "The source file")
+  .option("--static [value]", "The source file")
+  .option("--dynamic [value]", "The dynamic file")
   .option("-d, --destination [destination]", "The destination file(s)")
   .option("--match-type [matchType]", "The type of match to perform")
   .option("-v, --verbose", "Verbose output")
   .parse(process.argv);
 
-if (!program.source || !program.destination) {
+if (!program.static || !program.dynamic) {
   console.log("Please specify a source and destination file");
   process.exit(1);
 }
@@ -78,9 +79,9 @@ var _sum = function (a, b) {
 
 var getOrigMissing = function () {
   // read the source page's static and dynamic fetches
-  var static = fs.readFileSync(glob.sync(`${program.source}/static/*/*cdx`)[0], "utf8");
+  var static = fs.readFileSync(glob.sync(program.static)[0], "utf8");
   var dynamic = fs.readFileSync(
-    `${program.source}/dynamic/network.json`,
+    program.dynamic,
     "utf8"
   );
 
@@ -126,9 +127,9 @@ var getOrigMissing = function () {
   // });
 
   console.log(
-    `dynamic: ${dynamicURLs.length} static: ${staticURLs.length} missing: ${missing.length}`
+    `[${program.dynamic}] dynamic: ${dynamicURLs.length} static: ${staticURLs.length} missing: ${missing.length}`
   );
-  console.log(`dynamic size: ${totalSize} missing size: ${missingSize}`);
+  console.log(`[${program.dynamic}] dynamic size: ${totalSize} missing size: ${missingSize}`);
   return missing;
 };
 
