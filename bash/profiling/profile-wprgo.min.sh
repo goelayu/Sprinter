@@ -37,10 +37,10 @@ sysupid=$!;
 
 if [[ $5 == "1" ]]; then
     echo 'No proxy mode enabled'
-    { time node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 50 --noproxy -n; } &> $1/$3/node.out
+    { time node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 10 --noproxy -n --emulateNetwork 1; } &> $1/$3/node.out
 else
     echo 'Proxy mode Enabled'
-    time node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 15 -n &> $1/$3/node.out
+    time node $MAINSCRIPT -o $1/$3 -c $3 -u $4 -t 10 -n &> $1/$3/node.out
 fi
 
 
