@@ -44,25 +44,33 @@ var visitPage = function (netObj, payload, jsStore) {
 
 var countJS = function () {
   var jsStore = {};
-  var pageObjs = [],
-    pagePayloads = [];
+  var pageObjs = {},
+    pagePayloads = {};
   fs.readFileSync(program.paths, "utf8")
     .split("\n")
     .filter((f) => f)
     .forEach(function (path) {
-      var netObj = netParser.parseNetworkLogs(
-        JSON.parse(fs.readFileSync(`${path}/network.json`, "utf8"))
-      );
-      pageObjs.push(netObj);
-      var payLoad = JSON.parse(fs.readFileSync(`${path}/payload.json`, "utf8"));
-      pagePayloads.push(payLoad);
-      visitPage(netObj, payLoad, jsStore);
+      try {
+        var netObj = netParser.parseNetworkLogs(
+          JSON.parse(fs.readFileSync(`${path}/network.json`, "utf8"))
+        );
+        pageObjs[path] = netObj;
+        var payLoad = JSON.parse(
+          fs.readFileSync(`${path}/payload.json`, "utf8")
+        );
+        pagePayloads[path] = payLoad;
+        visitPage(netObj, payLoad, jsStore);
+      } catch (e) {
+        // console.log(e);
+      }
     });
 
   // count unique JavaScript resources per page
-  pageObjs.forEach((p, i) => {
+  Object.keys(pageObjs).forEach((page) => {
+    var p = pageObjs[page];
+    var payload = pagePayloads[page];
+    if (!p || !payload) return;
     var unique = (total = 0);
-    var payload = pagePayloads[i];
     for (var n of p) {
       if (ignoreUrl(n)) continue;
       total++;
@@ -74,7 +82,7 @@ var countJS = function () {
       var key = n.url + hash;
       if (jsStore[key] == 1) unique++;
     }
-    console.log(`${i}: ${unique} ${total}`);
+    console.log(`${unique} ${total}`);
   });
 };
 

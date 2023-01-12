@@ -161,6 +161,7 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
             fetches[n.url].length &&
             summary.fetches.scriptsThatFetch++;
           var unseenFile = false;
+
           if (fileMem[key]) {
             var t = fileMem[key]["scriptEvaluation"];
             eval &&
@@ -168,10 +169,9 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
               (localSaved += eval);
 
             var fPrev = fileMem[key]["fetches"];
-            var fCurr = fetches[n.url];
+            var fCurr = fetches[n.url], execFound = null;
             if (fCurr && fCurr.length) {
-              summary.fetches.uniqueScriptsThatFetch++;
-              var execFound = sameFileFetches(fPrev, fCurr, 1);
+              execFound = sameFileFetches(fPrev, fCurr, 1);
               if (execFound) {
                 summary.fetches.fetchesSame++;
                 program.verbose &&
@@ -222,7 +222,11 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
                 program.verbose &&
                   console.log(`File state for ${n.url} is different`);
                 fileMem[key]["fileSig"] = [curSig];
+                eval && (summary.savings.savedTimeSig += eval);
               }
+            } else {
+              // if no signature, then we use the source code of the file as the signature
+              eval && (summary.savings.savedTimeSig += eval);
             }
           } else {
             summary.all.uniqueScripts++;
@@ -236,6 +240,7 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
             _f && _f.length && f.push(_f);
             _f &&
               _f.length &&
+              ++summary.fetches.uniqueScriptsThatFetch &&
               program.verbose &&
               console.log(
                 `first time fetches for ${n.url}: ${JSON.stringify(
