@@ -124,24 +124,26 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
     .forEach(function (line) {
       if (!line) return;
       var localSaved = (localTotal = 0);
+      var localtotal = localfetched = 0;
       try {
         program.verbose && console.log(`--------${line}--------`);
-        var trace = JSON.parse(fs.readFileSync(`${line}/trace.json`, "utf8"));
+        // var trace = JSON.parse(fs.readFileSync(`${line}/trace.json`, "utf8"));
         var net = JSON.parse(fs.readFileSync(`${line}/network.json`, "utf8"));
         var payload = JSON.parse(
           fs.readFileSync(`${line}/payload.json`, "utf8")
         );
-        var fileSig = JSON.parse(fs.readFileSync(`${line}/state.json`, "utf8"));
+        var fileSig = {};
+        // var fileSig = JSON.parse(fs.readFileSync(`${line}/state.json`, "utf8"));
         var netObj = netParser.parseNetworkLogs(net);
         var graph = new dag.Graph(netObj);
         graph.createTransitiveEdges();
         var fetches = graph.transitiveEdges;
-        var execTimings = traceParser.getExecutionTimingsByURL(trace, net);
+        // var execTimings = traceParser.getExecutionTimingsByURL(trace, net);
         summary.pages.tPages++;
         for (var n of netObj) {
           if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
-          var timings = execTimings.get(n.url);
-          if (!timings) continue;
+          // var timings = execTimings.get(n.url);
+          // if (!timings) continue;
           summary.all.totalScripts++;
           var payloadObj = payload.filter((p) => p.url == n.url)[0];
           var hash;
@@ -152,7 +154,7 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
               .update(payloadObj.data)
               .digest("hex");
           var key = n.url + hash;
-          var eval = timings.scriptEvaluation;
+          // var eval = timings.scriptEvaluation;
           eval && (summary.savings.totalScriptTime += eval);
           var filesigName = filenamify(URL.parse(n.url).pathname);
           var curSig = fileSig[filesigName];
@@ -172,7 +174,9 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
             var fCurr = fetches[n.url], execFound = null;
             if (fCurr && fCurr.length) {
               execFound = sameFileFetches(fPrev, fCurr, 1);
+              localtotal++;
               if (execFound) {
+                localfetched++;
                 summary.fetches.fetchesSame++;
                 program.verbose &&
                   console.log(
@@ -250,11 +254,12 @@ var sameFileFetches = function (prevFetches, curFetches, type) {
           }
         }
         if (unseenFile) summary.pages.newPages++;
+        console.log(`per page fetch: ${localfetched} ${localtotal}`)
       } catch (e) {
         program.verbose && console.log(e);
       }
     });
-  fs.writeFileSync(
+  program.output && fs.writeFileSync(
     `${program.output}/summary.json`,
     JSON.stringify(summary, null, 2)
   );
