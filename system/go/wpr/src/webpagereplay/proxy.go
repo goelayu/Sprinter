@@ -68,24 +68,18 @@ func updateDates(h http.Header, now time.Time) {
 // NewReplayingProxy constructs an HTTP proxy that replays responses from an archive.
 // The proxy is listening for requests on a port that uses the given scheme (e.g., http, https).
 func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransformer, quietMode bool) http.Handler {
-	return &replayingProxy{a, scheme, transformers, quietMode, sync.Mutex{}}
+	return &ReplayingProxy{a, scheme, transformers, quietMode, sync.Mutex{}}
 }
 
-type replayingProxy struct {
-	a            *Archive
+type ReplayingProxy struct {
+	A            *Archive
 	scheme       string
 	transformers []ResponseTransformer
 	quietMode    bool
-	mu           sync.Mutex
+	Mu           sync.Mutex
 }
 
-func (proxy *replayingProxy) UpdateArchive(a *Archive) {
-	proxy.mu.Lock()
-	defer proxy.mu.Unlock()
-	proxy.a = a
-}
-
-func (proxy *replayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/web-page-replay-generate-200" {
 		w.WriteHeader(200)
 		return
@@ -98,14 +92,14 @@ func (proxy *replayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	if req.URL.Path == "/web-page-replay-reset-replay-chronology" {
 		log.Printf("Received /web-page-replay-reset-replay-chronology")
 		log.Printf("Reset replay order to start.")
-		proxy.a.StartNewReplaySession()
+		proxy.A.StartNewReplaySession()
 		return
 	}
 	fixupRequestURL(req, proxy.scheme)
 	logf := makeLogger(req, proxy.quietMode)
 
 	// Lookup the response in the archive.
-	_, storedResp, err := proxy.a.FindRequest(req)
+	_, storedResp, err := proxy.A.FindRequest(req)
 	if err != nil {
 		logf("couldn't find matching request: %v", err)
 		w.WriteHeader(http.StatusNotFound)

@@ -362,12 +362,12 @@ func logServeStarted(scheme string, ln net.Listener) {
 	log.Printf("Starting server on %s://%s", scheme, ln.Addr().String())
 }
 
-func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, handler http.Handler) {
+func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, replayProxy *webpagereplay.ReplayingProxy, replayProxyTLS *webpagereplay.ReplayingProxy) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatalf("Failed to create watcher: %v", err)
 	}
-	defer watcher.Close()
+	// defer watcher.Close()
 
 	if err := watcher.Add(archivePath); err != nil {
 		log.Fatalf("Failed to add %s to watcher: %v", archivePath, err)
@@ -379,12 +379,18 @@ func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, 
 			case event := <-watcher.Events:
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					log.Printf("Archive file %s was modified, reloading", event.Name)
-					archive.Close()
-					archive, err = webpagereplay.OpenWritableArchive(archivePath)
+					archiveFilePath, _ := os.ReadFile(archivePath)
+					archive, err = webpagereplay.OpenArchive(strings.TrimSpace(string(archiveFilePath)))
 					if err != nil {
-						log.Fatalf("Failed to reload archive file %s: %v", archivePath, err)
+						log.Fatalf("Failed to reload archive file %s: %v", archiveFilePath, err)
 					}
-					handler.UpdateArchive(archive)
+					replayProxy.Mu.Lock()
+					replayProxy.A = archive
+					replayProxy.Mu.Unlock()
+					replayProxyTLS.Mu.Lock()
+					replayProxyTLS.A = archive
+					replayProxyTLS.Mu.Unlock()
+
 				}
 			case err := <-watcher.Errors:
 				log.Printf("Watcher error: %v", err)
@@ -401,7 +407,7 @@ func (r *RecordCommand) Run(c *cli.Context) error {
 		fmt.Fprintf(os.Stderr, "Error reading archive file name: %v", err)
 		os.Exit(1)
 	}
-	archive, err := webpagereplay.OpenWritableArchive(archiveFileName)
+	archive, err := webpagereplay.OpenWritableArchive(string(archiveFileName))
 	if err != nil {
 		cli.ShowSubcommandHelp(c)
 		os.Exit(1)
@@ -448,9 +454,9 @@ func (r *ReplayCommand) Run(c *cli.Context) error {
 		fmt.Fprintf(os.Stderr, "Error reading archive file name: %v", err)
 		os.Exit(1)
 	}
-	archive, err := webpagereplay.OpenArchive(archiveFileName)
+	archive, err := webpagereplay.OpenArchive(strings.TrimSpace(string(archiveFileName)))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error opening archive file: %v", err)
+		log.Fatal(err)
 		os.Exit(1)
 	}
 	log.Printf("Opened archive %s", archiveFileName)
@@ -491,8 +497,7 @@ func (r *ReplayCommand) Run(c *cli.Context) error {
 		fmt.Fprintf(os.Stderr, "Error creating TLSConfig: %v", err)
 		os.Exit(1)
 	}
-	watchArchivePathChanges(archive, archiveFilePath, httpHandler)
-	watchArchivePathChanges(archive, archiveFilePath, httpsHandler)
+	watchArchivePathChange(archiveFilePath, archive, httpHandler.(*webpagereplay.ReplayingProxy), httpsHandler.(*webpagereplay.ReplayingProxy))
 	startServers(tlsconfig, httpHandler, httpsHandler, &r.common)
 	return nil
 }
