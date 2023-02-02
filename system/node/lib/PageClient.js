@@ -212,7 +212,7 @@ class PageClient {
       if (this._options.logTime) {
         endTime = process.hrtime(startTime);
         console.log(
-          `[${this._options.url}] Page load time: `,
+          `[${this._options.url}][${this._options.logId}] Page load time: `,
           endTime[0] + endTime[1] / 1e9
         );
       }

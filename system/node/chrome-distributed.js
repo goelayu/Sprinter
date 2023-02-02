@@ -15,7 +15,7 @@ const exec = util.promisify(child_process.exec);
 const { Cluster } = require("puppeteer-cluster");
 const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
 const PageClient = require("./lib/PageClient.js");
-const ProxyManager = require('./lib/wpr-proxy');
+const Proxy = require('./lib/wpr-proxy');
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
 const GOPATH =
@@ -115,7 +115,7 @@ var genBrowserArgs = (proxies) => {
       process.exit(1);
     }
     console.log("Initializing proxies...");
-    var proxyManager = new ProxyManager(program.concurrency, program.proxy, program.output, program.mode);
+    var proxyManager = new Proxy.ProxyManager(program.concurrency, program.proxy, program.output, program.mode);
     await proxyManager.createProxies();
     proxies = proxyManager.getAll();
 
@@ -144,16 +144,17 @@ var genBrowserArgs = (proxies) => {
 
     // find the proxy used for this page
     // then update the path to the data.wprgo file
-    var args = page.browser.process().spawnargs;
+    var args = page.browser().process().spawnargs;
     var pa = args.find(e=>e.includes("proxy-server")).split("=")[2].split(":")[2];
     var proxyDataFile = `${program.proxy}/${pa}`;
-    var proxyData = `${program.proxy}/${sanurl}`;
+    var proxyData = `${program.proxy}/${sanurl}.wprgo`;
     console.log(`Updating proxy data file ${proxyDataFile} with ${proxyData}`)
     fs.writeFileSync(proxyDataFile,proxyData);
 
     var cdp = await page.target().createCDPSession();
 
     var pclient = new PageClient(page, cdp, {
+      logId: pa,
       url: data.url,
       enableNetwork: program.network,
       enableConsole: program.logs,

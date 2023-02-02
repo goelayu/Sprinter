@@ -6,8 +6,7 @@ const fs = require("fs");
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
 const GOPATH =
   "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
-const WPRDIR =
-  "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/pkg/mod/github.com/catapult-project/catapult/web_page_replay_go@v0.0.0-20220815222316-b3421074fa70";
+const WPRDIR ="/vault-swift/goelayu/balanced-crawler/system/go/wpr";
 const DUMMYDATA="/vault-swift/goelayu/balanced-crawler/data/record/wpr/test/dummy.wprgo"
 
 function sleep(ms) {
@@ -27,7 +26,7 @@ class Proxy {
   }
 
   async start() {
-    var cmd = `GOROOT=${GOROOT} GOPATH=${GOPATH} go run src/wpr.go ${this.mode}\
+    var cmd = `GOROOT=${GOROOT} go run src/wpr.go ${this.mode}\
     --http_port ${this.http_port} --https_port ${this.https_port}\
     ${this.dataOutput}`;
     (this.stdout = ""), (this.stderr = "");
@@ -75,7 +74,7 @@ class ProxyManager {
       var http_port = this.startHttpPort + i;
       var https_port = this.startHttpsPort + i;
       var dataOutput = `${this.outputDir}/${https_port}`;
-      var logOutput = `${this.logDir}/${this.mode}.log`;
+      var logOutput = `${this.logDir}/${https_port}.${this.mode}.log`;
       var mode = this.mode;
       var p = new Proxy({ http_port, https_port, dataOutput, logOutput, mode });
       this.proxies.push(p);

@@ -1,0 +1,14 @@
+*
+!*.py
+!*.js
+!*.sh
+!*/
+!*.r
+!*.goaa
+!.gitignore
+browser
+crawlers
+data
+pages
+plots
+**/node_modules

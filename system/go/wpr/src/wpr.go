@@ -380,6 +380,7 @@ func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, 
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					log.Printf("Archive file %s was modified, reloading", event.Name)
 					archiveFilePath, _ := os.ReadFile(archivePath)
+					log.Printf("Archive file path: %s", archiveFilePath)
 					archive, err = webpagereplay.OpenArchive(strings.TrimSpace(string(archiveFilePath)))
 					if err != nil {
 						log.Fatalf("Failed to reload archive file %s: %v", archiveFilePath, err)
