@@ -8,6 +8,7 @@ const GOPATH =
   "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
 const WPRDIR =
   "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/pkg/mod/github.com/catapult-project/catapult/web_page_replay_go@v0.0.0-20220815222316-b3421074fa70";
+const DUMMYDATA="/vault-swift/goelayu/balanced-crawler/data/record/wpr/test/dummy.wprgo"
 
 function sleep(ms) {
   return new Promise((resolve) => {
@@ -31,6 +32,8 @@ class Proxy {
     ${this.dataOutput}`;
     (this.stdout = ""), (this.stderr = "");
     console.log(cmd);
+    //write dummy data to dataOutput before spawning command
+    fs.writeFileSync(this.dataOutput, DUMMYDATA);
     this.process = child_process.spawn(cmd, { shell: true, cwd: WPRDIR });
     this.process.stdout.on("data", (data) => {
       this.stdout += data;
@@ -71,7 +74,7 @@ class ProxyManager {
     for (var i = 0; i < this.nProxies; i++) {
       var http_port = this.startHttpPort + i;
       var https_port = this.startHttpsPort + i;
-      var dataOutput = `${this.outputDir}`;
+      var dataOutput = `${this.outputDir}/${https_port}`;
       var logOutput = `${this.logDir}/${this.mode}.log`;
       var mode = this.mode;
       var p = new Proxy({ http_port, https_port, dataOutput, logOutput, mode });

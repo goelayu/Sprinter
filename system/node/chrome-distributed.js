@@ -102,8 +102,14 @@ var genBrowserArgs = (proxies) => {
 
 (async () => {
   // Initialize the proxies if flag enabled
-  var proxies = [];
-  if (!program.noproxy) {
+  var proxies = [],
+    opts = {
+    concurrency: Cluster.CONCURRENCY_BROWSER,
+    maxConcurrency: program.concurrency,
+    monitor: program.monitor,
+  };
+
+  if (program.proxy) {
     if (!program.mode) {
       console.log("Please specify a mode for the proxy");
       process.exit(1);
@@ -112,20 +118,12 @@ var genBrowserArgs = (proxies) => {
     var proxyManager = new ProxyManager(program.concurrency, program.proxy, program.output, program.mode);
     await proxyManager.createProxies();
     proxies = proxyManager.getAll();
-  }
 
-  var opts = {
-    concurrency: Cluster.CONCURRENCY_BROWSER,
-    maxConcurrency: program.concurrency,
-    monitor: program.monitor,
-  };
-  if (!program.noproxy) {
     opts.perBrowserOptions = genBrowserArgs(proxies);
   } else {
     opts.puppeteerOptions = { executablePath: "/usr/bin/google-chrome-stable" };
   }
-  // console.log(opts);
-  // Create a browser pool
+
   var cluster = await Cluster.launch(opts);
 
   // Get the urls to crawl
@@ -134,7 +132,8 @@ var genBrowserArgs = (proxies) => {
   var schd_changed = {};
 
   cluster.task(async ({ page, data }) => {
-    var outputDir = `${program.output}/${bashSanitize(data.url)}/dynamic`;
+    var sanurl = bashSanitize(data.url);
+    var outputDir = `${program.output}/${sanurl}`;
 
     if (program.store) {
       // await page.setRequestInterception(true);
@@ -142,6 +141,15 @@ var genBrowserArgs = (proxies) => {
       var cap = new PuppeteerCapturer(page, Events.Page.Request);
       cap.startCapturing();
     }
+
+    // find the proxy used for this page
+    // then update the path to the data.wprgo file
+    var args = page.browser.process().spawnargs;
+    var pa = args.find(e=>e.includes("proxy-server")).split("=")[2].split(":")[2];
+    var proxyDataFile = `${program.proxy}/${pa}`;
+    var proxyData = `${program.proxy}/${sanurl}`;
+    console.log(`Updating proxy data file ${proxyDataFile} with ${proxyData}`)
+    fs.writeFileSync(proxyDataFile,proxyData);
 
     var cdp = await page.target().createCDPSession();
 
