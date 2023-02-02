@@ -226,6 +226,13 @@ class PageClient {
         );
       }
 
+      if (this._options.enableScreenshot) {
+        await this._page.screenshot({
+          path: this._options.outputDir + "/screenshot.png",
+        });
+        this._options.verbose && console.log("Screenshot taken");
+      }
+
       if (this._options.enableConsole) {
         fs.writeFileSync(
           this._options.outputDir + "/console.json",

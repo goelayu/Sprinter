@@ -383,7 +383,8 @@ func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, 
 					log.Printf("Archive file path: %s", archiveFilePath)
 					archive, err = webpagereplay.OpenArchive(strings.TrimSpace(string(archiveFilePath)))
 					if err != nil {
-						log.Fatalf("Failed to reload archive file %s: %v", archiveFilePath, err)
+						log.Printf("Failed to reload archive file %s: %v\nSimply skipping this one", archiveFilePath, err)
+						continue
 					}
 					replayProxy.Mu.Lock()
 					replayProxy.A = archive

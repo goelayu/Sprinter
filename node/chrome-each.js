@@ -10,6 +10,7 @@ const AdblockerPlugin = require("puppeteer-extra-plugin-adblocker");
 const PageClient = require("./lib/PageClient");
 const Proxy = require("./lib/wpr-proxy");
 
+
 program
   .option("-o, --output [output]", "path to the output directory")
   .option("-l, --logs", "capture console logs")

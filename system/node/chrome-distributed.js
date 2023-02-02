@@ -16,6 +16,7 @@ const { Cluster } = require("puppeteer-cluster");
 const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
 const PageClient = require("./lib/PageClient.js");
 const Proxy = require('./lib/wpr-proxy');
+require('console-stamp')(console, '[HH:MM:ss.l]');
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
 const GOPATH =
@@ -204,8 +205,14 @@ var genBrowserArgs = (proxies) => {
   // Wait for the cluster to finish
   await cluster.idle();
   await cluster.close();
-  if (!program.noproxy) {
+  if (program.proxy) {
     await proxyManager.stopAll();
+
+    //clean up proxy arguments
+    for (var i = 0; i < proxies.length; i++) {
+      var proxy = proxies[i];
+      fs.unlinkSync(proxy.dataOutput);
+    }
   }
   // save the crawl data
   program.store && dumpData(crawlData);
