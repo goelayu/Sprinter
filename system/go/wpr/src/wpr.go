@@ -386,12 +386,13 @@ func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, 
 						log.Printf("Failed to reload archive file %s: %v\nSimply skipping this one", archiveFilePath, err)
 						continue
 					}
-					replayProxy.Mu.Lock()
-					replayProxy.A = archive
-					replayProxy.Mu.Unlock()
 					replayProxyTLS.Mu.Lock()
 					replayProxyTLS.A = archive
 					replayProxyTLS.Mu.Unlock()
+					replayProxy.Mu.Lock()
+					replayProxy.A = archive
+					replayProxy.Mu.Unlock()
+					log.Printf("Reloaded archive file %s", archiveFilePath)
 
 				}
 			case err := <-watcher.Errors:
@@ -519,6 +520,8 @@ func (r *RootCACommand) Remove(c *cli.Context) error {
 }
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	progName := filepath.Base(os.Args[0])
 
 	var record RecordCommand

@@ -152,6 +152,9 @@ var genBrowserArgs = (proxies) => {
     console.log(`Updating proxy data file ${proxyDataFile} with ${proxyData}`)
     fs.writeFileSync(proxyDataFile,proxyData);
 
+    // wait for 2ms to make sure the new file is read
+    await sleep(50);
+
     var cdp = await page.target().createCDPSession();
 
     var pclient = new PageClient(page, cdp, {
