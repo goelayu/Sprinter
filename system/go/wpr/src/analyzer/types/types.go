@@ -1,16 +1,18 @@
 package types
 
-import "io"
+import (
+	"net/http"
+)
 
 type Azargs struct {
 	Name    string
-	Body    io.Reader
-	Headers map[string][]string
+	Body    []byte
+	Headers http.Header
 }
 
 type Azreply struct {
-	Body    io.Reader
-	Headers map[string][]string
+	Body    []byte
+	Headers http.Header
 }
 
 type File struct {
@@ -18,8 +20,8 @@ type File struct {
 	Content  string
 	Digest   string
 	SContent string //content with instrumentation code
-	Body     io.Reader
-	Headers  map[string][]string
+	Body     []byte
+	Headers  http.Header
 }
 
 type State struct {

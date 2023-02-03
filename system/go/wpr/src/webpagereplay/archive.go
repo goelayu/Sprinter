@@ -483,7 +483,7 @@ func (a *Archive) Trim(trimMatch func(r *http.Request) (bool, error)) (*Archive,
 func (a *Archive) Add(method string, urlString string, mode AddMode) error {
 	req, err := http.NewRequest(method, urlString, nil)
 	if err != nil {
-		return fmt.Errorf("Error creating request object: %v", err)
+		return fmt.Errorf("error creating request object: %v", err)
 	}
 
 	url, _ := url.Parse(urlString)
@@ -503,7 +503,7 @@ func (a *Archive) Add(method string, urlString string, mode AddMode) error {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("Error fetching url: %v", err)
+		return fmt.Errorf("error fetching url: %v", err)
 	}
 
 	if err = a.addArchivedRequest(req, resp, mode); err != nil {

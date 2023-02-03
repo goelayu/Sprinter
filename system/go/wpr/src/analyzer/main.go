@@ -3,8 +3,10 @@ package main
 import (
 	// "fmt"
 
+	"encoding/gob"
 	"log"
 	"net"
+	"net/http"
 	"net/rpc"
 
 	"wpr/src/analyzer/types"
@@ -23,23 +25,22 @@ func (a *Analyzer) GetFile(arg *types.Azargs, reply *types.Azreply) error {
 		return nil
 	} else {
 		log.Printf("File %s not found in cache", arg.Name)
-		newbody, err := Rewrite(arg.Name, arg.body, arg.Headers)
+		newbody, err := Rewrite(arg.Name, arg.Body, arg.Headers)
 		if err != nil {
 			log.Printf("Error rewriting file %s", arg.Name)
 			return err
 		}
 		f := types.File{Name: arg.Name, Body: newbody, Headers: arg.Headers}
-		a.store.Cache[arg.name] = f
+		a.store.Cache[arg.Name] = f
 		*reply = types.Azreply{Body: newbody, Headers: arg.Headers}
 		return nil
 	}
 }
 
-func rewriteContent(content string) string {
-	return content
-}
-
 func createServer() {
+	gob.Register(types.Azargs{})
+	gob.Register(types.Azreply{})
+	gob.Register(http.Response{})
 	az := Analyzer{}
 	az.store = types.Store{}
 	az.store.Cache = make(map[string]types.File)

@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/andybalholm/brotli"
 	"github.com/flytam/filenamify"
@@ -73,8 +72,7 @@ func extractBody(body string, h http.Header) string {
 }
 
 func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, error) {
-	SCRIPTPATH := "../node/program_analysis/instrument.js"
-	var mu sync.Mutex
+	SCRIPTPATH := "/vault-swift/goelayu/balanced-crawler/node/program_analysis/instrument.js"
 	tmpdir := "/run/user/99542426/goelayu/tempdir/"
 	// store body in a temp file
 	tempFile, err := os.CreateTemp(tmpdir, "insttmp")
@@ -99,7 +97,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 		origFile.Close()
 	}
 
-	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s' -f %d", SCRIPTPATH, tempFile.Name(), t, name, fileid)
+	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s' -f %d", SCRIPTPATH, tempFile.Name(), t, name, 1)
 	fmt.Println(cmdString)
 	// startTime := time.Now()
 	cmd := exec.Command("bash", "-c", cmdString)
@@ -126,9 +124,9 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 	return newbody, nil
 }
 
-func Rewrite(name string, body io.Reader, header map[string][]string, contentType string) (io.Reader, error) {
-	name, _ := filenamify.Filenamify(name)
-	bodyBytes, _ := io.ReadAll(body)
+func Rewrite(name string, bodyBytes []byte, header http.Header) ([]byte, error) {
+	name, _ = filenamify.Filenamify(name, filenamify.Options{})
+	contentType := header.Get("Content-Type")
 	newbody, err := invokeNode(extractBody(string(bodyBytes), header), contentType, name, false)
 	if err != nil {
 		return nil, err
@@ -137,34 +135,5 @@ func Rewrite(name string, body io.Reader, header map[string][]string, contentTyp
 	if header.Get("Content-Encoding") != "" {
 		header.Del("Content-Encoding")
 	}
-	return io.NopCloser(bytes.NewReader(newbody)), nil
-}
-
-func instrument(req *http.Request, resp *http.Response) (*http.Request, *http.Response, error) {
-
-	// Identify if the response is a JavaScript response
-	t := resp.Header.Get("Content-Type")
-	name, _ := filenamify.Filenamify(req.URL.Path, filenamify.Options{})
-
-	if strings.Contains(strings.ToLower(t), "javascript") || strings.Contains(strings.ToLower(t), "html") {
-		// extract body bytes
-		// fmt.Println("Instrumenting", req.URL.Path)
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		newbody, err := invokeNode(extractBody(string(bodyBytes), resp.Header), t, name, false)
-		if err != nil {
-			return nil, nil, err
-		}
-		resp.Body = io.NopCloser(bytes.NewReader(newbody))
-		resp.ContentLength = int64(len(newbody))
-		resp.Header.Set("Content-Length", strconv.Itoa(len(newbody)))
-
-		//delete encoding if it exists
-		if resp.Header.Get("Content-Encoding") != "" {
-			resp.Header.Del("Content-Encoding")
-		}
-
-	}
-
-	return req, resp, nil
-
+	return []byte(newbody), nil
 }

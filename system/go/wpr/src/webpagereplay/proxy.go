@@ -84,6 +84,10 @@ type ReplayingProxy struct {
 	client       *rpc.Client
 }
 
+func requestIsJSHTML(resp *http.Response) bool {
+	return strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "html") || strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "javascript")
+}
+
 func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/web-page-replay-generate-200" {
 		w.WriteHeader(200)
@@ -103,12 +107,6 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	fixupRequestURL(req, proxy.scheme)
 	logf := makeLogger(req, proxy.quietMode)
 
-	// query the analyzer server
-	requestURI := req.URL.RequestURI()
-	var reply types.File
-	client, _ := rpc.Dial("tcp", "localhost:1234")
-	_ = client.Call("Analyzer.GetFile", &requestURI, &reply)
-
 	// Lookup the response in the archive.
 	proxy.Mu.Lock()
 	_, storedResp, err := proxy.A.FindRequest(req)
@@ -118,6 +116,24 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+
+	// query the analyzer server if request is JavaScript or HTML
+	// log.Printf("Request is JS/HTML: %v, and type is %s", requestIsJSHTML(req), req.Header.Get("Content-Type"))
+	if requestIsJSHTML(storedResp) {
+		requestURI := req.URL.RequestURI()
+		var reply types.Azreply
+		bodyBytes, _ := io.ReadAll(storedResp.Body)
+		azargs := types.Azargs{Name: requestURI, Body: bodyBytes, Headers: storedResp.Header}
+		client, _ := rpc.Dial("tcp", "localhost:1234")
+		err = client.Call("Analyzer.GetFile", &azargs, &reply)
+		if err != nil {
+			log.Printf("Error calling analyzer server: %v", err)
+		} else {
+			storedResp.Body = io.NopCloser(bytes.NewReader(reply.Body))
+			storedResp.Header = reply.Headers
+		}
+	}
+
 	defer storedResp.Body.Close()
 
 	// Check if the stored Content-Encoding matches an encoding allowed by the client.
