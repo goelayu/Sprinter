@@ -16,6 +16,8 @@ const { Cluster } = require("puppeteer-cluster");
 const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
 const PageClient = require("./lib/PageClient.js");
 const Proxy = require('./lib/wpr-proxy');
+const AZ = require("./lib/az-server.js");
+
 require('console-stamp')(console, '[HH:MM:ss.l]');
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
@@ -51,6 +53,7 @@ program
   .option("-n, --network", "dump network data")
   .option("--tracing", "dump tracing data")
   .option("--mode <mode>", "mode of the proxy, can't be used with --noproxy")
+  .option("-c, --custom [value]", "fetch custom data")
   .parse(process.argv);
 
 var bashSanitize = (str) => {
@@ -115,6 +118,10 @@ var genBrowserArgs = (proxies) => {
       console.log("Please specify a mode for the proxy");
       process.exit(1);
     }
+    console.log("Initializing the az server...")
+    var az = new AZ({port:1234, logOutput: `${program.output}/az.log`});
+    await az.start();
+
     console.log("Initializing proxies...");
     var proxyManager = new Proxy.ProxyManager(program.concurrency, program.proxy, program.output, program.mode);
     await proxyManager.createProxies();
@@ -194,6 +201,18 @@ var genBrowserArgs = (proxies) => {
         },
       });
     }
+
+    //extract any custom data
+    if (program.custom){
+      var entries = program.custom.split(',');
+      for (var e of entries){
+        switch (e){
+          case 'state':
+            await getFileState(page);
+            break;
+        }
+      }
+    }
   });
 
   cluster.on("taskerror", (err, data) => {
@@ -210,6 +229,7 @@ var genBrowserArgs = (proxies) => {
   await cluster.close();
   if (program.proxy) {
     await proxyManager.stopAll();
+    await az.stop();
 
     //clean up proxy arguments
     for (var i = 0; i < proxies.length; i++) {
@@ -243,6 +263,21 @@ function interceptData(page, crawlData) {
     });
   }
 }
+
+var getFileState = async function (page) {
+  var state = await page.evaluate(() => {
+    window.__tracer__.resolveLogData();
+    return window.__tracer__.serializeLogData();
+  });
+  program.verbose && console.log(`extracting javaScript state` );
+  var path = `${program.output}/state.json`;
+  dump(state, path);
+};
+
+var dump = function (data, file) {
+  fs.writeFileSync(file, JSON.stringify(data));
+};
+
 
 var enableTracingPerFrame = function (page, outputDir) {
   page.on("frameattached", async (frame) => {

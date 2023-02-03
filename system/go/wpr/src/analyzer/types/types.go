@@ -13,6 +13,7 @@ type Azargs struct {
 type Azreply struct {
 	Body    []byte
 	Headers http.Header
+	CL      int64
 }
 
 type File struct {

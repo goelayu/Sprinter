@@ -131,6 +131,7 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		} else {
 			storedResp.Body = io.NopCloser(bytes.NewReader(reply.Body))
 			storedResp.Header = reply.Headers
+			storedResp.ContentLength = reply.CL
 		}
 	}
 

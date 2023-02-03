@@ -120,14 +120,14 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 		panic(err)
 	}
 	// fmt.Println("newbody is", string(newbody))
-	os.Remove(tempFile.Name())
+	// os.Remove(tempFile.Name())
 	return newbody, nil
 }
 
-func Rewrite(name string, bodyBytes []byte, header http.Header) ([]byte, error) {
+func Rewrite(name string, bodyBytes []byte, header *http.Header) ([]byte, error) {
 	name, _ = filenamify.Filenamify(name, filenamify.Options{})
 	contentType := header.Get("Content-Type")
-	newbody, err := invokeNode(extractBody(string(bodyBytes), header), contentType, name, false)
+	newbody, err := invokeNode(extractBody(string(bodyBytes), *header), contentType, name, false)
 	if err != nil {
 		return nil, err
 	}
@@ -135,5 +135,5 @@ func Rewrite(name string, bodyBytes []byte, header http.Header) ([]byte, error) 
 	if header.Get("Content-Encoding") != "" {
 		header.Del("Content-Encoding")
 	}
-	return []byte(newbody), nil
+	return newbody, nil
 }
