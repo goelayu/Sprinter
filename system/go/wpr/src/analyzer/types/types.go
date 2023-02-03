@@ -1,9 +1,25 @@
 package types
 
-type File struct {
+import "io"
+
+type Azargs struct {
 	Name    string
-	Content string
-	Digest  string
+	Body    io.Reader
+	Headers map[string][]string
+}
+
+type Azreply struct {
+	Body    io.Reader
+	Headers map[string][]string
+}
+
+type File struct {
+	Name     string
+	Content  string
+	Digest   string
+	SContent string //content with instrumentation code
+	Body     io.Reader
+	Headers  map[string][]string
 }
 
 type State struct {
@@ -19,5 +35,6 @@ type Signature struct {
 
 type Store struct {
 	Cache map[string]File
-	sigs  map[File]Signature
+	Files []File
+	// sigs  map[File]Signature
 }

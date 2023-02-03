@@ -2,6 +2,7 @@ package main
 
 import (
 	// "fmt"
+
 	"log"
 	"net"
 	"net/rpc"
@@ -13,26 +14,36 @@ type Analyzer struct {
 	store types.Store
 }
 
-func (a *Analyzer) GetFile(name *string, reply *types.File) error {
+func (a *Analyzer) GetFile(arg *types.Azargs, reply *types.Azreply) error {
 	//check if file is in cache
-	log.Printf("GetFile(%s)", *name)
-	if file, ok := a.store.Cache[*name]; ok {
-		log.Printf("File %s found in cache", *name)
-		*reply = file
+	log.Printf("GetFile(%s)", arg.Name)
+	if file, ok := a.store.Cache[arg.Name]; ok {
+		log.Printf("File %s found in cache", arg.Name)
+		*reply = types.Azreply{Body: file.Body, Headers: file.Headers}
 		return nil
 	} else {
-		log.Printf("File %s not found in cache", *name)
-		f := types.File{Name: *name}
-		a.store.Cache[*name] = f
-		*reply = f
+		log.Printf("File %s not found in cache", arg.Name)
+		newbody, err := Rewrite(arg.Name, arg.body, arg.Headers)
+		if err != nil {
+			log.Printf("Error rewriting file %s", arg.Name)
+			return err
+		}
+		f := types.File{Name: arg.Name, Body: newbody, Headers: arg.Headers}
+		a.store.Cache[arg.name] = f
+		*reply = types.Azreply{Body: newbody, Headers: arg.Headers}
 		return nil
 	}
+}
+
+func rewriteContent(content string) string {
+	return content
 }
 
 func createServer() {
 	az := Analyzer{}
 	az.store = types.Store{}
 	az.store.Cache = make(map[string]types.File)
+	az.store.Files = make([]types.File, 0)
 
 	rpc.Register(&az)
 	rpc.HandleHTTP()
