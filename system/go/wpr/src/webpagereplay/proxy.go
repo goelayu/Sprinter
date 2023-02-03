@@ -11,11 +11,15 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/rpc"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"wpr/src/analyzer/client"
+	"wpr/src/analyzer/types"
 )
 
 const errStatus = http.StatusInternalServerError
@@ -68,7 +72,7 @@ func updateDates(h http.Header, now time.Time) {
 // NewReplayingProxy constructs an HTTP proxy that replays responses from an archive.
 // The proxy is listening for requests on a port that uses the given scheme (e.g., http, https).
 func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransformer, quietMode bool) http.Handler {
-	return &ReplayingProxy{a, scheme, transformers, quietMode, sync.Mutex{}}
+	return &ReplayingProxy{a, scheme, transformers, quietMode, sync.Mutex{}, client.NewClient()}
 }
 
 type ReplayingProxy struct {
@@ -77,6 +81,7 @@ type ReplayingProxy struct {
 	transformers []ResponseTransformer
 	quietMode    bool
 	Mu           sync.Mutex
+	client       *rpc.Client
 }
 
 func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -97,6 +102,12 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	}
 	fixupRequestURL(req, proxy.scheme)
 	logf := makeLogger(req, proxy.quietMode)
+
+	// query the analyzer server
+	requestURI := req.URL.RequestURI()
+	var reply types.File
+	client, _ := rpc.Dial("tcp", "localhost:1234")
+	_ = client.Call("Analyzer.GetFile", &requestURI, &reply)
 
 	// Lookup the response in the archive.
 	proxy.Mu.Lock()
