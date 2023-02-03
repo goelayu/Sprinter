@@ -86,7 +86,6 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 	if err != nil {
 		panic(err)
 	}
-
 	// create a copy of tempFile if keepOrig is true
 	if keepOrig {
 		origFile, err := os.Create(tempFile.Name() + ".copy")
@@ -96,7 +95,6 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 		origFile.WriteString(body)
 		origFile.Close()
 	}
-
 	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s' -f %d", SCRIPTPATH, tempFile.Name(), t, name, 1)
 	fmt.Println(cmdString)
 	// startTime := time.Now()
@@ -112,7 +110,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 	}
 	// fmt.Println("Instrumentation took", time.Since(startTime))
 
-	// fmt.Println("stdout is", string(out))
+	fmt.Println("stdout is", out.String())
 	// read the temp file
 	tempFile.Seek(0, 0)
 	newbody, err := io.ReadAll(tempFile)
@@ -120,7 +118,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 		panic(err)
 	}
 	// fmt.Println("newbody is", string(newbody))
-	// os.Remove(tempFile.Name())
+	os.Remove(tempFile.Name())
 	return newbody, nil
 }
 

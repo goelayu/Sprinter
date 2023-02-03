@@ -19,16 +19,13 @@ type Analyzer struct {
 
 func (a *Analyzer) GetFile(arg *types.Azargs, reply *types.Azreply) error {
 	//check if file is in cache
-	log.Printf("GetFile(%s)", arg.Name)
 	if file, ok := a.store.Cache[arg.Name]; ok {
 		log.Printf("File %s found in cache", arg.Name)
 		*reply = types.Azreply{Body: file.Body, Headers: file.Headers}
 		return nil
 	} else {
 		log.Printf("File %s not found in cache", arg.Name)
-		log.Printf("Content length before rewriting %s", arg.Headers.Get("Content-Length"))
 		newbody, err := Rewrite(arg.Name, arg.Body, &arg.Headers)
-		log.Printf("Content length after rewriting %s", arg.Headers.Get("Content-Length"))
 		if err != nil {
 			log.Printf("Error rewriting file %s", arg.Name)
 			return err
@@ -42,7 +39,7 @@ func (a *Analyzer) GetFile(arg *types.Azargs, reply *types.Azreply) error {
 
 func createServer(c *cli.Context) {
 	port := c.Int("port")
-
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	az := Analyzer{}
 	az.store = types.Store{}
 	az.store.Cache = make(map[string]types.File)

@@ -15,14 +15,13 @@ const exec = util.promisify(child_process.exec);
 const { Cluster } = require("puppeteer-cluster");
 const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
 const PageClient = require("./lib/PageClient.js");
-const Proxy = require('./lib/wpr-proxy');
+const Proxy = require("./lib/wpr-proxy");
 const AZ = require("./lib/az-server.js");
 
-require('console-stamp')(console, '[HH:MM:ss.l]');
+require("console-stamp")(console, "[HH:MM:ss.l]");
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
-const GOPATH =
-  "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
+const GOPATH = "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
 const WPRDIR =
   "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/pkg/mod/github.com/catapult-project/catapult/web_page_replay_go@v0.0.0-20220815222316-b3421074fa70";
 
@@ -108,22 +107,27 @@ var genBrowserArgs = (proxies) => {
   // Initialize the proxies if flag enabled
   var proxies = [],
     opts = {
-    concurrency: Cluster.CONCURRENCY_BROWSER,
-    maxConcurrency: program.concurrency,
-    monitor: program.monitor,
-  };
+      concurrency: Cluster.CONCURRENCY_BROWSER,
+      maxConcurrency: program.concurrency,
+      monitor: program.monitor,
+    };
 
   if (program.proxy) {
     if (!program.mode) {
       console.log("Please specify a mode for the proxy");
       process.exit(1);
     }
-    console.log("Initializing the az server...")
-    var az = new AZ({port:1234, logOutput: `${program.output}/az.log`});
+    console.log("Initializing the az server...");
+    var az = new AZ({ port: 1234, logOutput: `${program.output}/az.log` });
     await az.start();
 
     console.log("Initializing proxies...");
-    var proxyManager = new Proxy.ProxyManager(program.concurrency, program.proxy, program.output, program.mode);
+    var proxyManager = new Proxy.ProxyManager(
+      program.concurrency,
+      program.proxy,
+      program.output,
+      program.mode
+    );
     await proxyManager.createProxies();
     proxies = proxyManager.getAll();
 
@@ -153,11 +157,14 @@ var genBrowserArgs = (proxies) => {
     // find the proxy used for this page
     // then update the path to the data.wprgo file
     var args = page.browser().process().spawnargs;
-    var pa = args.find(e=>e.includes("proxy-server")).split("=")[2].split(":")[2];
+    var pa = args
+      .find((e) => e.includes("proxy-server"))
+      .split("=")[2]
+      .split(":")[2];
     var proxyDataFile = `${program.proxy}/${pa}`;
     var proxyData = `${program.proxy}/${sanurl}.wprgo`;
-    console.log(`Updating proxy data file ${proxyDataFile} with ${proxyData}`)
-    fs.writeFileSync(proxyDataFile,proxyData);
+    console.log(`Updating proxy data file ${proxyDataFile} with ${proxyData}`);
+    fs.writeFileSync(proxyDataFile, proxyData);
 
     // wait for 2ms to make sure the new file is read
     await sleep(50);
@@ -203,11 +210,11 @@ var genBrowserArgs = (proxies) => {
     }
 
     //extract any custom data
-    if (program.custom){
-      var entries = program.custom.split(',');
-      for (var e of entries){
-        switch (e){
-          case 'state':
+    if (program.custom) {
+      var entries = program.custom.split(",");
+      for (var e of entries) {
+        switch (e) {
+          case "state":
             await getFileState(page);
             break;
         }
@@ -266,10 +273,14 @@ function interceptData(page, crawlData) {
 
 var getFileState = async function (page) {
   var state = await page.evaluate(() => {
-    window.__tracer__.resolveLogData();
-    return window.__tracer__.serializeLogData();
+    try {
+      window.__tracer__.resolveLogData();
+      return window.__tracer__.serializeLogData();
+    } catch (e) {
+      return { error: e.message };
+    }
   });
-  program.verbose && console.log(`extracting javaScript state` );
+  program.verbose && console.log(`extracting javaScript state`);
   var path = `${program.output}/state.json`;
   dump(state, path);
 };
@@ -277,7 +288,6 @@ var getFileState = async function (page) {
 var dump = function (data, file) {
   fs.writeFileSync(file, JSON.stringify(data));
 };
-
 
 var enableTracingPerFrame = function (page, outputDir) {
   page.on("frameattached", async (frame) => {
