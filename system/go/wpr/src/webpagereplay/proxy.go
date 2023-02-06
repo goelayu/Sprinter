@@ -125,10 +125,10 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	}
 
 	// query the analyzer server if request is JavaScript or HTML
-	// log.Printf("Request is JS/HTML: %v, and type is %s", requestIsJSHTML(req), req.Header.Get("Content-Type"))
 	if requestIsJSHTML(storedResp) {
 		requestURI := req.URL.RequestURI()
 		body, _ := io.ReadAll(storedResp.Body)
+
 		ce := strings.ToLower(storedResp.Header.Get("Content-Encoding"))
 		if ce != "" {
 			body, err = decompressBody(ce, body)
@@ -139,6 +139,7 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 				ce = ""
 			}
 		}
+
 		bodyString := string(body)
 		azargs := pb.AzRequest{Name: requestURI, Body: bodyString, Type: storedResp.Header.Get("Content-Type"), Encoding: storedResp.Header.Get("Content-Encoding")}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -150,6 +151,7 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		} else {
 			body = []byte(azreply.Body)
 		}
+
 		storedResp.Body = io.NopCloser(bytes.NewReader(body))
 		storedResp.ContentLength = int64(len(body))
 		storedResp.Header.Set("Content-Length", strconv.Itoa(len(body)))

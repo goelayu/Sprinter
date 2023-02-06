@@ -35,17 +35,28 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			log.Printf("Error rewriting file %s", arg.Name)
 			return nil, err
 		}
+
 		f := types.File{Name: arg.Name, Body: string(newbody)}
+
 		a.mu.Lock()
 		a.store.Cache[arg.Name] = f
 		a.mu.Unlock()
+
 		return &pb.AzResponse{Body: string(newbody)}, nil
 	}
 }
 
+func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.StoresigResponse, error) {
+	log.Printf("Store signature")
+	return &pb.StoresigResponse{Id: 1}, nil
+}
+
 func createServer(c *cli.Context) {
+
 	port := c.Int("port")
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	az := Analyzer{}
 	az.store = types.Store{}
 	az.store.Cache = make(map[string]types.File)
@@ -67,11 +78,6 @@ func createServer(c *cli.Context) {
 	grpcServer.Serve(l)
 
 	log.Printf("Analyzer server started")
-	// go func() {
-	// 	for {
-	// 		rpc.Accept(l)
-	// 	}
-	// }()
 
 	log.Printf("Use Ctrl-C to exit.")
 	select {}
