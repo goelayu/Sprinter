@@ -1,0 +1,43 @@
+
+syntax = "proto3";
+package proto;
+
+option go_package = "wpr/src/analyzer/proto";
+
+
+service Analyzer {
+    rpc Analyze (AzRequest) returns (AzResponse) {}
+    rpc Storesignature (Pageaccess) returns (StoresigResponse) {}
+}
+
+message AzRequest {
+  string name = 1;
+  string body = 2;
+  string type = 3;
+  string encoding = 4;
+}
+
+message AzResponse {
+  string body = 1;
+}
+
+message Lineaccess {
+  string type = 1;
+  string root = 2;
+  string key = 3;
+  string value = 4;
+}
+
+message Fileaccess {
+  string name = 1;
+  repeated Lineaccess lines = 2;
+}
+
+message Pageaccess {
+  string name = 1;
+  repeated Fileaccess files = 2;
+}
+
+message StoresigResponse {
+  int64 id = 1;
+}
