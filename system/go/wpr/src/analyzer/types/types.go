@@ -11,7 +11,7 @@ type Azargs struct {
 }
 
 type Azreply struct {
-	Body    []byte
+	Body    string
 	Headers http.Header
 	CL      int64
 }
@@ -21,7 +21,7 @@ type File struct {
 	Content  string
 	Digest   string
 	SContent string //content with instrumentation code
-	Body     []byte
+	Body     string
 	Headers  http.Header
 }
 

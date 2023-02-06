@@ -21,6 +21,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/andybalholm/brotli"
 )
 
 type readerWithError struct {
@@ -123,7 +125,7 @@ func DecompressResponse(resp *http.Response) error {
 // decompressBody reads a response body and decompresses according to the
 // given Content-Encoding.
 func decompressBody(ce string, compressed []byte) ([]byte, error) {
-	var r io.ReadCloser
+	var r io.Reader
 	switch strings.ToLower(ce) {
 	case "gzip":
 		var err error
@@ -133,12 +135,13 @@ func decompressBody(ce string, compressed []byte) ([]byte, error) {
 		}
 	case "deflate":
 		r = flate.NewReader(bytes.NewReader(compressed))
-	// TODO(catapult:3742): Implement Brotli support.
+	case "brotli":
+		r = brotli.NewReader(bytes.NewReader(compressed))
 	default:
 		// Unknown compression type or uncompressed.
 		return compressed, errors.New("unknown compression: " + ce)
 	}
-	defer r.Close()
+	// defer r.Close()
 	return ioutil.ReadAll(r)
 }
 
@@ -236,10 +239,10 @@ func transformCSPHeader(header http.Header, injectedScriptSha256 string) {
 	for index, directive := range directives {
 		directive = strings.TrimSpace(directive)
 		if strings.HasPrefix(directive, "script-src") ||
-		   strings.HasPrefix(directive, "default-src") {
+			strings.HasPrefix(directive, "default-src") {
 			updateIndex = index
 			if strings.HasPrefix(directive, "script-src") {
-			  break
+				break
 			}
 		}
 	}
@@ -365,7 +368,7 @@ func (si *scriptInjector) getScriptWithNonce(nonce string) []byte {
 	var buffer bytes.Buffer
 	buffer.Write([]byte("<script"))
 	if nonce != "" {
-		buffer.Write([]byte(" nonce=\""+nonce+"\""))
+		buffer.Write([]byte(" nonce=\"" + nonce + "\""))
 	}
 	buffer.Write([]byte(">"))
 	buffer.Write(si.script)
@@ -414,8 +417,7 @@ func (si *scriptInjector) Transform(_ *http.Request, resp *http.Response) {
 		// token to injected scripts. Please see http://crbug.com/904534 for a
 		// detailed case study.
 		nonce := ""
-		if directive := getCSPScriptSrcDirectiveFromHeaders(resp.Header);
-			directive != "" {
+		if directive := getCSPScriptSrcDirectiveFromHeaders(resp.Header); directive != "" {
 			nonce = getNonceTokenFromCSPHeaderScriptSrc(directive)
 		}
 

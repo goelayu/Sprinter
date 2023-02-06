@@ -3,37 +3,43 @@ package main
 import (
 	// "fmt"
 
+	"context"
 	"log"
 	"net"
-	"net/rpc"
 	"strconv"
+	sync "sync"
 
 	"wpr/src/analyzer/types"
 
+	pb "wpr/src/analyzer/proto"
+
 	"github.com/urfave/cli"
+	grpc "google.golang.org/grpc"
 )
 
 type Analyzer struct {
+	pb.UnimplementedAnalyzerServer
 	store types.Store
+	mu    sync.Mutex
 }
 
-func (a *Analyzer) GetFile(arg *types.Azargs, reply *types.Azreply) error {
+func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzResponse, error) {
 	//check if file is in cache
 	if file, ok := a.store.Cache[arg.Name]; ok {
 		log.Printf("File %s found in cache", arg.Name)
-		*reply = types.Azreply{Body: file.Body, Headers: file.Headers}
-		return nil
+		return &pb.AzResponse{Body: file.Body}, nil
 	} else {
 		log.Printf("File %s not found in cache", arg.Name)
-		newbody, err := Rewrite(arg.Name, arg.Body, &arg.Headers)
+		newbody, err := Rewrite(arg.Name, arg.Body, arg.Type, arg.Encoding)
 		if err != nil {
 			log.Printf("Error rewriting file %s", arg.Name)
-			return err
+			return nil, err
 		}
-		f := types.File{Name: arg.Name, Body: newbody, Headers: arg.Headers}
+		f := types.File{Name: arg.Name, Body: string(newbody)}
+		a.mu.Lock()
 		a.store.Cache[arg.Name] = f
-		*reply = types.Azreply{Body: newbody, Headers: arg.Headers, CL: int64(len(newbody))}
-		return nil
+		a.mu.Unlock()
+		return &pb.AzResponse{Body: string(newbody)}, nil
 	}
 }
 
@@ -45,18 +51,27 @@ func createServer(c *cli.Context) {
 	az.store.Cache = make(map[string]types.File)
 	az.store.Files = make([]types.File, 0)
 
-	rpc.Register(&az)
-	rpc.HandleHTTP()
+	// rpc.Register(&az)
+	// rpc.HandleHTTP()
 	l, e := net.Listen("tcp", ":"+strconv.Itoa(port))
 	if e != nil {
 		log.Fatal("listen error:", e)
 	}
+
+	var opts []grpc.ServerOption
+	grpcServer := grpc.NewServer(opts...)
+	// Register the service with the gRPC server
+	pb.RegisterAnalyzerServer(grpcServer, &az)
+
 	log.Printf("Analyzer server started")
-	go func() {
-		for {
-			rpc.Accept(l)
-		}
-	}()
+	grpcServer.Serve(l)
+
+	log.Printf("Analyzer server started")
+	// go func() {
+	// 	for {
+	// 		rpc.Accept(l)
+	// 	}
+	// }()
 
 	log.Printf("Use Ctrl-C to exit.")
 	select {}

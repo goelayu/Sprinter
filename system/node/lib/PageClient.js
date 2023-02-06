@@ -44,6 +44,24 @@ var initConsoleHandlers = function (cdp, cLogs) {
   });
 };
 
+var getFileState = async function (page, outputDir) {
+  var state = await page.evaluate(() => {
+    try {
+      window.__tracer__.resolveLogData();
+      return window.__tracer__.serializeLogData();
+    } catch (e) {
+      return { error: e.message };
+    }
+  });
+  console.log(`extracting javaScript state`);
+  var path = `${outputDir}/state.json`;
+  dump(state, path);
+};
+
+var dump = function (data, file) {
+  fs.writeFileSync(file, JSON.stringify(data));
+};
+
 var enableTracingPerFrame = function (page, outputDir) {
   page.on("framenavigated", async (frame) => {
     // if (frame === page.mainFrame()) return;
@@ -261,6 +279,17 @@ class PageClient {
         await this._page.screenshot({
           path: this._options.outputDir + "/screenshot.png",
         });
+      }
+
+      if (this._options.custom) {
+        var entries = this._options.custom.split(",");
+        for (var e of entries) {
+          switch (e) {
+            case "state":
+              await getFileState(this._page, this._options.outputDir);
+              break;
+          }
+        }
       }
     } catch (err) {
       console.log(`[${this._options.url}] Error: `, err);

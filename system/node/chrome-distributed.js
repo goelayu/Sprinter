@@ -186,6 +186,7 @@ var genBrowserArgs = (proxies) => {
       logTime: true,
       emulateCPU: program.emulateCPU,
       emulateNetwork: program.emulateNetwork,
+      custom: program.custom,
     });
 
     await pclient.start().catch((err) => {
@@ -210,16 +211,16 @@ var genBrowserArgs = (proxies) => {
     }
 
     //extract any custom data
-    if (program.custom) {
-      var entries = program.custom.split(",");
-      for (var e of entries) {
-        switch (e) {
-          case "state":
-            await getFileState(page);
-            break;
-        }
-      }
-    }
+    // if (program.custom) {
+    //   var entries = program.custom.split(",");
+    //   for (var e of entries) {
+    //     switch (e) {
+    //       case "state":
+    //         await getFileState(page);
+    //         break;
+    //     }
+    //   }
+    // }
   });
 
   cluster.on("taskerror", (err, data) => {
@@ -271,19 +272,6 @@ function interceptData(page, crawlData) {
   }
 }
 
-var getFileState = async function (page) {
-  var state = await page.evaluate(() => {
-    try {
-      window.__tracer__.resolveLogData();
-      return window.__tracer__.serializeLogData();
-    } catch (e) {
-      return { error: e.message };
-    }
-  });
-  program.verbose && console.log(`extracting javaScript state`);
-  var path = `${program.output}/state.json`;
-  dump(state, path);
-};
 
 var dump = function (data, file) {
   fs.writeFileSync(file, JSON.stringify(data));

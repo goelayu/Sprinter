@@ -5,10 +5,8 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 
 	"github.com/andybalholm/brotli"
@@ -57,10 +55,10 @@ func uncompressBody(body string, t string) string {
 	return string(output)
 }
 
-func extractBody(body string, h http.Header) string {
+func extractBody(body string, encoding string) string {
 	// extract body if it is compressed
-	if h.Get("Content-Encoding") != "" {
-		body = uncompressBody(body, h.Get("Content-Encoding"))
+	if encoding != "" {
+		body = uncompressBody(body, encoding)
 	}
 
 	// extract body if it is chunked
@@ -122,16 +120,15 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 	return newbody, nil
 }
 
-func Rewrite(name string, bodyBytes []byte, header *http.Header) ([]byte, error) {
+func Rewrite(name string, bodyBytes string, contentType string, encoding string) ([]byte, error) {
 	name, _ = filenamify.Filenamify(name, filenamify.Options{})
-	contentType := header.Get("Content-Type")
-	newbody, err := invokeNode(extractBody(string(bodyBytes), *header), contentType, name, false)
+	newbody, err := invokeNode(extractBody(bodyBytes, encoding), contentType, name, false)
 	if err != nil {
 		return nil, err
 	}
-	header.Set("Content-Length", strconv.Itoa(len(newbody)))
-	if header.Get("Content-Encoding") != "" {
-		header.Del("Content-Encoding")
-	}
+	// header.Set("Content-Length", strconv.Itoa(len(newbody)))
+	// if header.Get("Content-Encoding") != "" {
+	// 	header.Del("Content-Encoding")
+	// }
 	return newbody, nil
 }

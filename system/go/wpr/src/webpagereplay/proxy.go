@@ -6,20 +6,21 @@ package webpagereplay
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/rpc"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"wpr/src/analyzer/client"
-	"wpr/src/analyzer/types"
+	pb "wpr/src/analyzer/proto"
+
+	"google.golang.org/grpc"
 )
 
 const errStatus = http.StatusInternalServerError
@@ -72,7 +73,12 @@ func updateDates(h http.Header, now time.Time) {
 // NewReplayingProxy constructs an HTTP proxy that replays responses from an archive.
 // The proxy is listening for requests on a port that uses the given scheme (e.g., http, https).
 func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransformer, quietMode bool) http.Handler {
-	return &ReplayingProxy{a, scheme, transformers, quietMode, sync.Mutex{}, client.NewClient()}
+	conn, err := grpc.Dial("localhost:1234", grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	client := pb.NewAnalyzerClient(conn)
+	return &ReplayingProxy{a, scheme, transformers, quietMode, sync.Mutex{}, client}
 }
 
 type ReplayingProxy struct {
@@ -81,10 +87,11 @@ type ReplayingProxy struct {
 	transformers []ResponseTransformer
 	quietMode    bool
 	Mu           sync.Mutex
-	client       *rpc.Client
+	client       pb.AnalyzerClient
 }
 
 func requestIsJSHTML(resp *http.Response) bool {
+	// return false
 	return strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "html") || strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "javascript")
 }
 
@@ -121,17 +128,33 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	// log.Printf("Request is JS/HTML: %v, and type is %s", requestIsJSHTML(req), req.Header.Get("Content-Type"))
 	if requestIsJSHTML(storedResp) {
 		requestURI := req.URL.RequestURI()
-		var reply types.Azreply
-		bodyBytes, _ := io.ReadAll(storedResp.Body)
-		azargs := types.Azargs{Name: requestURI, Body: bodyBytes, Headers: storedResp.Header}
-		client, _ := rpc.Dial("tcp", "localhost:1234")
-		err = client.Call("Analyzer.GetFile", &azargs, &reply)
+		body, _ := io.ReadAll(storedResp.Body)
+		ce := strings.ToLower(storedResp.Header.Get("Content-Encoding"))
+		if ce != "" {
+			body, err = decompressBody(ce, body)
+			if err != nil {
+				log.Printf("Error decompressing body: %v", err)
+			} else {
+				storedResp.Header.Del("Content-Encoding")
+				ce = ""
+			}
+		}
+		bodyString := string(body)
+		azargs := pb.AzRequest{Name: requestURI, Body: bodyString, Type: storedResp.Header.Get("Content-Type"), Encoding: storedResp.Header.Get("Content-Encoding")}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		azreply, err := proxy.client.Analyze(ctx, &azargs)
 		if err != nil {
 			log.Printf("Error calling analyzer server: %v", err)
+			// storedResp.Body = ioutil.NopCloser(bytes.NewReader(body))
 		} else {
-			storedResp.Body = io.NopCloser(bytes.NewReader(reply.Body))
-			storedResp.Header = reply.Headers
-			storedResp.ContentLength = reply.CL
+			body = []byte(azreply.Body)
+		}
+		storedResp.Body = io.NopCloser(bytes.NewReader(body))
+		storedResp.ContentLength = int64(len(body))
+		storedResp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+		if ce != "" && storedResp.Header.Get("Content-Encoding") != "" {
+			storedResp.Header.Del("Content-Encoding")
 		}
 	}
 
