@@ -19,6 +19,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AnalyzerClient interface {
 	Analyze(ctx context.Context, in *AzRequest, opts ...grpc.CallOption) (*AzResponse, error)
+	Storesignature(ctx context.Context, in *Pageaccess, opts ...grpc.CallOption) (*StoresigResponse, error)
 }
 
 type analyzerClient struct {
@@ -38,11 +39,21 @@ func (c *analyzerClient) Analyze(ctx context.Context, in *AzRequest, opts ...grp
 	return out, nil
 }
 
+func (c *analyzerClient) Storesignature(ctx context.Context, in *Pageaccess, opts ...grpc.CallOption) (*StoresigResponse, error) {
+	out := new(StoresigResponse)
+	err := c.cc.Invoke(ctx, "/proto.Analyzer/Storesignature", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AnalyzerServer is the server API for Analyzer service.
 // All implementations must embed UnimplementedAnalyzerServer
 // for forward compatibility
 type AnalyzerServer interface {
 	Analyze(context.Context, *AzRequest) (*AzResponse, error)
+	Storesignature(context.Context, *Pageaccess) (*StoresigResponse, error)
 	mustEmbedUnimplementedAnalyzerServer()
 }
 
@@ -52,6 +63,9 @@ type UnimplementedAnalyzerServer struct {
 
 func (UnimplementedAnalyzerServer) Analyze(context.Context, *AzRequest) (*AzResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Analyze not implemented")
+}
+func (UnimplementedAnalyzerServer) Storesignature(context.Context, *Pageaccess) (*StoresigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Storesignature not implemented")
 }
 func (UnimplementedAnalyzerServer) mustEmbedUnimplementedAnalyzerServer() {}
 
@@ -84,6 +98,24 @@ func _Analyzer_Analyze_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Analyzer_Storesignature_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Pageaccess)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AnalyzerServer).Storesignature(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.Analyzer/Storesignature",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AnalyzerServer).Storesignature(ctx, req.(*Pageaccess))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Analyzer_ServiceDesc is the grpc.ServiceDesc for Analyzer service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -94,6 +126,10 @@ var Analyzer_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Analyze",
 			Handler:    _Analyzer_Analyze_Handler,
+		},
+		{
+			MethodName: "Storesignature",
+			Handler:    _Analyzer_Storesignature_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
