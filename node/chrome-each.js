@@ -10,7 +10,6 @@ const AdblockerPlugin = require("puppeteer-extra-plugin-adblocker");
 const PageClient = require("./lib/PageClient");
 const Proxy = require("./lib/wpr-proxy");
 
-
 program
   .option("-o, --output [output]", "path to the output directory")
   .option("-l, --logs", "capture console logs")
@@ -27,6 +26,7 @@ program
   .option("--memory", "get the total memory footprint of the JS heap")
   .option("--coverage", "get the js coverage information")
   .option("--load-iter [value]", "page loading iteration count")
+  .option("--dom", "enable capture of every dom insertion event")
   .option(
     "--chrome-dir [value]",
     "path to the chrome user directory, only useful if loadIter is present"
@@ -122,7 +122,7 @@ async function launch() {
   console.log("global time out value", gTimeoutValue, program.timeout);
   var globalTimer = globalTimeout(browser, cdp, gTimeoutValue);
 
-  process.on('SIGINT', function() {
+  process.on("SIGINT", function () {
     console.log("Caught interrupt signal");
     if (program.proxy) {
       proxyManager.stopAll();
@@ -140,6 +140,7 @@ async function launch() {
     enableScreenshot: program.screenshot,
     userAgent: program.userAgent,
     outputDir: program.output,
+    enableDOM: program.dom,
     logTime: true,
     verbose: true,
   });
@@ -152,11 +153,11 @@ async function launch() {
 
   if (program.memory) await getMemory(page);
 
-  if (program.custom){
-    var entries = program.custom.split(',');
-    for (var e of entries){
-      switch (e){
-        case 'state':
+  if (program.custom) {
+    var entries = program.custom.split(",");
+    for (var e of entries) {
+      switch (e) {
+        case "state":
           await getFileState(page);
           break;
       }
@@ -205,7 +206,7 @@ var getFileState = async function (page) {
     window.__tracer__.resolveLogData();
     return window.__tracer__.serializeLogData();
   });
-  program.verbose && console.log(`extracting javaScript state` );
+  program.verbose && console.log(`extracting javaScript state`);
   var path = `${program.output}/state.json`;
   dump(state, path);
 };

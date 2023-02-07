@@ -5,12 +5,15 @@
 
 const fs = require("fs");
 const { Tracing } = require("chrome-remote-interface-extra");
+const netParser = require("./network.js");
+const dag = require("../lib/nw-dag.js");
 
 var initCDP = async function (cdp) {
   await cdp.send("Page.enable");
   await cdp.send("Network.enable");
   await cdp.send("Runtime.enable");
   await cdp.send("Profiler.enable");
+  await cdp.send("DOM.enable");
 };
 
 var initNetHandlers = function (cdp, nLogs) {
@@ -31,6 +34,12 @@ var initNetHandlers = function (cdp, nLogs) {
   });
 };
 
+var initDOMEvents = function (cdp, dLogs) {
+  cdp.on("DOM.childNodeInserted", (params) => {
+    dLogs.push(params);
+  });
+};
+
 var initConsoleHandlers = function (cdp, cLogs) {
   const console_observe = [
     "Runtime.consoleAPICalled",
@@ -44,6 +53,50 @@ var initConsoleHandlers = function (cdp, cLogs) {
   });
 };
 
+var getFileState = async function (page, options) {
+  var state = await page.evaluate(() => {
+    try {
+      window.__tracer__.resolveLogData();
+      return window.__tracer__.serializeLogData();
+    } catch (e) {
+      return { error: e.message };
+    }
+  });
+
+  console.log(`extracting javaScript state`);
+  var path = `${options.outputDir}/state.json`;
+
+  if (options.azClient) {
+    await options.azClient.storesignature(state, options.url);
+  }
+  dump(state, path);
+};
+
+var combStateWithURLs = function (state, nLogs, domLogs) {
+  var netObj = netParser.parseNetworkLogs(nLogs);
+  var graph = new dag.Graph(netObj);
+
+  graph.createTransitiveEdges();
+
+  var fetches = graph.transitiveEdges;
+
+  /**
+   * Create a new signature object of the following format:
+   * {
+   *  key: jsfilename,
+   * value:{
+   *  state: state,
+   *  fetches: [],
+   *  inserts: []
+   * }
+   * }
+   */
+};
+
+var dump = function (data, file) {
+  fs.writeFileSync(file, JSON.stringify(data));
+};
+
 var enableTracingPerFrame = function (page, outputDir) {
   page.on("framenavigated", async (frame) => {
     // if (frame === page.mainFrame()) return;
@@ -52,11 +105,6 @@ var enableTracingPerFrame = function (page, outputDir) {
         frame._id
       } with url ${frame.url()} with session Id ${frame._client._sessionId}`
     );
-    // var frameTracer = new Tracing(frame._client);
-    // page.frameTracers[frame._id] = frameTracer;
-    // await frameTracer.start({
-    //   path: `${outputDir}/${frame._id}.trace.json`,
-    // });
   });
 };
 
@@ -112,6 +160,7 @@ class PageClient {
       var nLogs = [],
         cLogs = [],
         startTime,
+        domLogs = [],
         endTime,
         responses = { raw: [], final: [] };
 
@@ -139,6 +188,11 @@ class PageClient {
       if (this._options.enableNetwork) {
         initNetHandlers(this._cdp, nLogs);
         this._options.verbose && console.log("Network logging enabled");
+      }
+
+      if (this._options.enableDOM) {
+        initDOMEvents(this._cdp, domLogs);
+        this._options.verbose && console.log("DOM logging enabled");
       }
 
       if (this._options.enableConsole) {
@@ -187,17 +241,6 @@ class PageClient {
         this._options.verbose && console.log("Network throttling enabled");
       }
 
-      // await this._page._client.send("Target.setAutoAttach", {
-      //   autoAttach: true,
-      //   flatten: true,
-      //   windowOpen: true,
-      //   waitForDebuggerOnStart: true, // is set to false in pptr
-      // });
-
-      // this._page._client.on("Target.attachedToTarget", async (event) => {
-      //   console.log('attached to target');
-      //   console.log(event.targetInfo);
-      // });
       // load the page
       await this._page
         .goto(this._options.url, {
@@ -212,7 +255,7 @@ class PageClient {
       if (this._options.logTime) {
         endTime = process.hrtime(startTime);
         console.log(
-          `[${this._options.url}] Page load time: `,
+          `[${this._options.url}][${this._options.logId}] Page load time: `,
           endTime[0] + endTime[1] / 1e9
         );
       }
@@ -224,6 +267,13 @@ class PageClient {
           this._options.outputDir + "/network.json",
           JSON.stringify(nLogs, null, 2)
         );
+      }
+
+      if (this._options.enableScreenshot) {
+        await this._page.screenshot({
+          path: this._options.outputDir + "/screenshot.png",
+        });
+        this._options.verbose && console.log("Screenshot taken");
       }
 
       if (this._options.enableConsole) {
@@ -254,6 +304,24 @@ class PageClient {
         await this._page.screenshot({
           path: this._options.outputDir + "/screenshot.png",
         });
+      }
+
+      if (this._options.enableDOM) {
+        fs.writeFileSync(
+          this._options.outputDir + "/dom.json",
+          JSON.stringify(domLogs, null, 2)
+        );
+      }
+
+      if (this._options.custom) {
+        var entries = this._options.custom.split(",");
+        for (var e of entries) {
+          switch (e) {
+            case "state":
+              await getFileState(this._page, this._options);
+              break;
+          }
+        }
       }
     } catch (err) {
       console.log(`[${this._options.url}] Error: `, err);
