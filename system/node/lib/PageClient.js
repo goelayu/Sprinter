@@ -79,6 +79,7 @@ var getFileState = async function (page, options, nLogs) {
   //   await options.azClient.storesignature(state, options.url);
   // }
   dump(newState, path);
+  dump(state, path + ".old");
 };
 
 var combStateWithURLs = function (state, nLogs, domLogs) {
@@ -110,7 +111,7 @@ var combStateWithURLs = function (state, nLogs, domLogs) {
 
   for (var n of netObj) {
     if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
-    var sKey = filenamify(URL.parse(n.url).pathname);
+    var sKey = filenamify(URL.parse(n.url).path);
     var st = state[sKey];
     var ft = fetches[n.url] ? fetches[n.url].map((e) => [e, urlType[e]]) : [];
     newState[n.url] = {
