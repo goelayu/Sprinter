@@ -5,12 +5,17 @@
 
 const fs = require("fs");
 const { Tracing } = require("chrome-remote-interface-extra");
+const netParser = require("./network.js");
+const dag = require("../lib/nw-dag.js");
+const URL = require("url");
+const filenamify = require("filenamify");
 
 var initCDP = async function (cdp) {
   await cdp.send("Page.enable");
   await cdp.send("Network.enable");
   await cdp.send("Runtime.enable");
   await cdp.send("Profiler.enable");
+  await cdp.send("DOM.enable");
 };
 
 var initNetHandlers = function (cdp, nLogs) {
@@ -31,6 +36,17 @@ var initNetHandlers = function (cdp, nLogs) {
   });
 };
 
+var initDOMEvents = function (page, cdp, dLogs) {
+  // cdp.on("DOM.childNodeCountUpdated", (params) => {
+  //   dLogs.push(params);
+  // });
+  // get dom node insertions
+  page._client.on("DOM.childNodeCountUpdated", (params) => {
+    console.log("DOM.childNodeCountUpdated", params);
+    dLogs.push(params);
+  });
+};
+
 var initConsoleHandlers = function (cdp, cLogs) {
   const console_observe = [
     "Runtime.consoleAPICalled",
@@ -44,7 +60,7 @@ var initConsoleHandlers = function (cdp, cLogs) {
   });
 };
 
-var getFileState = async function (page,options) {
+var getFileState = async function (page, options, nLogs) {
   var state = await page.evaluate(() => {
     try {
       window.__tracer__.resolveLogData();
@@ -57,10 +73,53 @@ var getFileState = async function (page,options) {
   console.log(`extracting javaScript state`);
   var path = `${options.outputDir}/state.json`;
 
-  if (options.azClient){
-    await options.azClient.storesignature(state, options.url )
+  var newState = combStateWithURLs(state, nLogs);
+
+  // if (options.azClient) {
+  //   await options.azClient.storesignature(state, options.url);
+  // }
+  dump(newState, path);
+};
+
+var combStateWithURLs = function (state, nLogs, domLogs) {
+  var netObj = netParser.parseNetworkLogs(nLogs);
+  var graph = new dag.Graph(netObj);
+
+  graph.createTransitiveEdges();
+
+  var fetches = graph.transitiveEdges;
+
+  var urlType = {};
+  for (var n of netObj) {
+    urlType[n.url] = n.type;
   }
-  dump(state, path);
+
+  /**
+   * Create a new signature object of the following format:
+   * {
+   *  key: jsfilename,
+   * value:{
+   *  state: state,
+   *  fetches: [],
+   *  inserts: []
+   * }
+   * }
+   */
+
+  var newState = {};
+
+  for (var n of netObj) {
+    if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
+    var sKey = filenamify(URL.parse(n.url).pathname);
+    var st = state[sKey];
+    var ft = fetches[n.url] ? fetches[n.url].map((e) => [e, urlType[e]]) : [];
+    newState[n.url] = {
+      state: st ? st : {},
+      fetches: ft,
+    };
+  }
+
+  return newState;
 };
 
 var dump = function (data, file) {
@@ -75,11 +134,6 @@ var enableTracingPerFrame = function (page, outputDir) {
         frame._id
       } with url ${frame.url()} with session Id ${frame._client._sessionId}`
     );
-    // var frameTracer = new Tracing(frame._client);
-    // page.frameTracers[frame._id] = frameTracer;
-    // await frameTracer.start({
-    //   path: `${outputDir}/${frame._id}.trace.json`,
-    // });
   });
 };
 
@@ -135,6 +189,7 @@ class PageClient {
       var nLogs = [],
         cLogs = [],
         startTime,
+        domLogs = [],
         endTime,
         responses = { raw: [], final: [] };
 
@@ -162,6 +217,11 @@ class PageClient {
       if (this._options.enableNetwork) {
         initNetHandlers(this._cdp, nLogs);
         this._options.verbose && console.log("Network logging enabled");
+      }
+
+      if (this._options.enableDOM) {
+        initDOMEvents(this._page, this._cdp, domLogs);
+        this._options.verbose && console.log("DOM logging enabled");
       }
 
       if (this._options.enableConsole) {
@@ -210,17 +270,6 @@ class PageClient {
         this._options.verbose && console.log("Network throttling enabled");
       }
 
-      // await this._page._client.send("Target.setAutoAttach", {
-      //   autoAttach: true,
-      //   flatten: true,
-      //   windowOpen: true,
-      //   waitForDebuggerOnStart: true, // is set to false in pptr
-      // });
-
-      // this._page._client.on("Target.attachedToTarget", async (event) => {
-      //   console.log('attached to target');
-      //   console.log(event.targetInfo);
-      // });
       // load the page
       await this._page
         .goto(this._options.url, {
@@ -286,12 +335,19 @@ class PageClient {
         });
       }
 
+      if (this._options.enableDOM) {
+        fs.writeFileSync(
+          this._options.outputDir + "/dom.json",
+          JSON.stringify(domLogs, null, 2)
+        );
+      }
+
       if (this._options.custom) {
         var entries = this._options.custom.split(",");
         for (var e of entries) {
           switch (e) {
             case "state":
-              await getFileState(this._page, this._options);
+              await getFileState(this._page, this._options, nLogs);
               break;
           }
         }
