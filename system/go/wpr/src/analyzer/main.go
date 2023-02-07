@@ -8,7 +8,6 @@ import (
 	"net"
 	"strconv"
 	sync "sync"
-	"time"
 
 	"wpr/src/analyzer/types"
 
@@ -50,7 +49,6 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.StoresigResponse, error) {
 	log.Printf("Storing signature with value %s", arg.Files)
 	// sleep for 100ms
-	time.Sleep(100 * time.Millisecond)
 	return &pb.StoresigResponse{Id: 1}, nil
 }
 
