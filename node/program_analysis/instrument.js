@@ -13,6 +13,7 @@ program
     .option('-t, --type [type]', 'The type of file to instrument')
     .option('-n, --name [name]', 'The name of the instrumented file')
     .option('-f, --identifier [identifier]', 'The identifier of the instrumented file')
+    .option('--analyzing [analyzing]', 'Whether to analyze the file or not')
     .parse(process.argv);
 
   
@@ -31,16 +32,18 @@ function IsJsonString(str) {
 }
 
 var instrumentJS = function (js) {
+  if (program.analyzing === 'false') return js;
   if (IsJsonString(js)) return js;
   const PREFIX = 'window.__proxy__';
   const name = program.name;
   var addStack = true;
   var scriptNo = program.identifier;
-  output = stateTracker.extractRelevantState(js, { PREFIX, name, addStack, scriptNo });
+  output = stateTracker.extractRelevantState(js, { PREFIX, name, addStack });
   return output;
 }
 
 var instrumentHTML = function (html) {
+  if (program.analyzing === 'false') return html;
   var dynLib = fs.readFileSync(DYNPATH, "utf8");
   return `<script>${dynLib}</script>` + html;
 }

@@ -72,13 +72,13 @@ func updateDates(h http.Header, now time.Time) {
 
 // NewReplayingProxy constructs an HTTP proxy that replays responses from an archive.
 // The proxy is listening for requests on a port that uses the given scheme (e.g., http, https).
-func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransformer, quietMode bool) http.Handler {
+func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransformer, quietMode bool, caching bool) http.Handler {
 	conn, err := grpc.Dial("localhost:1234", grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 	client := pb.NewAnalyzerClient(conn)
-	return &ReplayingProxy{a, scheme, transformers, quietMode, sync.Mutex{}, client}
+	return &ReplayingProxy{a, scheme, transformers, quietMode, sync.Mutex{}, client, caching}
 }
 
 type ReplayingProxy struct {
@@ -88,6 +88,7 @@ type ReplayingProxy struct {
 	quietMode    bool
 	Mu           sync.Mutex
 	client       pb.AnalyzerClient
+	caching      bool
 }
 
 func requestIsJSHTML(resp *http.Response) bool {
@@ -141,7 +142,10 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		}
 
 		bodyString := string(body)
-		azargs := pb.AzRequest{Name: requestURI, Body: bodyString, Type: storedResp.Header.Get("Content-Type"), Encoding: storedResp.Header.Get("Content-Encoding")}
+		azargs := pb.AzRequest{Name: requestURI, Body: bodyString,
+			Type:     storedResp.Header.Get("Content-Type"),
+			Encoding: storedResp.Header.Get("Content-Encoding"),
+			Caching:  proxy.caching}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		azreply, err := proxy.client.Analyze(ctx, &azargs)

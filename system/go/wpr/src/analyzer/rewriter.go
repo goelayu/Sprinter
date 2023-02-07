@@ -69,9 +69,11 @@ func extractBody(body string, encoding string) string {
 	return body
 }
 
-func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, error) {
+func invokeNode(body string, t string, name string, caching bool) ([]byte, error) {
+
 	SCRIPTPATH := "/vault-swift/goelayu/balanced-crawler/node/program_analysis/instrument.js"
 	tmpdir := "/run/user/99542426/goelayu/tempdir/"
+
 	// store body in a temp file
 	tempFile, err := os.CreateTemp(tmpdir, "insttmp")
 	if err != nil {
@@ -84,16 +86,8 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 	if err != nil {
 		panic(err)
 	}
-	// create a copy of tempFile if keepOrig is true
-	if keepOrig {
-		origFile, err := os.Create(tempFile.Name() + ".copy")
-		if err != nil {
-			panic(err)
-		}
-		origFile.WriteString(body)
-		origFile.Close()
-	}
-	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s' -f %d", SCRIPTPATH, tempFile.Name(), t, name, 1)
+
+	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s' --analyzing %t", SCRIPTPATH, tempFile.Name(), t, name, caching)
 	fmt.Println(cmdString)
 	// startTime := time.Now()
 	cmd := exec.Command("bash", "-c", cmdString)
@@ -116,19 +110,17 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 		panic(err)
 	}
 	// fmt.Println("newbody is", string(newbody))
-	os.Remove(tempFile.Name())
+	// os.Remove(tempFile.Name())
 	return newbody, nil
 }
 
-func Rewrite(name string, bodyBytes string, contentType string, encoding string) ([]byte, error) {
+func Rewrite(name string, bodyBytes string, contentType string, encoding string, caching bool) ([]byte, error) {
 	name, _ = filenamify.Filenamify(name, filenamify.Options{})
-	newbody, err := invokeNode(extractBody(bodyBytes, encoding), contentType, name, false)
+
+	newbody, err := invokeNode(bodyBytes, contentType, name, caching)
 	if err != nil {
 		return nil, err
 	}
-	// header.Set("Content-Length", strconv.Itoa(len(newbody)))
-	// if header.Get("Content-Encoding") != "" {
-	// 	header.Del("Content-Encoding")
-	// }
+
 	return newbody, nil
 }

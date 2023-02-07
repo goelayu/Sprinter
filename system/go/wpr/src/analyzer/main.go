@@ -30,7 +30,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 		return &pb.AzResponse{Body: file.Body}, nil
 	} else {
 		log.Printf("File %s not found in cache", arg.Name)
-		newbody, err := Rewrite(arg.Name, arg.Body, arg.Type, arg.Encoding)
+		newbody, err := Rewrite(arg.Name, arg.Body, arg.Type, arg.Encoding, arg.Caching)
 		if err != nil {
 			log.Printf("Error rewriting file %s", arg.Name)
 			return nil, err

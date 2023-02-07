@@ -54,6 +54,7 @@ program
   .option("--tracing", "dump tracing data")
   .option("--mode <mode>", "mode of the proxy, can't be used with --noproxy")
   .option("-c, --custom [value]", "fetch custom data")
+  .option("--enableOPT", "Enables the entire system optimization pipeline")
   .parse(process.argv);
 
 var bashSanitize = (str) => {
@@ -129,7 +130,8 @@ var genBrowserArgs = (proxies) => {
       program.concurrency,
       program.proxy,
       program.output,
-      program.mode
+      program.mode,
+      program.enableOPT
     );
     await proxyManager.createProxies();
     proxies = proxyManager.getAll();
