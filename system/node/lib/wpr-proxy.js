@@ -26,7 +26,7 @@ class Proxy {
     this.caching = options.caching;
   }
 
-  async start() {
+  start() {
     var cmd = `GOROOT=${GOROOT} go run src/wpr.go ${this.mode}\
     --http_port ${this.http_port} --https_port ${this.https_port}\
     ${this.caching ? "--caching" : ""} ${this.dataOutput}`;
@@ -48,7 +48,7 @@ class Proxy {
     fs.writeFileSync(this.logOutput, this.stdout + this.stderr);
   }
 
-  async stop() {
+  stop() {
     // this.process.kill("SIGINT");
     child_process.spawnSync(
       `ps aux | grep http_port | grep ${this.http_port} | awk '{print $2}' | xargs kill -SIGINT`,
@@ -84,18 +84,14 @@ class ProxyManager {
     }
 
     // start all proxies inside Promise.all
-    await Promise.all(this.proxies.map((p) => p.start()));
+    this.proxies.map((p) => p.start());
 
     // wait for all proxies to start
     await sleep(3000);
   }
 
-  async stopIth(i) {
-    await this.proxies[i].stop();
-  }
-
-  async stopAll() {
-    await Promise.all(this.proxies.map((p) => p.stop()));
+  stopAll() {
+    this.proxies.map((p) => p.stop());
   }
 
   getAll() {
