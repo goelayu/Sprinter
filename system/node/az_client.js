@@ -1,17 +1,15 @@
+var grpc = require("@grpc/grpc-js");
+var messages = require("./proto/analyzer_pb");
+var services = require("./proto/analyzer_grpc_pb");
+var fs = require("fs");
+var _ = require("lodash");
 
-
-var grpc = require('@grpc/grpc-js');
-var messages = require('./proto/analyzer_pb');
-var services = require('./proto/analyzer_grpc_pb');
-var fs = require('fs');
-var _ = require('lodash');
-
-function JSONtoPB(json,url){
+function JSONtoPB(json, url) {
   var fileaccess = _.map(json, (value, key) => {
     var fa = new messages.Fileaccess();
     fa.setName(key);
-    for (var v of value){
-      v = JSON.parse(v)
+    for (var v of value.state) {
+      v = JSON.parse(v);
       var la = new messages.Lineaccess();
       la.setType(v[0]);
       la.setRoot(v[1]);
@@ -19,25 +17,34 @@ function JSONtoPB(json,url){
       la.setValue(v[3]);
       fa.addLines(la);
     }
+    for (var v of value.fetches) {
+      var fe = new messages.Fetches();
+      fe.setUrl(v[0]);
+      fe.setType(v[1]);
+      fa.addFetches(fe);
+    }
     return fa;
   });
   var pageaccess = new messages.Pageaccess();
   pageaccess.setFilesList(fileaccess);
-  pageaccess.setName(url)
+  pageaccess.setName(url);
   return pageaccess;
 }
 
 class AZClient {
-  constructor(address){
-    this.client = new services.AnalyzerClient(address, grpc.credentials.createInsecure());
-    console.log("AZClient created...")
+  constructor(address) {
+    this.client = new services.AnalyzerClient(
+      address,
+      grpc.credentials.createInsecure()
+    );
+    console.log("AZClient created...");
   }
 
-  async storesignature(sigobj, url){
+  async storesignature(sigobj, url) {
     return new Promise((resolve, reject) => {
-      var request = JSONtoPB(sigobj,url);
-      this.client.storesignature(request, function(err, response) {
-        if (err){
+      var request = JSONtoPB(sigobj, url);
+      this.client.storesignature(request, function (err, response) {
+        if (err) {
           reject(err);
         } else {
           resolve(response);

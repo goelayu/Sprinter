@@ -29,9 +29,15 @@ message Lineaccess {
   string value = 4;
 }
 
+message Fetches {
+  string url = 1;
+  string type = 2; 
+}
+
 message Fileaccess {
   string name = 1;
   repeated Lineaccess lines = 2;
+  repeated Fetches fetches = 3;
 }
 
 message Pageaccess {

@@ -75,9 +75,9 @@ var getFileState = async function (page, options, nLogs) {
 
   var newState = combStateWithURLs(state, nLogs);
 
-  // if (options.azClient) {
-  //   await options.azClient.storesignature(state, options.url);
-  // }
+  if (options.azClient) {
+    await options.azClient.storesignature(newState, options.url);
+  }
   dump(newState, path);
   dump(state, path + ".old");
 };
@@ -115,7 +115,7 @@ var combStateWithURLs = function (state, nLogs, domLogs) {
     var st = state[sKey];
     var ft = fetches[n.url] ? fetches[n.url].map((e) => [e, urlType[e]]) : [];
     newState[n.url] = {
-      state: st ? st : {},
+      state: st ? st : [],
       fetches: ft,
     };
   }
