@@ -44,7 +44,7 @@ var initConsoleHandlers = function (cdp, cLogs) {
   });
 };
 
-var getFileState = async function (page, outputDir) {
+var getFileState = async function (page,options) {
   var state = await page.evaluate(() => {
     try {
       window.__tracer__.resolveLogData();
@@ -53,8 +53,13 @@ var getFileState = async function (page, outputDir) {
       return { error: e.message };
     }
   });
+
   console.log(`extracting javaScript state`);
-  var path = `${outputDir}/state.json`;
+  var path = `${options.outputDir}/state.json`;
+
+  if (options.azClient){
+    await options.azClient.storesignature(state, options.url )
+  }
   dump(state, path);
 };
 
@@ -286,7 +291,7 @@ class PageClient {
         for (var e of entries) {
           switch (e) {
             case "state":
-              await getFileState(this._page, this._options.outputDir);
+              await getFileState(this._page, this._options);
               break;
           }
         }

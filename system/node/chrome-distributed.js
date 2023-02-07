@@ -17,6 +17,7 @@ const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
 const PageClient = require("./lib/PageClient.js");
 const Proxy = require("./lib/wpr-proxy");
 const AZ = require("./lib/az-server.js");
+const azclient = require('./az_client.js');
 
 require("console-stamp")(console, "[HH:MM:ss.l]");
 
@@ -110,7 +111,8 @@ var genBrowserArgs = (proxies) => {
       concurrency: Cluster.CONCURRENCY_BROWSER,
       maxConcurrency: program.concurrency,
       monitor: program.monitor,
-    };
+    },
+    azClient;
 
   if (program.proxy) {
     if (!program.mode) {
@@ -120,6 +122,7 @@ var genBrowserArgs = (proxies) => {
     console.log("Initializing the az server...");
     var az = new AZ({ port: 1234, logOutput: `${program.output}/az.log` });
     await az.start();
+    azClient = new azclient('localhost:1234');
 
     console.log("Initializing proxies...");
     var proxyManager = new Proxy.ProxyManager(
@@ -187,6 +190,7 @@ var genBrowserArgs = (proxies) => {
       emulateCPU: program.emulateCPU,
       emulateNetwork: program.emulateNetwork,
       custom: program.custom,
+      azClient: azClient,
     });
 
     await pclient.start().catch((err) => {
