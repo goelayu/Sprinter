@@ -4,6 +4,7 @@ import (
 	// "fmt"
 
 	"context"
+	"errors"
 	"log"
 	"net"
 	"strconv"
@@ -27,7 +28,28 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 	//check if file is in cache
 	if file, ok := a.store.Cache[arg.Name]; ok {
 		log.Printf("File %s found in cache", arg.Name)
-		return &pb.AzResponse{Body: file.Body}, nil
+
+		switch file.Status {
+		case 1: //file instrumented
+			log.Printf("File %s already instrumented but no signature yet??", arg.Name)
+			return &pb.AzResponse{Body: file.InstBody}, nil
+		case 2: // file instrumented and signature generated
+			newbody, err := JSGen(file.Sig)
+			if err != nil {
+				log.Printf("Error generating JS optimized file %s", arg.Name)
+				return &pb.AzResponse{Body: file.InstBody}, nil
+			} else {
+				log.Printf("JS optimized file %s generated", arg.Name)
+				a.mu.Lock()
+				file.SigBody = newbody
+				file.Status = 3
+				a.mu.Unlock()
+				return &pb.AzResponse{Body: file.SigBody}, nil
+			}
+		case 3: //file instrumented and signature template generated
+			log.Printf("File %s already instrumented and signature template exists", arg.Name)
+			return &pb.AzResponse{Body: file.SigBody}, nil
+		}
 	} else {
 		log.Printf("File %s not found in cache", arg.Name)
 		newbody, err := Rewrite(arg.Name, arg.Body, arg.Type, arg.Encoding, arg.Caching)
@@ -36,18 +58,22 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			return nil, err
 		}
 
-		f := types.File{Name: arg.Name, Body: string(newbody)}
+		f := types.File{Name: arg.Name, Body: string(arg.Body),
+			InstBody: string(newbody),
+			Status:   1}
 
 		a.mu.Lock()
 		a.store.Cache[arg.Name] = &f
 		a.mu.Unlock()
 
-		return &pb.AzResponse{Body: string(newbody)}, nil
+		return &pb.AzResponse{Body: f.InstBody}, nil
 	}
+
+	return nil, errors.New("Error in Analyzer.Analyze")
 }
 
 func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.StoresigResponse, error) {
-	log.Printf("Storing signature with value %s", arg.Files)
+	log.Printf("Storing signature for page %s", arg.Name)
 	// sleep for 100ms
 
 	for _, f := range arg.GetFiles() {
@@ -61,14 +87,17 @@ func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.
 			for _, s := range state {
 				t := s.GetType()
 				if t == "read" {
-					Input = append(Input, *s)
+					Input = append(Input, pb.Lineaccess{Type: t, Root: s.GetRoot(), Key: s.GetKey(), Value: s.GetValue()})
 				} else if t == "write" {
-					Output = append(Output, *s)
+					Output = append(Output, pb.Lineaccess{Type: t, Root: s.GetRoot(), Key: s.GetKey(), Value: s.GetValue()})
 				}
 			}
 
 			Fetches := f.GetFetches()
+			a.mu.Lock()
 			file.Sig = types.Signature{Input, Output, Fetches}
+			file.Status = 2
+			a.mu.Unlock()
 		} else {
 			log.Printf("[ERROR] File %s not found in cache", name)
 		}

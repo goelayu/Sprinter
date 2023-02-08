@@ -22,10 +22,12 @@ type File struct {
 	Name     string
 	Content  string
 	Digest   string
-	SContent string //content with instrumentation code
+	InstBody string //content with instrumentation code
+	SigBody  string //content with signature
 	Body     string
 	Headers  http.Header
 	Sig      Signature
+	Status   int // body status code; 1 -> instrumented, 2 -> signature
 }
 
 type Signature struct {
