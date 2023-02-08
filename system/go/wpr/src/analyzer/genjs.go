@@ -36,14 +36,15 @@ var jsTemplate = `
 		
 		var reads = [
 				{{range $k, $v := .Reads}}
-				{{printf "{key:$k, value:$v}"}}
+				{{printf "{key:%s, value:%s}" $k $v}}
 				{{end}}
 			];
 
 		if (evalReads(reads)){
 			// all reads satisfied, fetch the URLs
 			{{range $u := .URLs}}
-				{{ if index $u 1 eq "script" }}
+				{{ $t := index $u 1 }}
+				{{ if eq $t "script" }}
 					fetchViaDOM("{{index $u 0}}");
 				{{ else }}
 					fetchViaXHR("{{index $u 0}}");
@@ -52,11 +53,7 @@ var jsTemplate = `
 		} else {
 			console.log("Reads not satisfied");
 		}
-		
-		// 		var s = document.createElement("script");
-		// s.type = "text/javascript";
-		// s.src = "http://somedomain.com/somescript";
-		// $("head").append(s);
+	}
 	)();
 `
 
@@ -88,6 +85,7 @@ func JSGen(sig types.Signature) (string, error) {
 		fetches = append(fetches, [2]string{f.GetUrl(), t})
 	}
 
+	log.Printf("fetches = %v", fetches)
 	templ, err := template.New("js").Parse(jsTemplate)
 	if err != nil {
 		log.Printf("Error parsing template: %v", err)

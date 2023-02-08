@@ -40,6 +40,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 				return &pb.AzResponse{Body: file.InstBody}, nil
 			} else {
 				log.Printf("JS optimized file %s generated", arg.Name)
+				log.Printf("Signature opt body: %s", newbody)
 				a.mu.Lock()
 				file.SigBody = newbody
 				file.Status = 3
@@ -73,7 +74,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 }
 
 func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.StoresigResponse, error) {
-	log.Printf("Storing signature for page %s", arg.Name)
+	log.Printf("Storing signature for page %s with value %s", arg.Name, arg.GetFiles())
 	// sleep for 100ms
 
 	for _, f := range arg.GetFiles() {
