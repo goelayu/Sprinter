@@ -111,7 +111,7 @@ var combStateWithURLs = function (state, nLogs, domLogs) {
 
   for (var n of netObj) {
     if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
-    var sKey = filenamify(URL.parse(n.url).path);
+    var sKey = filenamify(n.url);
     var st = state[sKey];
     var ft = fetches[n.url] ? fetches[n.url].map((e) => [e, urlType[e]]) : [];
     newState[n.url] = {

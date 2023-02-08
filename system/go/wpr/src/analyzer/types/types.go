@@ -2,6 +2,8 @@ package types
 
 import (
 	"net/http"
+
+	pb "wpr/src/analyzer/proto"
 )
 
 type Azargs struct {
@@ -23,21 +25,17 @@ type File struct {
 	SContent string //content with instrumentation code
 	Body     string
 	Headers  http.Header
-}
-
-type State struct {
-	reads  string
-	writes string
+	Sig      Signature
 }
 
 type Signature struct {
-	file  File
-	state State
-	urls  []string
+	Input   []pb.Lineaccess
+	Output  []pb.Lineaccess
+	Fetches []*pb.Fetches
 }
 
 type Store struct {
-	Cache map[string]File
+	Cache map[string]*File
 	Files []File
 	// sigs  map[File]Signature
 }

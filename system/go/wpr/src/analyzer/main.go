@@ -39,7 +39,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 		f := types.File{Name: arg.Name, Body: string(newbody)}
 
 		a.mu.Lock()
-		a.store.Cache[arg.Name] = f
+		a.store.Cache[arg.Name] = &f
 		a.mu.Unlock()
 
 		return &pb.AzResponse{Body: string(newbody)}, nil
@@ -49,6 +49,31 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.StoresigResponse, error) {
 	log.Printf("Storing signature with value %s", arg.Files)
 	// sleep for 100ms
+
+	for _, f := range arg.GetFiles() {
+		name := f.GetName()
+
+		if file, ok := a.store.Cache[name]; ok {
+			state := f.GetLines()
+			Input := make([]pb.Lineaccess, 0)
+			Output := make([]pb.Lineaccess, 0)
+
+			for _, s := range state {
+				t := s.GetType()
+				if t == "read" {
+					Input = append(Input, *s)
+				} else if t == "write" {
+					Output = append(Output, *s)
+				}
+			}
+
+			Fetches := f.GetFetches()
+			file.Sig = types.Signature{Input, Output, Fetches}
+		} else {
+			log.Printf("[ERROR] File %s not found in cache", name)
+		}
+	}
+
 	return &pb.StoresigResponse{Id: 1}, nil
 }
 
@@ -60,7 +85,7 @@ func createServer(c *cli.Context) {
 
 	az := Analyzer{}
 	az.store = types.Store{}
-	az.store.Cache = make(map[string]types.File)
+	az.store.Cache = make(map[string]*types.File)
 	az.store.Files = make([]types.File, 0)
 
 	// rpc.Register(&az)
