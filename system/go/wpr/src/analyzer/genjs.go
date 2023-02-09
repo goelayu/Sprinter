@@ -42,14 +42,8 @@ var jsTemplate = `
 
 		if (evalReads(reads)){
 			// all reads satisfied, fetch the URLs
-			{{range $u := .URLs}}
-				{{ $t := index $u 1 }}
-				{{ if eq $t "script" }}
-					fetchViaDOM("{{index $u 0}}");
-				{{ else }}
-					fetchViaXHR("{{index $u 0}}");
-				{{ end }}
-			{{end}}
+			{{range $u := .URLs}}{{ $t := index $u 1 }}{{ if eq $t "script" }}fetchViaDOM("{{index $u 0}}");
+				{{ else }}fetchViaXHR("{{index $u 0}}");{{ end }}{{end}}
 		} else {
 			console.log("Reads not satisfied");
 		}
