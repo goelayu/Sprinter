@@ -22,7 +22,7 @@ geturls(){
   url=$1
   basedir=$(dirname $0)
   scriptpath=$basedir/../pyutils/page_finder_long.py
-  python3 $scriptpath http://$url 100 $tmpdir/${url}.txt &>> $tmpdir/${url}.log
+  timeout 30s python3 $scriptpath http://$url 100 $tmpdir/${url}.txt &>> $tmpdir/${url}.log
 
   # check if 100 
   numlines=$(wc -l $tmpdir/${url}.txt | cut -d' ' -f1)
