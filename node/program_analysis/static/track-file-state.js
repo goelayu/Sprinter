@@ -12,6 +12,7 @@ const parser = require("@babel/parser");
 const generate = require("@babel/generator").default;
 const { GlobalDefaults } = require("./browserGlobals.js");
 const types = require("@babel/types");
+var provenanceInject = require("./provenance.js");
 
 /**
  * Checks if path is in global scoped
@@ -83,7 +84,7 @@ var isTrackableIdentifier = function (path) {
     (path.parent.type == "VariableDeclarator"
       ? path.parent.id != path.node
       : true) &&
-    GlobalDefaults.indexOf(path.node.name) == -1 && 
+    GlobalDefaults.indexOf(path.node.name) == -1 &&
     path.findParent((path) => path.isClassMethod()) == null
   );
 };
@@ -197,6 +198,9 @@ var extractRelevantState = function (input, opts) {
   var sn = opts.name;
   var deprecatedSyntax = false;
 
+  var provenance = opts.provenance,
+    AEToId = new WeakMap();
+
   var helpers = {
     getSrc: function (path) {
       return input.slice(path.node.start, path.node.end);
@@ -253,6 +257,15 @@ var extractRelevantState = function (input, opts) {
         closureScopes[fnScope.uid][clScope.uid][path.node.name] = true;
         rewriteClosure(path, `__closureProxy${clScope.uid}`);
       }
+      if (provenance) {
+        var ae = path.findParent((p) => p.isAssignmentExpression());
+        if (ae) {
+          var ids = AEToId.get(ae);
+          if (!ids) ids = [];
+          ids.push(path);
+          AEToId.set(ae, ids);
+        }
+      }
     },
     BinaryExpression: {
       exit(path) {
@@ -269,6 +282,7 @@ var extractRelevantState = function (input, opts) {
           }
         } catch (e) {
           // supress errors since we are not sure if the code is valid
+          console.log(`[Static analysis error] ${e}`);
         }
       },
     },
@@ -289,8 +303,20 @@ var extractRelevantState = function (input, opts) {
             );
             path.replaceWith(newCode);
             path.skip();
+          } else if (
+            provenance &&
+            right.node.type != "FunctionExpression" &&
+            AEToId.get(path)
+          ) {
+            var newCode = parser.parseExpression(
+              provenanceInject(path, AEToId.get(path), generate)
+            );
+            path.replaceWith(newCode);
+            path.skip();
           }
-        } catch (e) {}
+        } catch (e) {
+          console.log(`[Static analysis error] ${e}`);
+        }
       },
     },
     Function: {
@@ -301,9 +327,7 @@ var extractRelevantState = function (input, opts) {
         var scopes = closureScopes[path.scope.uid];
         var clStr = getClosureProxyStr(path, scopes, sn);
         if (!path.node.body.body) {
-          if (
-            path.isExpression()
-          ) {
+          if (path.isExpression()) {
             return specialArrowFuncRewrite(
               path,
               clStr,
@@ -325,7 +349,7 @@ var extractRelevantState = function (input, opts) {
     WithStatement: {
       exit(path) {
         deprecatedSyntax = true;
-      }
+      },
     },
   });
 

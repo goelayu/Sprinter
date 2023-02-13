@@ -38,6 +38,10 @@
       this.loggers = [];
       this.objToHeaps = new Map();
       this.fileClosures = {};
+      this.provenanceData = {
+        o: new WeakMap(),
+        s: {},
+      };
     }
 
     removeProxy(obj) {
@@ -99,6 +103,15 @@
       this.serialLog = res;
       return res;
     }
+
+    dataProv(ret, ids) {
+      if (ret === undefined) return ret;
+      if (ids && ids.length == 0) return ret;
+      if (typeof ret === "string") this.provenanceData.s[ret] = ids;
+      else this.provenanceData.o.set(ret, ids);
+
+      return ret;
+    }
   }
 
   class HeapMap {
@@ -144,7 +157,7 @@
             var p = this.idToStr[id];
             var n = this.idToNode.get(id);
             for (var k in n.children) {
-              if (!Array.isArray(n.children[k])) continue; 
+              if (!Array.isArray(n.children[k])) continue;
               for (var cn of n.children[k]) {
                 if (!this.idToStr[cn.id]) this.idToStr[cn.id] = `${p}[${k}]`;
               }
@@ -219,14 +232,18 @@
         if (key == "__target__") return target;
         var method = Reflect.get(target, key);
 
-        if (target.__proto__ === HTMLIFrameElement.prototype)
-          return method;
-        
+        if (target.__proto__ === HTMLIFrameElement.prototype) return method;
+
         method = extractObjFromProxy(method);
 
-        if (scope == "closure" && typeof key == "string" && target[`get_${key}`] && typeof target[`get_${key}`] == "function"){
+        if (
+          scope == "closure" &&
+          typeof key == "string" &&
+          target[`get_${key}`] &&
+          typeof target[`get_${key}`] == "function"
+        ) {
           var maybeNewMethod = target[`get_${key}`]();
-          if (maybeNewMethod !== method){
+          if (maybeNewMethod !== method) {
             method = maybeNewMethod;
             target[key] = method;
           }
@@ -435,7 +452,7 @@
       }
       if (thisObj && thisObj.__isProxy__) thisObj = thisObj.__target__;
       return _getPrototypeOf.apply(thisObj, arguments);
-    }
+    };
 
     var _setPrototypeOf = Object.setPrototypeOf;
     self.Object.setPrototypeOf = function () {
@@ -446,7 +463,7 @@
       }
       if (thisObj && thisObj.__isProxy__) thisObj = thisObj.__target__;
       return _setPrototypeOf.apply(thisObj, arguments);
-    }
+    };
   }
 
   customShims(window);
