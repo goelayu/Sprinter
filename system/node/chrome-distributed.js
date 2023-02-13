@@ -17,7 +17,7 @@ const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
 const PageClient = require("./lib/PageClient.js");
 const Proxy = require("./lib/wpr-proxy");
 const AZ = require("./lib/az-server.js");
-const azclient = require('./az_client.js');
+const azclient = require("./az_client.js");
 
 require("console-stamp")(console, "[HH:MM:ss.l]");
 
@@ -55,6 +55,7 @@ program
   .option("--mode <mode>", "mode of the proxy, can't be used with --noproxy")
   .option("-c, --custom [value]", "fetch custom data")
   .option("--enableOPT", "Enables the entire system optimization pipeline")
+  .option("--testing", "debug mode")
   .parse(process.argv);
 
 var bashSanitize = (str) => {
@@ -85,7 +86,7 @@ var genBrowserArgs = (proxies) => {
     template = {
       executablePath: "/usr/bin/google-chrome-stable",
       ignoreHTTPSErrors: true,
-      headless: true,
+      headless: program.testing ? false : true,
       args: [
         "--ignore-certificate-errors",
         "--ignore-certificate-errors-spki-list=PhrPvGIaAMmd29hj8BCZOq096yj7uMpRNHpn5PDxI6I",
@@ -123,7 +124,7 @@ var genBrowserArgs = (proxies) => {
     console.log("Initializing the az server...");
     var az = new AZ({ port: 1234, logOutput: `${program.output}/az.log` });
     await az.start();
-    azClient = new azclient('localhost:1234');
+    azClient = new azclient("localhost:1234");
 
     console.log("Initializing proxies...");
     var proxyManager = new Proxy.ProxyManager(
@@ -146,7 +147,10 @@ var genBrowserArgs = (proxies) => {
   // Get the urls to crawl
   var urls = getUrls(program.urls);
 
-  var schd_changed = {};
+  //Set global timeout to force kill the browser
+  // var gTimeoutValue = program.testing ? 10000000 : program.timeout + 10000;
+  // console.log("global time out value", gTimeoutValue, program.timeout);
+  // var globalTimer = globalTimeout(browser, cdp, gTimeoutValue);
 
   cluster.task(async ({ page, data }) => {
     var sanurl = bashSanitize(data.url);
@@ -215,18 +219,6 @@ var genBrowserArgs = (proxies) => {
         },
       });
     }
-
-    //extract any custom data
-    // if (program.custom) {
-    //   var entries = program.custom.split(",");
-    //   for (var e of entries) {
-    //     switch (e) {
-    //       case "state":
-    //         await getFileState(page);
-    //         break;
-    //     }
-    //   }
-    // }
   });
 
   cluster.on("taskerror", (err, data) => {
@@ -278,9 +270,16 @@ function interceptData(page, crawlData) {
   }
 }
 
-
 var dump = function (data, file) {
   fs.writeFileSync(file, JSON.stringify(data));
+};
+
+var globalTimeout = function (browser, cdp, timeout) {
+  return setTimeout(function () {
+    console.log("Site navigation did not time out. Force KILL.");
+    // cdp.detach();
+    browser.close();
+  }, timeout);
 };
 
 var enableTracingPerFrame = function (page, outputDir) {

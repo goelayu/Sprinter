@@ -353,6 +353,9 @@ class PageClient {
           }
         }
       }
+
+      console.log("sleeping for 20 seconds");
+      // await this._page.waitForTimeout(40000);
     } catch (err) {
       console.log(`[${this._options.url}] Error: `, err);
     }

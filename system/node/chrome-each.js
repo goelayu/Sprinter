@@ -9,6 +9,8 @@ const fs = require("fs");
 const AdblockerPlugin = require("puppeteer-extra-plugin-adblocker");
 const PageClient = require("./lib/PageClient");
 const Proxy = require("./lib/wpr-proxy");
+const AZ = require("./lib/az-server.js");
+const azclient = require("./az_client.js");
 
 require("console-stamp")(console, "[HH:MM:ss.l]");
 
@@ -91,16 +93,25 @@ async function launch() {
   }
 
   if (program.proxy) {
-    console.log("Using WPR proxy to record pages");
+    if (!program.mode) {
+      console.log("Please specify a mode for the proxy");
+      process.exit(1);
+    }
+    console.log("Initializing the az server...");
+    var az = new AZ({ port: 1234, logOutput: `${program.output}/az.log` });
+    await az.start();
+    var azClient = new azclient("localhost:1234");
+
+    console.log("Initializing proxies...");
     var proxyManager = new Proxy.ProxyManager(
-      1,
+      program.concurrency,
       program.proxy,
       program.output,
-      program.mode
+      program.mode,
+      program.enableOPT
     );
     await proxyManager.createProxies();
     proxies = proxyManager.getAll();
-
     // create browser args
     var _browserArgs = Proxy.genBrowserArgs(proxies);
     options = merge(_browserArgs[0], options);
@@ -132,19 +143,39 @@ async function launch() {
     process.exit();
   });
 
+  if (program.proxy) {
+    // find the proxy used for this page
+    // then update the path to the data.wprgo file
+    var args = page.browser().process().spawnargs;
+    var pa = args
+      .find((e) => e.includes("proxy-server"))
+      .split("=")[2]
+      .split(":")[2];
+    var proxyDataFile = `${program.proxy}/${pa}`;
+    var proxyData = `${program.proxy}/${sanurl}.wprgo`;
+    console.log(`Updating proxy data file ${proxyDataFile} with ${proxyData}`);
+    fs.writeFileSync(proxyDataFile, proxyData);
+
+    await sleep(50);
+  }
+
   var pclient = new PageClient(page, cdp, {
-    url: program.url,
+    logId: pa,
+    url: data.url,
     enableNetwork: program.network,
-    enablePayload: program.payload,
     enableConsole: program.logs,
     enableJSProfile: program.jsProfile,
     enableTracing: program.tracing,
     enableScreenshot: program.screenshot,
+    enablePayload: program.payload,
     userAgent: program.userAgent,
-    outputDir: program.output,
-    enableDOM: program.dom,
+    outputDir: outputDir,
+    verbose: false,
     logTime: true,
-    verbose: true,
+    emulateCPU: program.emulateCPU,
+    emulateNetwork: program.emulateNetwork,
+    custom: program.custom,
+    azClient: azClient,
   });
 
   await pclient.start();
@@ -168,11 +199,11 @@ async function launch() {
 
   if (!program.testing && program.kill) {
     await browser.close();
-  } else await browser.disconnect();
+  } else browser.disconnect();
 
   if (program.proxy) {
     if (!program.testing) {
-      await proxyManager.stopAll();
+      proxyManager.stopAll();
     }
   }
 

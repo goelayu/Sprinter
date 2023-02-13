@@ -154,13 +154,12 @@ describe("Preserve semantics", function () {
   });
 });
 
-describe("Closure syntax testing", function(){
-  
+describe("Closure syntax testing", function () {
   describe("Closure syntax 1", function () {
     it("closure variable read", function () {
       const PREFIX = "tracer";
       var input = `function outer(){var l=3; function inner(){l=4; return l;}}`;
-      var expected =`function outer(){var l=3;function inner(){
+      var expected = `function outer(){var l=3;function inner(){
 var __closure1={l,set_l:function(val){l=val;}};
 var __closureProxy1=__tracer__.createLogger(__closure1,'closure1');__closureProxy1.l=4;return __closureProxy1.l;}}`;
       var output = stateTracker.extractRelevantState(input, { PREFIX });
@@ -172,7 +171,7 @@ var __closureProxy1=__tracer__.createLogger(__closure1,'closure1');__closureProx
     it("no closure variable read", function () {
       const PREFIX = "tracer";
       var input = `function outer(){var l=3,j=4; function inner(){ll=4; return lk;}}`;
-      var expected =`function outer(){var l=3,j=4;function inner(){tracer.ll=4;return tracer.lk;}}`;
+      var expected = `function outer(){var l=3,j=4;function inner(){tracer.ll=4;return tracer.lk;}}`;
       var output = stateTracker.extractRelevantState(input, { PREFIX });
       assert.equal(output, expected);
     });
@@ -182,14 +181,29 @@ var __closureProxy1=__tracer__.createLogger(__closure1,'closure1');__closureProx
     it("multi-closures variable read", function () {
       const PREFIX = "tracer";
       var input = `function outer(){var l=3; function inner(){l=4; var k=5;function inner2(){l++;k++};return l;}}`;
-      var expected =`function outer(){var l=3;function inner(){
+      var expected = `function outer(){var l=3;function inner(){
 var __closure1={l,set_l:function(val){l=val;}};
 var __closureProxy1=__tracer__.createLogger(__closure1,'closure1');__closureProxy1.l=4;var k=5;function inner2(){var __closure1={l,set_l:function(val){l=val;}};var __closureProxy1=__tracer__.createLogger(__closure1,'closure1');
 
 var __closure2={k,set_k:function(val){k=val;}};
-var __closureProxy2=__tracer__.createLogger(__closure2,'closure2');__closureProxy1.l++;__closureProxy2.k++;};return __closureProxy1.l;}}`;  
+var __closureProxy2=__tracer__.createLogger(__closure2,'closure2');__closureProxy1.l++;__closureProxy2.k++;};return __closureProxy1.l;}}`;
       var output = stateTracker.extractRelevantState(input, { PREFIX });
       assert.equal(output, expected);
     });
   });
-})
+});
+
+describe("Data provenance testing", function () {
+  describe("Data provenance 1", function () {
+    it("simple data provenance", function () {
+      const PREFIX = "tracer";
+      var input = `function i(){var a,b,c;a = b + c;}`;
+      var expected = `function i(){var a,b,c;a=__tracer__.dataProv(b+c,a,[b,c]);}`;
+      var output = stateTracker.extractRelevantState(input, {
+        PREFIX,
+        provenance: true,
+      });
+      assert.equal(output, expected);
+    });
+  });
+});

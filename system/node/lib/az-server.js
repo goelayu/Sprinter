@@ -23,7 +23,7 @@ class AZ {
 
   async start() {
     var cmd = `
-      GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/gen_js.go --port ${this.port} 
+      GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port ${this.port} 
     `;
     this.process = spawn(cmd, { shell: true, cwd: AZDIR });
     this.process.stdout.on("data", (data) => {
