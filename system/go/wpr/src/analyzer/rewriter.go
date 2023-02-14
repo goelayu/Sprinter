@@ -98,7 +98,9 @@ func invokeNode(body string, t string, name string, caching bool) ([]byte, error
 	err = cmd.Run()
 	if err != nil {
 		err = fmt.Errorf("%s with cmd: %s", stderr.String(), cmdString)
-		panic(err)
+		fmt.Printf("ERROR: %s", err)
+		fmt.Printf("Returning the original body")
+		return []byte(body), nil
 	}
 	// fmt.Println("Instrumentation took", time.Since(startTime))
 
@@ -107,7 +109,8 @@ func invokeNode(body string, t string, name string, caching bool) ([]byte, error
 	tempFile.Seek(0, 0)
 	newbody, err := io.ReadAll(tempFile)
 	if err != nil {
-		panic(err)
+		fmt.Println("ERROR: reading temp file", err)
+		return []byte(body), nil
 	}
 	// fmt.Println("newbody is", string(newbody))
 	// os.Remove(tempFile.Name())
