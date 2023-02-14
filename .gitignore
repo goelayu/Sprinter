@@ -12,4 +12,8 @@ crawlers
 data
 pages
 plots
+test
+go/charts
+go/pkg
+go/src
 **/node_modules
