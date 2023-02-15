@@ -282,12 +282,6 @@ class PageClient {
           this._options.closeBrowserOnError && this._page.browser().close();
         });
 
-      if (this._options.testing) {
-        await this._page.waitForFunction("window.__done === true", {
-          timeout: this._options.timeout * 1000,
-        });
-      }
-
       if (this._options.logTime) {
         endTime = process.hrtime(startTime);
         console.log(
@@ -358,6 +352,12 @@ class PageClient {
               break;
           }
         }
+      }
+
+      if (this._options.testing) {
+        await this._page.waitForFunction("window.__done === true", {
+          timeout: this._options.timeout * 1000,
+        });
       }
 
       // await this._page.waitForTimeout(40000);
