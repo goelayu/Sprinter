@@ -282,6 +282,11 @@ class PageClient {
           this._options.closeBrowserOnError && this._page.browser().close();
         });
 
+      console.log(this._options);
+      if (this._options.testing) {
+        await this._page.waitForFunction("window.__done === true");
+      }
+
       if (this._options.logTime) {
         endTime = process.hrtime(startTime);
         console.log(

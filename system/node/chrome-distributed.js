@@ -202,6 +202,7 @@ var genBrowserArgs = (proxies) => {
       emulateNetwork: program.emulateNetwork,
       custom: program.custom,
       azClient: azClient,
+      testing: program.testing,
     });
 
     await pclient.start().catch((err) => {
