@@ -6,6 +6,7 @@ const program = require("commander");
 const stateTracker = require("./static/track-file-state.js");
 const DYNPATH =
   "/vault-swift/goelayu/balanced-crawler/node/program_analysis/dynamic/tracer.js";
+const htmlparser = require("node-html-parser");
 
 program
   .version("0.0.1")
@@ -44,13 +45,23 @@ var instrumentJS = function (js) {
     PREFIX,
     name,
     addStack,
-    provenance: true,
+    provenance: false,
   });
   return output;
 };
 
+var removeIntegrityAttr = function (html) {
+  var root = htmlparser.parse(html);
+  var scripts = root.getElementsByTagName("script");
+  for (var s of scripts) {
+    s.removeAttribute("integrity");
+  }
+  return root.toString();
+};
+
 var instrumentHTML = function (html) {
   if (program.analyzing === "false") return html;
+  html = removeIntegrityAttr(html);
   var dynLib = fs.readFileSync(DYNPATH, "utf8");
   return `<script>${dynLib}</script>` + html;
 };

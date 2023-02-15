@@ -89,7 +89,8 @@ var isTrackableIdentifier = function (path) {
   );
 };
 
-var isClosureIdentifier = function (path) {
+var isClosureIdentifier = function (path, closureOn) {
+  if (!closureOn) return false;
   // get first function scope
   var funcScope = path.scope.getFunctionParent();
   // since globals are already handled,
@@ -199,6 +200,7 @@ var extractRelevantState = function (input, opts) {
   var deprecatedSyntax = false;
 
   var provenance = opts.provenance,
+    closureOn = opts.closureOn,
     AEToId = new WeakMap();
 
   var helpers = {
@@ -245,8 +247,8 @@ var extractRelevantState = function (input, opts) {
       if (!isTrackableIdentifier(path)) return;
       if (isGlobalIdentifier(path, globalScope)) {
         rewriteGlobal(path, PREFIX);
-      } else if (isClosureIdentifier(path)) {
-        var clScope = isClosureIdentifier(path);
+      } else if ((isClosureIdentifier(path), closureOn)) {
+        var clScope = isClosureIdentifier(path, closureOn);
         closureList.push(`'closure${sn}_${clScope.uid}'`);
         var fnScope = path.scope.getFunctionParent();
         if (!fnScope)
@@ -323,6 +325,8 @@ var extractRelevantState = function (input, opts) {
       exit(path) {
         if (path.node.type == "ClassMethod") return;
         if (!closureScopes[path.scope.uid]) return;
+        if (!closureOn) return;
+
         var uid = path.scope.uid;
         var scopes = closureScopes[path.scope.uid];
         var clStr = getClosureProxyStr(path, scopes, sn);
