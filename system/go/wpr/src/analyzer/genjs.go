@@ -36,7 +36,7 @@ var jsTemplate = `
 		
 		var reads = [
 				{{range $k, $v := .Reads}}
-				{{printf "{key:%s, value:%s}" $k $v}}
+				{{printf "{key:%s, value:%s}," $k $v}}
 				{{end}}
 			];
 
