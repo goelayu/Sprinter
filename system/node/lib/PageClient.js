@@ -275,16 +275,17 @@ class PageClient {
       await this._page
         .goto(this._options.url, {
           timeout: this._options.timeout * 1000,
-          waituntill: "networkidle2",
+          waitUntill: "networkidle2",
         })
         .catch((err) => {
           console.log(err);
           this._options.closeBrowserOnError && this._page.browser().close();
         });
 
-      console.log(this._options);
       if (this._options.testing) {
-        await this._page.waitForFunction("window.__done === true");
+        await this._page.waitForFunction("window.__done === true", {
+          timeout: this._options.timeout * 1000,
+        });
       }
 
       if (this._options.logTime) {

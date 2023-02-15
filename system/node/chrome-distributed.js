@@ -118,6 +118,7 @@ var genBrowserArgs = (proxies) => {
       concurrency: Cluster.CONCURRENCY_BROWSER,
       maxConcurrency: program.concurrency,
       monitor: program.monitor,
+      timeout: program.testing ? 100000000 : program.timeout * 1000,
     },
     azClient;
 
@@ -152,10 +153,7 @@ var genBrowserArgs = (proxies) => {
   // Get the urls to crawl
   var urls = getUrls(program.urls);
 
-  //Set global timeout to force kill the browser
-  // var gTimeoutValue = program.testing ? 10000000 : program.timeout + 10000;
-  // console.log("global time out value", gTimeoutValue, program.timeout);
-  // var globalTimer = globalTimeout(browser, cdp, gTimeoutValue);
+  if (program.testing) program.timeout = 1000;
 
   cluster.task(async ({ page, data }) => {
     var sanurl = bashSanitize(data.url);
@@ -203,6 +201,7 @@ var genBrowserArgs = (proxies) => {
       custom: program.custom,
       azClient: azClient,
       testing: program.testing,
+      timeout: program.timeout,
     });
 
     await pclient.start().catch((err) => {
