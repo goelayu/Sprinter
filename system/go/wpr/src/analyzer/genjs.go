@@ -15,7 +15,7 @@ var jsTemplate = `
 
 		var evalReads = function(readArr){
 			for (var r of readArr){
-				if (window[r.key] != r.value){
+				if (r.value != eval(r.key)){
 					return false;
 				}
 			}
@@ -36,7 +36,7 @@ var jsTemplate = `
 		
 		var reads = [
 				{{range $k, $v := .Reads}}
-				{{printf "{key:%s, value:%s}," $k $v}}
+				{{printf "{key:'%s', value:%s}," $k $v}}
 				{{end}}
 			];
 
@@ -45,6 +45,7 @@ var jsTemplate = `
 				// all reads satisfied, fetch the URLs
 				{{range $u := .URLs}}{{ $t := index $u 1 }}{{ if eq $t "script" }}fetchViaDOM("{{index $u 0}}");
 					{{ else }}fetchViaXHR("{{index $u 0}}");{{ end }}{{end}}
+					__skipExec__ = true;
 			} else {
 				console.log("Reads not satisfied");
 			}
@@ -53,7 +54,9 @@ var jsTemplate = `
 		}
 	}
 	)();
-	// paste the original code here
+	if (typeof __skipExec__ !== "undefined"){
+		throw "[SUCCESS] all reads satisfied, skipped execution"
+	}
 	{{.InstBody}}
 `
 
@@ -69,8 +72,9 @@ func JSGen(sig types.Signature, instBody string) (string, error) {
 	jsfmtReads := make(map[string]string, 0)
 
 	for _, r := range globalreads {
-		k := fmt.Sprintf("%s[%s]", r.GetRoot(), r.GetKey())
-		jsfmtReads[k] = r.GetValue()
+		k := strings.ReplaceAll(fmt.Sprintf("%s['%s']", r.GetRoot(), r.GetKey()), "'", "\\'")
+		fmt.Printf("[TEMPLATE] k = %s v = %s \n", k, r.GetValue())
+		jsfmtReads[k] = "`" + r.GetValue() + "`"
 		if r.GetValue() == "" {
 			jsfmtReads[k] = "null"
 		}
