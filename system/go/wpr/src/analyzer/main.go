@@ -34,7 +34,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			log.Printf("File %s already instrumented but no signature yet??", arg.Name)
 			return &pb.AzResponse{Body: file.InstBody}, nil
 		case 2: // file instrumented and signature generated
-			newbody, err := JSGen(file.Sig)
+			newbody, err := JSGen(file.Sig, file.InstBody)
 			if err != nil {
 				log.Printf("Error generating JS optimized file %s", arg.Name)
 				return &pb.AzResponse{Body: file.InstBody}, nil

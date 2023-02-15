@@ -40,18 +40,24 @@ var jsTemplate = `
 				{{end}}
 			];
 
-		if (evalReads(reads)){
-			// all reads satisfied, fetch the URLs
-			{{range $u := .URLs}}{{ $t := index $u 1 }}{{ if eq $t "script" }}fetchViaDOM("{{index $u 0}}");
-				{{ else }}fetchViaXHR("{{index $u 0}}");{{ end }}{{end}}
-		} else {
-			console.log("Reads not satisfied");
+		try {
+			if (evalReads(reads)){
+				// all reads satisfied, fetch the URLs
+				{{range $u := .URLs}}{{ $t := index $u 1 }}{{ if eq $t "script" }}fetchViaDOM("{{index $u 0}}");
+					{{ else }}fetchViaXHR("{{index $u 0}}");{{ end }}{{end}}
+			} else {
+				console.log("Reads not satisfied");
+			}
+		} catch (e) {
+			console.log("Error in evalReads: " + e);
 		}
 	}
 	)();
+	// paste the original code here
+	{{.InstBody}}
 `
 
-func JSGen(sig types.Signature) (string, error) {
+func JSGen(sig types.Signature, instBody string) (string, error) {
 
 	globalreads := make([]pb.Lineaccess, 0)
 	for _, s := range sig.Input {
@@ -88,11 +94,13 @@ func JSGen(sig types.Signature) (string, error) {
 
 	var buf bytes.Buffer
 	err = templ.Execute(&buf, struct {
-		Reads map[string]string
-		URLs  [][2]string
+		Reads    map[string]string
+		URLs     [][2]string
+		InstBody string
 	}{
-		Reads: jsfmtReads,
-		URLs:  fetches,
+		Reads:    jsfmtReads,
+		URLs:     fetches,
+		InstBody: instBody,
 	})
 	if err != nil {
 		log.Printf("Error executing template: %v", err)
