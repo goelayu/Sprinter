@@ -60,7 +60,8 @@ const HANDLERS = `${__dirname}/chrome-ctx-scripts/fetch-listeners.js`;
 var merge = function (src, dst) {
   for (var key in src) {
     if (src.hasOwnProperty(key)) {
-      dst[key] = src[key];
+      if (key == "args" && dst[key]) dst[key] = dst[key].concat(src[key]);
+      else dst[key] = src[key];
     }
   }
   return dst;

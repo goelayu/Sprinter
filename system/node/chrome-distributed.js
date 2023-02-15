@@ -43,6 +43,7 @@ program
     "timeout for each crawl (seconds)",
     parseInt
   )
+  .option("-l, --logs", "capture console logs")
   .option("-p, --payload", "enable capturing payload")
   .option("--emulateCPU <emulateCPU>", "emulate CPU (integer)", parseInt)
   .option("--emulateNetwork <emulateNetwork>", "emulate Network (integer)")
@@ -90,6 +91,10 @@ var genBrowserArgs = (proxies) => {
       args: [
         "--ignore-certificate-errors",
         "--ignore-certificate-errors-spki-list=PhrPvGIaAMmd29hj8BCZOq096yj7uMpRNHpn5PDxI6I",
+        "--disable-web-security",
+        "--disable-features=IsolateOrigins,site-per-process,CrossSiteDocumentBlockingAlways,CrossSiteDocumentBlockingIfIsolating",
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
       ],
     };
   for (var i = 0; i < proxies.length; i++) {
