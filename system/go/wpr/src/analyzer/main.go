@@ -81,6 +81,10 @@ func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.
 		name := f.GetName()
 
 		if file, ok := a.store.Cache[name]; ok {
+			if file.Status == 2 {
+				log.Printf("File %s already has signature", name)
+				continue
+			}
 			state := f.GetLines()
 			Input := make([]pb.Lineaccess, 0)
 			Output := make([]pb.Lineaccess, 0)
@@ -100,7 +104,7 @@ func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.
 			file.Status = 2
 			a.mu.Unlock()
 		} else {
-			log.Printf("[ERROR] File %s not found in cache", name)
+			log.Printf("[ERROR] File %s not found in cache\nThis could be because the file is not a JS type", name)
 		}
 	}
 

@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"math/rand"
 	"strings"
 	"text/template"
 	pb "wpr/src/analyzer/proto"
 	"wpr/src/analyzer/types"
+
+	"github.com/mpvl/unique"
 )
 
 var jsTemplate = `
@@ -45,7 +48,7 @@ var jsTemplate = `
 				// all reads satisfied, fetch the URLs
 				{{range $u := .URLs}}{{ $t := index $u 1 }}{{ if eq $t "script" }}fetchViaDOM("{{index $u 0}}");
 					{{ else }}fetchViaXHR("{{index $u 0}}");{{ end }}{{end}}
-					__skipExec__ = true;
+					__skipExec{{.SkipID}}__ = true;
 			} else {
 				console.log("Reads not satisfied");
 			}
@@ -54,7 +57,7 @@ var jsTemplate = `
 		}
 	}
 	)();
-	if (typeof __skipExec__ !== "undefined"){
+	if (typeof __skipExec{{.SkipID}}__ !== "undefined"){
 		throw "[SUCCESS] all reads satisfied, skipped execution"
 	}
 	{{.InstBody}}
@@ -69,14 +72,39 @@ func JSGen(sig types.Signature, instBody string) (string, error) {
 		}
 	}
 
+	// only storing the write keys, to prune the reads
+	globalwriteskeys := make([]string, 0)
+	for _, s := range sig.Output {
+		if strings.HasPrefix(s.GetRoot(), "window") {
+			k := fmt.Sprintf("%s['%s']", s.GetRoot(), s.GetKey())
+			globalwriteskeys = append(globalwriteskeys, k)
+		}
+	}
+	unique.Strings(&globalwriteskeys)
+
 	jsfmtReads := make(map[string]string, 0)
 
 	for _, r := range globalreads {
-		k := strings.ReplaceAll(fmt.Sprintf("%s['%s']", r.GetRoot(), r.GetKey()), "'", "\\'")
-		fmt.Printf("[TEMPLATE] k = %s v = %s \n", k, r.GetValue())
-		jsfmtReads[k] = "`" + r.GetValue() + "`"
+		k := fmt.Sprintf("%s['%s']", r.GetRoot(), r.GetKey())
+
+		skip := false
+		for _, w := range globalwriteskeys {
+			log.Printf("[CHECK] k = %s w = %s", k, w)
+			if strings.HasPrefix(k, w) {
+				skip = true
+				break
+			}
+		}
+
+		if skip {
+			continue
+		}
+
+		K := strings.ReplaceAll(k, "'", "\\'")
+		fmt.Printf("[TEMPLATE] k = %s v = %s \n", K, r.GetValue())
+		jsfmtReads[K] = "`" + r.GetValue() + "`"
 		if r.GetValue() == "" {
-			jsfmtReads[k] = "null"
+			jsfmtReads[K] = "null"
 		}
 	}
 
@@ -101,10 +129,12 @@ func JSGen(sig types.Signature, instBody string) (string, error) {
 		Reads    map[string]string
 		URLs     [][2]string
 		InstBody string
+		SkipID   int64
 	}{
 		Reads:    jsfmtReads,
 		URLs:     fetches,
 		InstBody: instBody,
+		SkipID:   rand.Int63n(10000000),
 	})
 	if err != nil {
 		log.Printf("Error executing template: %v", err)
