@@ -93,6 +93,7 @@ var combStateWithURLs = function (state, nLogs, domLogs) {
   var urlType = {};
   for (var n of netObj) {
     urlType[n.url] = n.type;
+    n.response && (urlType[n.response.url] = n.type);
   }
 
   /**
