@@ -26,7 +26,10 @@ type Analyzer struct {
 
 func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzResponse, error) {
 	//check if file is in cache
-	if file, ok := a.store.Cache[arg.Name]; ok {
+	a.mu.Lock()
+	file, ok := a.store.Cache[arg.Name]
+	a.mu.Unlock()
+	if ok {
 		log.Printf("File %s found in cache", arg.Name)
 
 		switch file.Status {
@@ -34,13 +37,13 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			log.Printf("File %s already instrumented but no signature yet??", arg.Name)
 			return &pb.AzResponse{Body: file.InstBody}, nil
 		case 2: // file instrumented and signature generated
-			newbody, err := JSGen(file.Sig, file.InstBody)
+			newbody, err := JSGen(file.Sig, file.Body)
 			if err != nil {
 				log.Printf("Error generating JS optimized file %s", arg.Name)
 				return &pb.AzResponse{Body: file.InstBody}, nil
 			} else {
 				log.Printf("JS optimized file %s generated", arg.Name)
-				log.Printf("Signature opt body: %s", newbody)
+				// log.Printf("Signature opt body: %s", newbody)
 				a.mu.Lock()
 				file.SigBody = newbody
 				file.Status = 3

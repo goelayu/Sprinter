@@ -32,59 +32,87 @@ class Graph {
     this.edges = [];
     this.transitiveEdges = {};
 
-    this._createDependencyGraph(netObj);
+    this._createDependencyGraphv2(netObj);
   }
 
-  // private createDependencyGraph helper function
-  _createDependencyGraph(netObj) {
-    var urlToNode = new Map(),
-      id = 0;
-    var documentURL = netObj[0].redirects.length
-      ? netObj[0].redirects[0].url
-      : netObj[0].url;
+  _createDependencyGraphv2(netObj) {
+    var redirectMap = {};
     for (var n of netObj) {
       if (ignoreUrl(n)) continue;
-      if (
-        n.initiator.url == documentURL &&
-        n.type.toLowerCase().indexOf("script") == -1
-      )
-        continue;
-
-      // get the first redirect URL if redirected
-      var _url = n.redirects.length ? n.redirects[0].url : n.url,
-        origUrl = _url;
-      n.url = shortenURL(_url, n.type);
-      var node = new Node(n, id++);
-      this.addNode(node);
-      urlToNode.set(origUrl, node);
-
+      if (n.redirects.length) redirectMap[n.url] = n.response.url;
       switch (n.initiator.type) {
         case "parser":
-          var initiatorNode = urlToNode.get(n.initiator.url);
-          if (!initiatorNode) break;
-          var shortInitUrl = shortenURL(
-            n.initiator.url,
-            initiatorNode._netObj.type
-          );
-          var edge = { source: shortInitUrl, target: n.url };
+          // var _url = redirectMap[n.initiator.url] || n.initiator.url;
+          var _url = n.initiator.url;
+          var edge = { source: _url, target: n.url };
           this.addEdge(edge);
           break;
         case "script":
           // get the last script in the stack
-          var _url = n.initiator.stack
+          var __url = n.initiator.stack
             ? n.initiator.stack.callFrames[
                 n.initiator.stack.callFrames.length - 1
               ].url
             : n.initiator.url;
-          var initiatorNode = urlToNode.get(_url);
-          if (!initiatorNode) break;
-          var shortInitUrl = shortenURL(_url, initiatorNode._netObj.type);
-          var edge = { source: shortInitUrl, target: n.url };
+          var _url = redirectMap[__url] || __url;
+          var edge = { source: __url, target: n.url };
           this.addEdge(edge);
           break;
       }
     }
   }
+
+  // private createDependencyGraph helper function
+  // _createDependencyGraph(netObj) {
+  //   var urlToNode = new Map(),
+  //     id = 0;
+  //   var documentURL = netObj[0].redirects.length
+  //     ? netObj[0].response.url
+  //     : netObj[0].url;
+  //   for (var n of netObj) {
+  //     if (ignoreUrl(n)) continue;
+  //     if (
+  //       n.initiator.url == documentURL &&
+  //       n.type.toLowerCase().indexOf("script") == -1
+  //     )
+  //       continue;
+
+  //     // get the first redirect URL if redirected, note the redirected URL is in the final response
+  //     // n.redirects.url only contains the original URL that was eventually redirected
+  //     var _url = n.redirects.length ? n.response.url : n.url,
+  //       origUrl = _url;
+  //     n.url = shortenURL(_url, n.type);
+  //     var node = new Node(n, id++);
+  //     this.addNode(node);
+  //     urlToNode.set(origUrl, node);
+
+  //     switch (n.initiator.type) {
+  //       case "parser":
+  //         var initiatorNode = urlToNode.get(n.initiator.url);
+  //         if (!initiatorNode) break;
+  //         var shortInitUrl = shortenURL(
+  //           n.initiator.url,
+  //           initiatorNode._netObj.type
+  //         );
+  //         var edge = { source: shortInitUrl, target: n.url };
+  //         this.addEdge(edge);
+  //         break;
+  //       case "script":
+  //         // get the last script in the stack
+  //         var _url = n.initiator.stack
+  //           ? n.initiator.stack.callFrames[
+  //               n.initiator.stack.callFrames.length - 1
+  //             ].url
+  //           : n.initiator.url;
+  //         var initiatorNode = urlToNode.get(_url);
+  //         if (!initiatorNode) break;
+  //         var shortInitUrl = shortenURL(_url, initiatorNode._netObj.type);
+  //         var edge = { source: shortInitUrl, target: n.url };
+  //         this.addEdge(edge);
+  //         break;
+  //     }
+  //   }
+  // }
 
   // node is a Node object
   addNode(node) {

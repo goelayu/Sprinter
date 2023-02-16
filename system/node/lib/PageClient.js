@@ -6,7 +6,7 @@
 const fs = require("fs");
 const { Tracing } = require("chrome-remote-interface-extra");
 const netParser = require("./network.js");
-const dag = require("../lib/nw-dag.js");
+const dag = require("./nw-dag.js");
 const URL = require("url");
 const filenamify = require("filenamify");
 
