@@ -33,8 +33,9 @@ var getTotalRequests = function () {
       var net = netParser.parseNetworkLogs(JSON.parse(data));
       net = net.filter(filternet);
       total += net.length;
+      console.log(p, net.length);
     } catch (e) {
-      console.log(e);
+      // console.log(e);
     }
   }
 
