@@ -145,7 +145,10 @@ var genBrowserArgs = (proxies) => {
 
     opts.perBrowserOptions = genBrowserArgs(proxies);
   } else {
-    opts.puppeteerOptions = { executablePath: "/usr/bin/google-chrome-stable" };
+    opts.puppeteerOptions = {
+      executablePath: "/usr/bin/google-chrome-stable",
+      headless: program.testing ? false : true,
+    };
   }
 
   var cluster = await Cluster.launch(opts);
@@ -168,18 +171,22 @@ var genBrowserArgs = (proxies) => {
 
     // find the proxy used for this page
     // then update the path to the data.wprgo file
-    var args = page.browser().process().spawnargs;
-    var pa = args
-      .find((e) => e.includes("proxy-server"))
-      .split("=")[2]
-      .split(":")[2];
-    var proxyDataFile = `${program.proxy}/${pa}`;
-    var proxyData = `${program.proxy}/${sanurl}.wprgo`;
-    console.log(`Updating proxy data file ${proxyDataFile} with ${proxyData}`);
-    fs.writeFileSync(proxyDataFile, proxyData);
+    if (program.proxy) {
+      var args = page.browser().process().spawnargs;
+      var pa = args
+        .find((e) => e.includes("proxy-server"))
+        .split("=")[2]
+        .split(":")[2];
+      var proxyDataFile = `${program.proxy}/${pa}`;
+      var proxyData = `${program.proxy}/${sanurl}.wprgo`;
+      console.log(
+        `Updating proxy data file ${proxyDataFile} with ${proxyData}`
+      );
+      fs.writeFileSync(proxyDataFile, proxyData);
 
-    // wait for 2ms to make sure the new file is read
-    await sleep(150);
+      // wait for 2ms to make sure the new file is read
+      await sleep(150);
+    }
 
     var cdp = await page.target().createCDPSession();
 

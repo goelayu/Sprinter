@@ -4,17 +4,16 @@ const exec = util.promisify(child_process.exec);
 const fs = require("fs");
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
-const GOPATH =
-  "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
-const WPRDIR ="/vault-swift/goelayu/balanced-crawler/system/go/wpr";
-const DUMMYDATA="/vault-swift/goelayu/balanced-crawler/data/record/wpr/test/dummy.wprgo"
+const GOPATH = "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
+const WPRDIR = "/vault-swift/goelayu/balanced-crawler/system/go/wpr";
+const DUMMYDATA =
+  "/vault-swift/goelayu/balanced-crawler/data/record/wpr/test/dummy.wprgo";
 
 function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 }
-  
 
 class Proxy {
   constructor(options) {
@@ -27,7 +26,7 @@ class Proxy {
   }
 
   start() {
-    var cmd = `GOROOT=${GOROOT} go run src/wpr.go ${this.mode}\
+    var cmd = `GOGC=off GOROOT=${GOROOT} go run src/wpr.go ${this.mode}\
     --http_port ${this.http_port} --https_port ${this.https_port}\
     ${this.caching ? "--caching" : ""} ${this.dataOutput}`;
     (this.stdout = ""), (this.stderr = "");
@@ -63,8 +62,8 @@ class ProxyManager {
   constructor(nProxies, proxyDir, logDir, mode, caching) {
     this.nProxies = nProxies;
     this.proxies = [];
-    this.startHttpPort = 8000+Math.floor(Math.random()*1000);
-    this.startHttpsPort = 9000+Math.floor(Math.random()*1000);
+    this.startHttpPort = 8000 + Math.floor(Math.random() * 1000);
+    this.startHttpsPort = 9000 + Math.floor(Math.random() * 1000);
     this.logDir = logDir;
     this.outputDir = proxyDir;
     this.mode = mode;
@@ -79,7 +78,14 @@ class ProxyManager {
       var logOutput = `${this.logDir}/${https_port}.${this.mode}.log`;
       var mode = this.mode;
       var caching = this.caching;
-      var p = new Proxy({ http_port, https_port, dataOutput, logOutput, mode, caching });
+      var p = new Proxy({
+        http_port,
+        https_port,
+        dataOutput,
+        logOutput,
+        mode,
+        caching,
+      });
       this.proxies.push(p);
     }
 
@@ -125,4 +131,4 @@ var genBrowserArgs = (proxies) => {
 module.exports = {
   ProxyManager,
   genBrowserArgs,
-}
+};
