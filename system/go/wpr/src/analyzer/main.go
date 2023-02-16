@@ -83,7 +83,11 @@ func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.
 	for _, f := range arg.GetFiles() {
 		name := f.GetName()
 
-		if file, ok := a.store.Cache[name]; ok {
+		a.mu.Lock()
+		file, ok := a.store.Cache[name]
+		a.mu.Unlock()
+
+		if ok {
 			if file.Status == 2 {
 				log.Printf("File %s already has signature", name)
 				continue
