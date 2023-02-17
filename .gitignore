@@ -7,6 +7,9 @@
 !*.go
 !.gitignore
 !*.proto
+!*README.md
+!*ts
+!*tsconfig.json
 browser
 crawlers
 data
