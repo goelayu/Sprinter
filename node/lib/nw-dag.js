@@ -156,6 +156,7 @@ class Graph {
 var ignoreUrl = function (n) {
   var type = n.type;
   return (
+    !n.request ||
     n.request.method != "GET" ||
     n.url.indexOf("data") == 0 ||
     !n.type ||

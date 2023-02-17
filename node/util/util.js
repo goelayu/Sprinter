@@ -33,6 +33,7 @@ var getedges = function () {
   graph.createTransitiveEdges();
 
   var fetches = graph.transitiveEdges;
+  console.log(fetches);
 };
 
 switch (program.type) {
