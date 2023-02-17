@@ -34,17 +34,17 @@ class Proxy {
     //write dummy data to dataOutput before spawning command
     fs.writeFileSync(this.dataOutput, DUMMYDATA);
     this.process = child_process.spawn(cmd, { shell: true, cwd: WPRDIR });
-    this.process.stdout.on("data", (data) => {
-      this.stdout += data;
-    });
-    this.process.stderr.on("data", (data) => {
-      this.stderr += data;
-    });
+
+    var outStream = fs.createWriteStream(this.logOutput);
+    var errStream = fs.createWriteStream(this.logOutput);
+
+    this.process.stdout.pipe(outStream);
+    this.process.stderr.pipe(errStream);
   }
 
   dump() {
     console.log(`writing to ${this.logOutput}`);
-    fs.writeFileSync(this.logOutput, this.stdout + this.stderr);
+    // fs.writeFileSync(this.logOutput, this.stdout + this.stderr);
   }
 
   stop() {
@@ -54,7 +54,7 @@ class Proxy {
       { shell: true }
     );
     // await sleep(1000);
-    this.dump();
+    // this.dump();
   }
 }
 
