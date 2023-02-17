@@ -149,8 +149,7 @@ var genBrowserArgs = (proxies) => {
   } else {
     opts.puppeteerOptions = {
       executablePath: "/usr/bin/google-chrome-stable",
-      // headless: program.testing ? false : true,
-      headless: false,
+      headless: program.testing ? false : true,
     };
   }
 
@@ -189,7 +188,6 @@ var genBrowserArgs = (proxies) => {
 
       // wait for 2ms to make sure the new file is read
       await sleep(300);
-      console.log("slept for 300ms");
     }
 
     var cdp = await page.target().createCDPSession();

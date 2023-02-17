@@ -386,21 +386,24 @@ func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, 
 			case event := <-watcher.Events:
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					log.Printf("Archive file %s was modified, reloading", event.Name)
+					replayProxyTLS.Mu.Lock()
+					replayProxy.Mu.Lock()
 					archiveFilePath, _ := os.ReadFile(archivePath)
 					log.Printf("Archive file path: %s", archiveFilePath)
 					archive, err = webpagereplay.OpenArchive(strings.TrimSpace(string(archiveFilePath)))
 					if err != nil {
 						log.Printf("Failed to reload archive file %s: %v\nSimply skipping this one", archiveFilePath, err)
+						replayProxyTLS.Mu.Unlock()
+						replayProxy.Mu.Unlock()
 						continue
 					}
-					replayProxyTLS.Mu.Lock()
+
 					replayProxyTLS.A = archive
-					replayProxyTLS.Mu.Unlock()
-					replayProxy.Mu.Lock()
 					replayProxy.A = archive
-					replayProxy.Mu.Unlock()
 					log.Printf("Reloaded archive file %s", archiveFilePath)
 
+					replayProxyTLS.Mu.Unlock()
+					replayProxy.Mu.Unlock()
 				}
 			case err := <-watcher.Errors:
 				log.Printf("Watcher error: %v", err)
@@ -527,7 +530,7 @@ func (r *RootCACommand) Remove(c *cli.Context) error {
 }
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 
 	progName := filepath.Base(os.Args[0])
 
