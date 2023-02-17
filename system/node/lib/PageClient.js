@@ -198,6 +198,8 @@ class PageClient {
       // always turn CDP on
       await initCDP(this._cdp);
 
+      await this._page.setCacheEnabled(false);
+
       // create output directory recursively if it doesn't exist already
       if (!fs.existsSync(this._options.outputDir)) {
         fs.mkdirSync(this._options.outputDir, { recursive: true });

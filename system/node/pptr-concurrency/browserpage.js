@@ -33,11 +33,12 @@ class BrowserPage extends ConcurrencyImplementation_1.default {
         return __awaiter(this, void 0, void 0, function* () {
             const options = perBrowserOptions || this.options;
             let chrome = yield this.puppeteer.launch(options);
-            let context = yield chrome.createIncognitoBrowserContext();
-            let page = yield context.newPage();
+            let context;
+            let page;
             return {
                 jobInstance: () => __awaiter(this, void 0, void 0, function* () {
                     yield (0, util_1.timeoutExecute)(BROWSER_TIMEOUT, (() => __awaiter(this, void 0, void 0, function* () {
+                        context = yield chrome.createIncognitoBrowserContext();
                         page = yield context.newPage();
                     }))());
                     return {
@@ -45,7 +46,7 @@ class BrowserPage extends ConcurrencyImplementation_1.default {
                             page,
                         },
                         close: () => __awaiter(this, void 0, void 0, function* () {
-                            yield (0, util_1.timeoutExecute)(BROWSER_TIMEOUT, page.close());
+                            yield (0, util_1.timeoutExecute)(BROWSER_TIMEOUT, context.close());
                         }),
                     };
                 }),

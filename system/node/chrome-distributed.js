@@ -99,6 +99,7 @@ var genBrowserArgs = (proxies) => {
         "--disable-setuid-sandbox",
       ],
     };
+  program.testing && template.args.push("--auto-open-devtools-for-tabs");
   for (var i = 0; i < proxies.length; i++) {
     var proxy = proxies[i];
     var proxyFlags = [
@@ -187,7 +188,7 @@ var genBrowserArgs = (proxies) => {
       fs.writeFileSync(proxyDataFile, proxyData);
 
       // wait for 2ms to make sure the new file is read
-      await sleep(300);
+      // await sleep(300);
     }
 
     var cdp = await page.target().createCDPSession();

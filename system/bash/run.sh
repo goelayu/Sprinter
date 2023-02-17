@@ -62,5 +62,5 @@ else
 fi
 
 mkdir -p $rundir/output
-{ time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $2}') -o $rundir/output --proxy $WPRDATA $args ; } &> $LOGDIR/$LOGFILE.log
+{ time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $2}' | grep koreus | grep archive | head -n20) -o $rundir/output --proxy $WPRDATA $args ; } &> $LOGDIR/$LOGFILE.log
 

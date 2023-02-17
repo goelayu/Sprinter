@@ -23,12 +23,13 @@ export default class BrowserPage extends ConcurrencyImplementation {
 
         const options = perBrowserOptions || this.options;
         let chrome = await this.puppeteer.launch(options) as puppeteer.Browser;
-        let context = await chrome.createIncognitoBrowserContext() as puppeteer.BrowserContext;
-        let page = await context.newPage() as puppeteer.Page;
+        let context: any;
+        let page: puppeteer.Page;
 
         return {
             jobInstance: async () => {
                 await timeoutExecute(BROWSER_TIMEOUT, (async () => {
+                    context = await chrome.createIncognitoBrowserContext();
                     page = await context.newPage();
                 })());
 
@@ -38,7 +39,7 @@ export default class BrowserPage extends ConcurrencyImplementation {
                     },
 
                     close: async () => {
-                        await timeoutExecute(BROWSER_TIMEOUT, page.close());
+                        await timeoutExecute(BROWSER_TIMEOUT, context.close());
                     },
                 };
             },
