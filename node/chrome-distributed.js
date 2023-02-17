@@ -15,11 +15,10 @@ const exec = util.promisify(child_process.exec);
 const { Cluster } = require("puppeteer-cluster");
 const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
 const PageClient = require("./lib/PageClient.js");
-const ProxyManager = require('./lib/wpr-proxy');
+const ProxyManager = require("./lib/wpr-proxy");
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
-const GOPATH =
-  "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
+const GOPATH = "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
 const WPRDIR =
   "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/pkg/mod/github.com/catapult-project/catapult/web_page_replay_go@v0.0.0-20220815222316-b3421074fa70";
 
@@ -109,7 +108,12 @@ var genBrowserArgs = (proxies) => {
       process.exit(1);
     }
     console.log("Initializing proxies...");
-    var proxyManager = new ProxyManager(program.concurrency, program.proxy, program.output, program.mode);
+    var proxyManager = new ProxyManager(
+      program.concurrency,
+      program.proxy,
+      program.output,
+      program.mode
+    );
     await proxyManager.createProxies();
     proxies = proxyManager.getAll();
   }

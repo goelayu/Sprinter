@@ -18,6 +18,8 @@ const PageClient = require("./lib/PageClient.js");
 const Proxy = require("./lib/wpr-proxy");
 const AZ = require("./lib/az-server.js");
 const azclient = require("./az_client.js");
+const BrowserPageConcurrency =
+  require("./pptr-concurrency/browserpage").default;
 
 require("console-stamp")(console, "[HH:MM:ss.l]");
 
@@ -115,7 +117,7 @@ var genBrowserArgs = (proxies) => {
   // Initialize the proxies if flag enabled
   var proxies = [],
     opts = {
-      concurrency: Cluster.CONCURRENCY_BROWSER,
+      concurrency: BrowserPageConcurrency,
       maxConcurrency: program.concurrency,
       monitor: program.monitor,
       timeout: program.testing ? 100000000 : program.timeout * 1000,
@@ -147,7 +149,8 @@ var genBrowserArgs = (proxies) => {
   } else {
     opts.puppeteerOptions = {
       executablePath: "/usr/bin/google-chrome-stable",
-      headless: program.testing ? false : true,
+      // headless: program.testing ? false : true,
+      headless: false,
     };
   }
 
@@ -185,7 +188,8 @@ var genBrowserArgs = (proxies) => {
       fs.writeFileSync(proxyDataFile, proxyData);
 
       // wait for 2ms to make sure the new file is read
-      await sleep(150);
+      await sleep(300);
+      console.log("slept for 300ms");
     }
 
     var cdp = await page.target().createCDPSession();

@@ -23,7 +23,9 @@ var filternet = function (n) {
 };
 
 var getTotalRequests = function () {
-  var total = 0;
+  var total = 0,
+    jsCount = 0;
+  var resources = {};
   var pages = fs.readFileSync(program.pages, "utf8").split("\n");
   for (var p of pages) {
     if (p == "") continue;
@@ -32,14 +34,18 @@ var getTotalRequests = function () {
       data = fs.readFileSync(path, "utf-8");
       var net = netParser.parseNetworkLogs(JSON.parse(data));
       net = net.filter(filternet);
+      for (var n of net) {
+        resources[n.url] = 1;
+        if (n.type && n.type.indexOf("script") > -1 && n.size > 0) jsCount++;
+      }
       total += net.length;
       console.log(p, net.length);
     } catch (e) {
       // console.log(e);
     }
   }
-
-  return total;
+  console.log("js count", jsCount);
+  return resources;
 };
 
-console.log(getTotalRequests());
+console.log(Object.keys(getTotalRequests()).length);
