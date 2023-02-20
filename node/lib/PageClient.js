@@ -183,6 +183,11 @@ class PageClient {
         await this._page.setUserAgent(this._options.userAgent);
         this._options.verbose &&
           console.log("User agent set to: ", this._options.userAgent);
+      } else {
+        // add info about research project
+        await this._page.setUserAgent(
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36 -- Crawls as part of research project: https://webresearch.eecs.umich.edu/jawa/ "
+        );
       }
 
       if (this._options.enableNetwork) {
