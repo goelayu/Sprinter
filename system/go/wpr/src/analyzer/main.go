@@ -7,6 +7,8 @@ import (
 	"errors"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"strconv"
 	sync "sync"
 
@@ -55,7 +57,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			return &pb.AzResponse{Body: file.SigBody}, nil
 		}
 	} else {
-		log.Printf("File %s not found in cache", arg.Name)
+		log.Printf("File %s not found in cache\n", arg.Name)
 		newbody, err := Rewrite(arg.Name, arg.Body, arg.Type, arg.Encoding, arg.Caching)
 		if err != nil {
 			log.Printf("Error rewriting file %s", arg.Name)
@@ -108,7 +110,7 @@ func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.
 			Fetches := f.GetFetches()
 			a.mu.Lock()
 			file.Sig = types.Signature{Input, Output, Fetches}
-			file.Status = 2
+			file.Status = 1
 			a.mu.Unlock()
 		} else {
 			log.Printf("[ERROR] File %s not found in cache\nThis could be because the file is not a JS type", name)
@@ -141,13 +143,20 @@ func createServer(c *cli.Context) {
 	// Register the service with the gRPC server
 	pb.RegisterAnalyzerServer(grpcServer, &az)
 
+	go func() {
+		sigchan := make(chan os.Signal, 1)
+		signal.Notify(sigchan, os.Interrupt)
+		<-sigchan
+		log.Printf("Ctrl-C received, exiting...")
+		// stop server
+		grpcServer.Stop()
+		os.Exit(0)
+	}()
+
 	log.Printf("Analyzer server started")
+	log.Printf("Listening on port %d", port)
+	log.Printf("Press Ctrl-C to exit")
 	grpcServer.Serve(l)
-
-	log.Printf("Analyzer server started")
-
-	log.Printf("Use Ctrl-C to exit.")
-	select {}
 
 }
 

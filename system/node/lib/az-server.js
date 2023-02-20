@@ -28,10 +28,11 @@ class AZ {
     this.process = spawn(cmd, { shell: true, cwd: AZDIR });
 
     var outStream = fs.createWriteStream(this.logOutput);
-    var errStream = fs.createWriteStream(this.logOutput);
+
+    this.streams = outStream;
 
     this.process.stdout.pipe(outStream);
-    this.process.stderr.pipe(errStream);
+    this.process.stderr.pipe(outStream);
 
     await sleep(100);
   }
@@ -41,6 +42,9 @@ class AZ {
       `ps aux | grep port | grep ${this.port} | awk '{print $2}' | xargs kill -SIGINT`,
       { shell: true }
     );
+
+    // close the writestreams
+    this.streams.outStream.end();
   }
 }
 
