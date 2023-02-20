@@ -124,7 +124,7 @@ func createServer(c *cli.Context) {
 
 	port := c.Int("port")
 
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 
 	az := Analyzer{}
 	az.store = types.Store{}

@@ -5,9 +5,11 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/andybalholm/brotli"
 	"github.com/flytam/filenamify"
@@ -71,7 +73,7 @@ func extractBody(body string, encoding string) string {
 
 func invokeNode(body string, t string, name string, caching bool) ([]byte, error) {
 
-	SCRIPTPATH := "/vault-swift/goelayu/balanced-crawler/node/program_analysis/instrument.js"
+	SCRIPTPATH := "/run/user/99542426/goelayu/node/program_analysis/instrument.js"
 	tmpdir := "/run/user/99542426/goelayu/tempdir/"
 
 	// store body in a temp file
@@ -88,8 +90,8 @@ func invokeNode(body string, t string, name string, caching bool) ([]byte, error
 	}
 
 	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s' --analyzing %t", SCRIPTPATH, tempFile.Name(), t, name, caching)
-	fmt.Println(cmdString)
-	// startTime := time.Now()
+	log.Println(cmdString)
+	startTime := time.Now()
 	cmd := exec.Command("bash", "-c", cmdString)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
@@ -98,11 +100,11 @@ func invokeNode(body string, t string, name string, caching bool) ([]byte, error
 	err = cmd.Run()
 	if err != nil {
 		err = fmt.Errorf("%s with cmd: %s", stderr.String(), cmdString)
-		fmt.Printf("ERROR: %s", err)
-		fmt.Printf("Returning the original body")
+		log.Printf("ERROR: %s", err)
+		log.Printf("Returning the original body")
 		return []byte(body), nil
 	}
-	// fmt.Println("Instrumentation took", time.Since(startTime))
+	log.Printf("Instrumentating %s  took %v", name, time.Since(startTime))
 
 	// fmt.Println("stdout is", out.String())
 	// read the temp file
