@@ -131,8 +131,8 @@ var genBrowserArgs = (proxies) => {
       process.exit(1);
     }
     console.log("Initializing the az server...");
-    var az = new AZ({ port: 1234, logOutput: `${program.output}/az.log` });
-    await az.start();
+    // var az = new AZ({ port: 1234, logOutput: `${program.output}/az.log` });
+    // await az.start();
     azClient = new azclient("localhost:1234");
 
     console.log("Initializing proxies...");
@@ -204,7 +204,7 @@ var genBrowserArgs = (proxies) => {
       enablePayload: program.payload,
       userAgent: program.userAgent,
       outputDir: outputDir,
-      verbose: false,
+      verbose: true,
       logTime: true,
       emulateCPU: program.emulateCPU,
       emulateNetwork: program.emulateNetwork,
@@ -250,7 +250,7 @@ var genBrowserArgs = (proxies) => {
   await cluster.close();
   if (program.proxy) {
     await proxyManager.stopAll();
-    await az.stop();
+    // await az.stop();
 
     //clean up proxy arguments
     for (var i = 0; i < proxies.length; i++) {

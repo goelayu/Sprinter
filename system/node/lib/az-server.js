@@ -25,11 +25,11 @@ class AZ {
     var cmd = `
       GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port ${this.port} 
     `;
-    this.process = spawn(cmd, { shell: true, cwd: AZDIR });
+    this.process = spawn(cmd, { shell: true, cwd: AZDIR, detached: true });
 
     var outStream = fs.createWriteStream(this.logOutput);
 
-    this.streams = outStream;
+    this.stream = outStream;
 
     this.process.stdout.pipe(outStream);
     this.process.stderr.pipe(outStream);
@@ -39,12 +39,10 @@ class AZ {
 
   async stop() {
     spawn(
-      `ps aux | grep port | grep ${this.port} | awk '{print $2}' | xargs kill -SIGINT`,
+      `ps aux | grep port | grep ${this.port} | grep tmp | awk '{print $2}' | xargs kill -SIGTERM`,
       { shell: true }
     );
-
-    // close the writestreams
-    this.streams.outStream.end();
+    this.stream.end();
   }
 }
 

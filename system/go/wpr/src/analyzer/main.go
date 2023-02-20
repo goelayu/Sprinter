@@ -11,6 +11,8 @@ import (
 	"os/signal"
 	"strconv"
 	sync "sync"
+	"sync/atomic"
+	"syscall"
 
 	"wpr/src/analyzer/types"
 
@@ -20,9 +22,15 @@ import (
 	grpc "google.golang.org/grpc"
 )
 
+type CStats struct {
+	total int32
+	hits  int32
+}
+
 type Analyzer struct {
 	pb.UnimplementedAnalyzerServer
 	store types.Store
+	stats CStats
 	mu    sync.Mutex
 }
 
@@ -33,7 +41,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 	a.mu.Unlock()
 	if ok {
 		log.Printf("File %s found in cache", arg.Name)
-
+		atomic.AddInt32(&a.stats.hits, 1)
 		switch file.Status {
 		case 1: //file instrumented
 			log.Printf("File %s already instrumented but no signature yet??", arg.Name)
@@ -58,6 +66,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 		}
 	} else {
 		log.Printf("File %s not found in cache\n", arg.Name)
+		atomic.AddInt32(&a.stats.total, 1)
 		newbody, err := Rewrite(arg.Name, arg.Body, arg.Type, arg.Encoding, arg.Caching)
 		if err != nil {
 			log.Printf("Error rewriting file %s", arg.Name)
@@ -130,6 +139,7 @@ func createServer(c *cli.Context) {
 	az.store = types.Store{}
 	az.store.Cache = make(map[string]*types.File)
 	az.store.Files = make([]types.File, 0)
+	az.stats = CStats{0, 0}
 
 	// rpc.Register(&az)
 	// rpc.HandleHTTP()
@@ -145,9 +155,11 @@ func createServer(c *cli.Context) {
 
 	go func() {
 		sigchan := make(chan os.Signal, 1)
-		signal.Notify(sigchan, os.Interrupt)
+		signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigchan
 		log.Printf("Ctrl-C received, exiting...")
+		log.Printf("Total files analyzed: %d", az.stats.total)
+		log.Printf("Total files found in cache: %d", az.stats.hits)
 		// stop server
 		grpcServer.Stop()
 		os.Exit(0)

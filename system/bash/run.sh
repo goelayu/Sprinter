@@ -61,6 +61,27 @@ else
     wait
 fi
 
-mkdir -p $rundir/output
-{ time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $2}' | grep koreus | grep archive | head -n20) -o $rundir/output --proxy $WPRDATA $args ; } &> $LOGDIR/$LOGFILE.log
+# sys usage tracking
+sysscript=../../bash/profiling/sys-usage-track.sh
+mkdir -p $rundir/sys
+rm -rf $rundir/sys/*
+$sysscript $rundir/sys &
+sysupid=$!;
 
+mkdir -p $rundir/output
+rm -rf $rundir/output/*
+
+# start the az server
+GOROOT="/w/goelayu/uluyol-sigcomm/go";
+AZDIR=/vault-swift/goelayu/balanced-crawler/system/go/wpr
+(cd $AZDIR; GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port 1234 &> $rundir/output/az.log ) &
+# azpid=$!
+
+{ time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $2}' | grep koreus | head -n1) -o $rundir/output --proxy $WPRDATA $args ; } &> $LOGDIR/$LOGFILE.log
+
+# kill the resource usage scripts
+echo "Sending ctrl-c to the monitoring tools" $sysupid
+kill -SIGUSR1 $sysupid;
+
+# kill the az server
+ps aux | grep "1234" | grep -v grep | awk '{print $2}' | xargs kill -SIGINT
