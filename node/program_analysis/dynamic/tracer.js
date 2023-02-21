@@ -45,10 +45,14 @@
     }
 
     removeProxy(obj) {
-      if (obj && obj.__isProxy__) {
-        return obj.__target__;
+      try {
+        if (obj && obj.__isProxy__) {
+          return obj.__target__;
+        }
+        return obj;
+      } catch (e) {
+        return obj;
       }
-      return obj;
     }
 
     createLogger(obj, objName) {
@@ -219,6 +223,7 @@
       "call",
       "prototype",
       "location",
+      "readyState",
     ];
 
     var extractObjFromProxy = function (obj) {
@@ -232,7 +237,11 @@
         if (key == "__target__") return target;
         var method = Reflect.get(target, key);
 
-        if (target.__proto__ === HTMLIFrameElement.prototype) return method;
+        if (
+          target.__proto__ === HTMLIFrameElement.prototype ||
+          ignoreKeys.indexOf(key) != -1
+        )
+          return method;
 
         method = extractObjFromProxy(method);
 
@@ -260,8 +269,7 @@
         var desc = Object.getOwnPropertyDescriptor(target, key);
         if (
           (desc && desc.configurable == false && desc.writable == false) ||
-          (method && method.__isProxy__) ||
-          ignoreKeys.indexOf(key) != -1
+          (method && method.__isProxy__)
         ) {
           return method;
         }

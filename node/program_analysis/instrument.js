@@ -50,9 +50,15 @@ var instrumentJS = function (js) {
   return output;
 };
 
-var removeIntegrityAttr = function (html) {
+var modifyAttr = function (html) {
   var root = htmlparser.parse(html);
   var scripts = root.getElementsByTagName("script");
+  var images = root.getElementsByTagName("img");
+  for (var i of images) {
+    var src = i.getAttribute("src");
+    var dst = i.getAttribute("data-src");
+    if (!src && dst) i.setAttribute("src", dst);
+  }
   for (var s of scripts) {
     s.removeAttribute("integrity");
   }
@@ -60,8 +66,11 @@ var removeIntegrityAttr = function (html) {
 };
 
 var instrumentHTML = function (html) {
-  if (program.analyzing === "false") return html;
-  html = removeIntegrityAttr(html);
+  if (program.analyzing === "false") {
+    // modify regardless of analyzing flag
+    return modifyAttr(html);
+  }
+  html = modifyAttr(html);
   var dynLib = fs.readFileSync(DYNPATH, "utf8");
   return `<script>${dynLib}</script>` + html;
 };
