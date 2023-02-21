@@ -96,7 +96,7 @@ type ReplayingProxy struct {
 
 func requestIsJSHTML(resp *http.Response) bool {
 	// return false
-	return strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "html") || strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "javascript")
+	return resp.ContentLength > 500 && resp.StatusCode == 200 && (strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "html") || strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "javascript"))
 }
 
 func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -151,6 +151,7 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 			Caching:  proxy.caching}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+		log.Printf("Calling analyzer server for %s with length %d", requestURI, storedResp.ContentLength)
 		azreply, err := proxy.client.Analyze(ctx, &azargs)
 		if err != nil {
 			log.Printf("Error calling analyzer server: %v", err)
