@@ -59,6 +59,7 @@ program
   .option("-c, --custom [value]", "fetch custom data")
   .option("--enableOPT", "Enables the entire system optimization pipeline")
   .option("--testing", "debug mode")
+  .option("--azport <azport>", "port for the az server", parseInt)
   .parse(process.argv);
 
 var bashSanitize = (str) => {
@@ -133,7 +134,7 @@ var genBrowserArgs = (proxies) => {
     console.log("Initializing the az server...");
     // var az = new AZ({ port: 1234, logOutput: `${program.output}/az.log` });
     // await az.start();
-    azClient = new azclient("localhost:1234");
+    azClient = new azclient(`localhost:${program.azport}`);
 
     console.log("Initializing proxies...");
     var proxyManager = new Proxy.ProxyManager(
@@ -141,7 +142,8 @@ var genBrowserArgs = (proxies) => {
       program.proxy,
       program.output,
       program.mode,
-      program.enableOPT
+      program.enableOPT,
+      program.azport
     );
     await proxyManager.createProxies();
     proxies = proxyManager.getAll();
@@ -204,7 +206,7 @@ var genBrowserArgs = (proxies) => {
       enablePayload: program.payload,
       userAgent: program.userAgent,
       outputDir: outputDir,
-      verbose: true,
+      verbose: false,
       logTime: true,
       emulateCPU: program.emulateCPU,
       emulateNetwork: program.emulateNetwork,

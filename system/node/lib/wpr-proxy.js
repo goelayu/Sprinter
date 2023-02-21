@@ -23,11 +23,13 @@ class Proxy {
     this.logOutput = options.logOutput;
     this.mode = options.mode;
     this.caching = options.caching;
+    this.az_port = options.az_port;
   }
 
   start() {
     var cmd = `GOGC=off GOROOT=${GOROOT} go run src/wpr.go ${this.mode}\
     --http_port ${this.http_port} --https_port ${this.https_port}\
+    --az_port ${this.az_port}\
     ${this.caching ? "--caching" : ""} ${this.dataOutput}`;
     (this.stdout = ""), (this.stderr = "");
     console.log(cmd);
@@ -59,7 +61,7 @@ class Proxy {
 }
 
 class ProxyManager {
-  constructor(nProxies, proxyDir, logDir, mode, caching) {
+  constructor(nProxies, proxyDir, logDir, mode, caching, az_port) {
     this.nProxies = nProxies;
     this.proxies = [];
     this.startHttpPort = 8000 + Math.floor(Math.random() * 1000);
@@ -68,6 +70,7 @@ class ProxyManager {
     this.outputDir = proxyDir;
     this.mode = mode;
     this.caching = caching;
+    this.az_port = az_port;
   }
 
   async createProxies() {
@@ -78,6 +81,7 @@ class ProxyManager {
       var logOutput = `${this.logDir}/${https_port}.${this.mode}.log`;
       var mode = this.mode;
       var caching = this.caching;
+      var az_port = this.az_port;
       var p = new Proxy({
         http_port,
         https_port,
@@ -85,6 +89,7 @@ class ProxyManager {
         logOutput,
         mode,
         caching,
+        az_port,
       });
       this.proxies.push(p);
     }

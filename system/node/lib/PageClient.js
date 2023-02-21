@@ -365,12 +365,13 @@ class PageClient {
       }
 
       if (this._options.testing) {
+        console.log("waiting for __done === true");
         await this._page.waitForFunction("window.__done === true", {
           timeout: this._options.timeout * 1000,
         });
       }
 
-      // await this._page.waitForTimeout(40000);
+      // await this._page.waitForTimeout(2000);
     } catch (err) {
       console.log(`[${this._options.url}] Error: `, err);
     }

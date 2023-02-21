@@ -72,10 +72,13 @@ func updateDates(h http.Header, now time.Time) {
 
 // NewReplayingProxy constructs an HTTP proxy that replays responses from an archive.
 // The proxy is listening for requests on a port that uses the given scheme (e.g., http, https).
-func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransformer, quietMode bool, caching bool) http.Handler {
-	conn, err := grpc.Dial("localhost:1234", grpc.WithInsecure())
+func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransformer, quietMode bool, caching bool, az_port int) http.Handler {
+	azaddr := "localhost:" + strconv.Itoa(az_port)
+	conn, err := grpc.Dial(azaddr, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
+	} else {
+		log.Printf("Connected to analyzer server at %s", azaddr)
 	}
 	client := pb.NewAnalyzerClient(conn)
 	return &ReplayingProxy{a, scheme, transformers, quietMode, sync.Mutex{}, client, caching}
