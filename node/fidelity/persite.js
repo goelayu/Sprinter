@@ -19,7 +19,7 @@ if (!program.dir || !program.pages) {
 }
 
 var filternet = function (n) {
-  return n.request.method === "GET" && n.type && n.size;
+  return n.request && n.request.method === "GET" && n.type && n.size;
 };
 
 var getTotalRequests = function () {
@@ -35,16 +35,18 @@ var getTotalRequests = function () {
       var net = netParser.parseNetworkLogs(JSON.parse(data));
       net = net.filter(filternet);
       for (var n of net) {
-        resources[n.url] = 1;
+        var url = n.url.split("?")[0];
+        resources[url] = 1;
         if (n.type && n.type.indexOf("script") > -1 && n.size > 0) jsCount++;
       }
       total += net.length;
       console.log(p, net.length);
     } catch (e) {
-      // console.log(e);
+      console.log(e);
     }
   }
   console.log("js count", jsCount);
+  console.log("total", total);
   return resources;
 };
 
