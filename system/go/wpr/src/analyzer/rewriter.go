@@ -114,8 +114,6 @@ func invokeNode(body string, t string, name string, caching bool) ([]byte, error
 		fmt.Println("ERROR: reading temp file", err)
 		return []byte(body), nil
 	}
-	// fmt.Println("newbody is", string(newbody))
-	// os.Remove(tempFile.Name())
 	return newbody, nil
 }
 

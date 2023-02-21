@@ -23,8 +23,10 @@ import (
 )
 
 type CStats struct {
-	total int32
-	hits  int32
+	inst  int32
+	instC int32
+	sig   int32
+	sigC  int32
 }
 
 type Analyzer struct {
@@ -41,19 +43,20 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 	a.mu.Unlock()
 	if ok {
 		log.Printf("File %s found in cache", arg.Name)
-		atomic.AddInt32(&a.stats.hits, 1)
 		switch file.Status {
 		case 1: //file instrumented
 			log.Printf("File %s already instrumented but no signature yet??", arg.Name)
+			atomic.AddInt32(&a.stats.instC, 1)
 			return &pb.AzResponse{Body: file.InstBody}, nil
 		case 2: // file instrumented and signature generated
+			log.Printf("Generating signature template for file %s", arg.Name)
 			newbody, err := JSGen(file.Sig, file.Body)
 			if err != nil {
 				log.Printf("Error generating JS optimized file %s", arg.Name)
-				return &pb.AzResponse{Body: file.InstBody}, nil
+				return &pb.AzResponse{Body: file.Body}, nil
 			} else {
-				log.Printf("JS optimized file %s generated", arg.Name)
-				// log.Printf("Signature opt body: %s", newbody)
+				log.Printf("JS optimized file %s generated with signature %s", arg.Name, newbody)
+				atomic.AddInt32(&a.stats.sig, 1)
 				a.mu.Lock()
 				file.SigBody = newbody
 				file.Status = 3
@@ -62,11 +65,12 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			}
 		case 3: //file instrumented and signature template generated
 			log.Printf("File %s already instrumented and signature template exists", arg.Name)
+			atomic.AddInt32(&a.stats.sigC, 1)
 			return &pb.AzResponse{Body: file.SigBody}, nil
 		}
 	} else {
 		log.Printf("File %s not found in cache\n", arg.Name)
-		atomic.AddInt32(&a.stats.total, 1)
+		atomic.AddInt32(&a.stats.inst, 1)
 		newbody, err := Rewrite(arg.Name, arg.Body, arg.Type, arg.Encoding, arg.Caching)
 		if err != nil {
 			log.Printf("Error rewriting file %s", arg.Name)
@@ -99,7 +103,7 @@ func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.
 		a.mu.Unlock()
 
 		if ok {
-			if file.Status == 2 {
+			if file.Status >= 2 {
 				log.Printf("File %s already has signature", name)
 				continue
 			}
@@ -119,8 +123,9 @@ func (a *Analyzer) Storesignature(ctx context.Context, arg *pb.Pageaccess) (*pb.
 			Fetches := f.GetFetches()
 			a.mu.Lock()
 			file.Sig = types.Signature{Input, Output, Fetches}
-			file.Status = 1
+			file.Status = 2
 			a.mu.Unlock()
+			log.Printf("File %s signature stored with fetches %s", name, Fetches)
 		} else {
 			log.Printf("[ERROR] File %s not found in cache\nThis could be because the file is not a JS type", name)
 		}
@@ -139,7 +144,7 @@ func createServer(c *cli.Context) {
 	az.store = types.Store{}
 	az.store.Cache = make(map[string]*types.File)
 	az.store.Files = make([]types.File, 0)
-	az.stats = CStats{0, 0}
+	az.stats = CStats{0, 0, 0, 0}
 
 	// rpc.Register(&az)
 	// rpc.HandleHTTP()
@@ -158,8 +163,10 @@ func createServer(c *cli.Context) {
 		signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigchan
 		log.Printf("Ctrl-C received, exiting...")
-		log.Printf("Total files analyzed: %d", az.stats.total)
-		log.Printf("Total files found in cache: %d", az.stats.hits)
+		log.Printf("Total files instrumented: %d", az.stats.inst)
+		log.Printf("Total files using instrumented cache: %d", az.stats.instC)
+		log.Printf("Total files with signature generated: %d", az.stats.sig)
+		log.Printf("Total files using signature cache: %d", az.stats.sigC)
 		// stop server
 		grpcServer.Stop()
 		os.Exit(0)
