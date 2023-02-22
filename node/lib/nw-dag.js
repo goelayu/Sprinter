@@ -48,11 +48,12 @@ class Graph {
           break;
         case "script":
           // get the last script in the stack
-          var __url = n.initiator.stack
+          var __url = n.initiator.stack.callFrames.length
             ? n.initiator.stack.callFrames[
                 n.initiator.stack.callFrames.length - 1
               ].url
             : n.initiator.url;
+          if (!__url) break;
           var _url = redirectMap[__url] || __url;
           var edge = { source: _url, target: n.url };
           this.addEdge(edge);
@@ -154,6 +155,7 @@ var ignoreUrl = function (n) {
     n.url.indexOf("data") == 0 ||
     !n.type ||
     !n.size ||
+    n.size < 100 ||
     n.response.status != 200
   );
 };
