@@ -314,11 +314,16 @@ class PageClient {
           }
         } else if (response.request().resourceType() == "document") {
           var html = await response.text();
-          re = /https?:\S*\.(svg|png|jpg|jpeg)\S*/gi;
+          // re = /https?:\S*\.(svg|png|jpg|jpeg)\S*/gi;
+          var re = /(http| src="\/\/)s?:?\S*\.(svg|png)\S*/gi;
+          var re = /(http| src="\/\/)s?:?\S*\.(svg|png)[^\s>]*/gi;
           urls = html.match(re);
           if (urls) {
             urls.forEach((url) => {
               url = url.replace(/\\/g, "");
+              if (url.includes("src=")) {
+                url = url.replace("src=", "");
+              }
               console.log("fetching url: ", url, " from html file");
               this._page.evaluate((url) => {
                 var xhr = new XMLHttpRequest();
