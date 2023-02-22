@@ -35,6 +35,7 @@ var jsTemplate = `
 		var fetchViaXHR = function(url){
 			var xhr = new XMLHttpRequest();
 			xhr.open("GET", url, true);
+			xhr.send();
 		}
 		
 		var reads = [
@@ -138,6 +139,40 @@ func JSGen(sig types.Signature, instBody string) (string, error) {
 		URLs:     fetches,
 		InstBody: instBody,
 		SkipID:   rand.Int63n(10000000),
+	})
+	if err != nil {
+		log.Printf("Error executing template: %v", err)
+		return "", nil
+	}
+
+	return buf.String(), nil
+}
+
+var cssTemplate = `
+ /*
+ {{range $u := .URLs}}
+  __injecturl: {{$u}}
+	{{end}}
+ */
+ `
+
+func CSSGen(fetches []*pb.Fetches) (string, error) {
+	URLs := make([]string, 0)
+	for _, f := range fetches {
+		URLs = append(URLs, f.GetUrl())
+	}
+
+	templ, err := template.New("css").Parse(cssTemplate)
+	if err != nil {
+		log.Printf("Error parsing template: %v", err)
+		return "", nil
+	}
+
+	var buf bytes.Buffer
+	err = templ.Execute(&buf, struct {
+		URLs []string
+	}{
+		URLs: URLs,
 	})
 	if err != nil {
 		log.Printf("Error executing template: %v", err)

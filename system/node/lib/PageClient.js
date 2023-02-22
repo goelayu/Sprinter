@@ -111,7 +111,12 @@ var combStateWithURLs = function (state, nLogs, domLogs) {
   var newState = {};
 
   for (var n of netObj) {
-    if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
+    if (
+      !n.type ||
+      (n.type.indexOf("script") == -1 && n.type.indexOf("css") == -1) ||
+      !n.size
+    )
+      continue;
     var sKey = filenamify(n.url);
     var st = state[sKey];
     var ft = fetches[n.url] ? fetches[n.url].map((e) => [e, urlType[e]]) : [];
@@ -278,6 +283,33 @@ class PageClient {
         });
         this._options.verbose && console.log("Network throttling enabled");
       }
+
+      // extract urls from css files
+      await this._page.setRequestInterception(true);
+
+      this._page.on("request", (request) => {
+        request.continue();
+      });
+
+      this._page.on("response", async (response) => {
+        if (response.request().resourceType() === "stylesheet") {
+          var css = await response.text();
+          // var re = /__injecturl: \S*/g;
+          var re = /url\(\S*\)/g;
+          var urls = css.match(re);
+          if (urls) {
+            urls.forEach((url) => {
+              url = url.replace("url(", "").replace(")", "");
+              console.log("fetching url: ", url, " from css file");
+              this._page.evaluate((url) => {
+                var xhr = new XMLHttpRequest();
+                xhr.open("GET", url, true);
+                xhr.send();
+              }, url);
+            });
+          }
+        }
+      });
 
       // load the page
       await this._page

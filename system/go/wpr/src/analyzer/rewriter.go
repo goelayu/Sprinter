@@ -82,7 +82,7 @@ func invokeNode(body string, t string, name string, caching bool) ([]byte, error
 		panic(err)
 	}
 
-	// defer os.Remove(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	_, err = tempFile.WriteString(body)
 	if err != nil {
@@ -118,6 +118,11 @@ func invokeNode(body string, t string, name string, caching bool) ([]byte, error
 }
 
 func Rewrite(name string, bodyBytes string, contentType string, encoding string, caching bool) ([]byte, error) {
+	// if type is css then return
+	if strings.Contains(contentType, "css") {
+		return []byte(bodyBytes), nil
+	}
+
 	name, _ = filenamify.Filenamify(name, filenamify.Options{})
 
 	newbody, err := invokeNode(bodyBytes, contentType, name, caching)

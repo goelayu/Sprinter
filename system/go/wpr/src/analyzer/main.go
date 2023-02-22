@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	sync "sync"
 	"sync/atomic"
 	"syscall"
@@ -50,7 +51,17 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			return &pb.AzResponse{Body: file.InstBody}, nil
 		case 2: // file instrumented and signature generated
 			log.Printf("Generating signature template for file %s", arg.Name)
-			newbody, err := JSGen(file.Sig, file.Body)
+			var err error
+			var newbody string
+			if strings.Contains(strings.ToLower(arg.Type), "javascript") {
+				newbody, err = JSGen(file.Sig, file.Body)
+			} else if strings.Contains(strings.ToLower(arg.Type), "css") {
+				// newbody, err = CSSGen(file.Sig.Fetches)
+				return &pb.AzResponse{Body: file.Body}, nil
+			} else {
+				log.Printf("Error: sig exists but file neither js or css %s", arg.Name)
+				return &pb.AzResponse{Body: file.Body}, nil
+			}
 			if err != nil {
 				log.Printf("Error generating JS optimized file %s", arg.Name)
 				return &pb.AzResponse{Body: file.Body}, nil
