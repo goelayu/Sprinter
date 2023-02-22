@@ -300,7 +300,26 @@ class PageClient {
           if (urls) {
             urls.forEach((url) => {
               url = url.replace("url(", "").replace(")", "");
+              // if last character is comma, remove it
+              if (url[url.length - 1] == ",") {
+                url = url.substring(0, url.length - 1);
+              }
               console.log("fetching url: ", url, " from css file");
+              this._page.evaluate((url) => {
+                var xhr = new XMLHttpRequest();
+                xhr.open("GET", url, true);
+                xhr.send();
+              }, url);
+            });
+          }
+        } else if (response.request().resourceType() == "document") {
+          var html = await response.text();
+          re = /https?:\S*\.(svg|png|jpg|jpeg)\S*/gi;
+          urls = html.match(re);
+          if (urls) {
+            urls.forEach((url) => {
+              url = url.replace(/\\/g, "");
+              console.log("fetching url: ", url, " from html file");
               this._page.evaluate((url) => {
                 var xhr = new XMLHttpRequest();
                 xhr.open("GET", url, true);
