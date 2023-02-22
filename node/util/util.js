@@ -59,7 +59,11 @@ var compareEdges = function () {
   });
   console.log(fetches1.length, fetches2.length);
   // find missing fetches
-  var missing = fetches2.filter((x) => !fetches1.includes(x));
+  var missing = fetches2.filter((x) => {
+    x = x.split("?")[0];
+    return !fetches1.map((x) => x.split("?")[0]).includes(x);
+  });
+  console.log(missing.length);
   console.log(JSON.stringify(missing));
 };
 
