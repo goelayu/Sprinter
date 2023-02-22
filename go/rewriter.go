@@ -117,7 +117,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 	}
 	// fmt.Println("Instrumentation took", time.Since(startTime))
 
-	// fmt.Println("stdout is", string(out))
+	fmt.Println("stdout is", out.String())
 	// read the temp file
 	tempFile.Seek(0, 0)
 	newbody, err := io.ReadAll(tempFile)
