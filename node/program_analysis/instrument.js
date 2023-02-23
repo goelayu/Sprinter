@@ -50,14 +50,15 @@ var instrumentJS = function (js) {
   return output;
 };
 
-var modifyAttr = function (html) {
+var modifyAttr = function (html, addImgSrc) {
   var root = htmlparser.parse(html);
   var scripts = root.getElementsByTagName("script");
   var images = root.getElementsByTagName("img");
   for (var i of images) {
     var src = i.getAttribute("src");
     var dst = i.getAttribute("data-src");
-    if (!src && dst) i.setAttribute("src", dst);
+    // console.log(`src: ${src}, dst: ${dst}`);
+    if (!src && dst && addImgSrc) i.setAttribute("src", dst);
   }
   for (var s of scripts) {
     s.removeAttribute("integrity");
@@ -70,7 +71,7 @@ var instrumentHTML = function (html) {
     // modify regardless of analyzing flag
     return modifyAttr(html);
   }
-  html = modifyAttr(html);
+  html = modifyAttr(html, true);
   var dynLib = fs.readFileSync(DYNPATH, "utf8");
   return `<script>${dynLib}</script>` + html;
 };

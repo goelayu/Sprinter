@@ -12,6 +12,9 @@
 
 # Example: ./run.sh sites.txt ../../pageshere ../data/output `../data/record/output` -t 10
 
+# ensure ulimit is large enough
+sudo ulimit -n 100000
+
 echo "number of arguments: $#"
 echo "arguments: $@"
 if [ $# -ne 5 ]; then
@@ -69,19 +72,23 @@ $sysscript $rundir/sys &
 sysupid=$!;
 
 mkdir -p $rundir/output
-rm -rf $rundir/output/*
+# rm -rf $rundir/output/*
+
+# copy the static analysis tool to tmpfs
+cp -r /vault-swift/goelayu/balanced-crawler/node/program_analysis/ /run/user/99542426/goelayu/node/
 
 # start the az server
 GOROOT="/w/goelayu/uluyol-sigcomm/go";
 AZDIR=/vault-swift/goelayu/balanced-crawler/system/go/wpr
-(cd $AZDIR; GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port 1234 &> $rundir/output/az.log ) &
+AZPORT=`shuf -i 8000-16000 -n 1`
+(cd $AZDIR; GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port $AZPORT &> $rundir/output/az.log ) &
 # azpid=$!
 
-{ time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $2}' | grep koreus | head -n1) -o $rundir/output --proxy $WPRDATA $args ; } &> $LOGDIR/$LOGFILE.log
+{ time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $2}' | grep sanrio ) -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT ; } &> $LOGDIR/$LOGFILE.log
 
 # kill the resource usage scripts
 echo "Sending ctrl-c to the monitoring tools" $sysupid
 kill -SIGUSR1 $sysupid;
 
 # kill the az server
-ps aux | grep "1234" | grep -v grep | awk '{print $2}' | xargs kill -SIGINT
+ps aux | grep $AZPORT | grep -v grep | awk '{print $2}' | xargs kill -SIGINT

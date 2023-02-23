@@ -214,6 +214,7 @@ var genBrowserArgs = (proxies) => {
       azClient: azClient,
       testing: program.testing,
       timeout: program.timeout,
+      staticFetch: program.enableOPT,
     });
 
     await pclient.start().catch((err) => {
