@@ -293,45 +293,65 @@ class PageClient {
         });
 
         this._page.on("response", async (response) => {
-          if (response.request().resourceType() === "stylesheet") {
-            var css = await response.text();
-            // var re = /__injecturl: \S*/g;
-            var re = /url\(\S*\)/g;
-            var urls = css.match(re);
-            if (urls) {
-              urls.forEach((url) => {
-                url = url.replace("url(", "").replace(")", "");
-                // if last character is comma, remove it
-                if (url[url.length - 1] == ",") {
-                  url = url.substring(0, url.length - 1);
+          var status = response.status();
+          if (
+            status && // we actually have an status for the response
+            !(status > 299 && status < 400) && // not a redirect
+            !(status === 204) // not a no-content response
+          ) {
+            try {
+              if (response.request().resourceType() === "stylesheet") {
+                var css = await response.text();
+                // var re = /__injecturl: \S*/g;
+                var re = /url\(\S*\)/g;
+                var urls = css.match(re);
+                if (urls) {
+                  urls.forEach((url) => {
+                    url = url.replace("url(", "").replace(")", "");
+                    // if last character is comma, remove it
+                    if (url[url.length - 1] == ",") {
+                      url = url.substring(0, url.length - 1);
+                    }
+                    console.log("fetching url: ", url, " from css file");
+                    this._page
+                      .evaluate((url) => {
+                        var xhr = new XMLHttpRequest();
+                        xhr.open("GET", url, true);
+                        xhr.send();
+                      }, url)
+                      .catch((err) => {
+                        console.log(err);
+                      });
+                  });
                 }
-                console.log("fetching url: ", url, " from css file");
-                this._page.evaluate((url) => {
-                  var xhr = new XMLHttpRequest();
-                  xhr.open("GET", url, true);
-                  xhr.send();
-                }, url);
-              });
-            }
-          } else if (response.request().resourceType() == "document") {
-            var html = await response.text();
-            // re = /https?:\S*\.(svg|png|jpg|jpeg)\S*/gi;
-            // var re = /(http| src="\/\/)s?:?\S*\.(svg|png)\S*/gi;
-            var re = /(http| src="\/\/)s?:?\S*\.(svg|png|jpg|jpeg)[^\s>]*/gi;
-            urls = html.match(re);
-            if (urls) {
-              urls.forEach((url) => {
-                url = url.replace(/\\/g, "");
-                if (url.includes("src=")) {
-                  url = url.replace("src=", "");
+              } else if (response.request().resourceType() == "document") {
+                var html = await response.text();
+                // re = /https?:\S*\.(svg|png|jpg|jpeg)\S*/gi;
+                // var re = /(http| src="\/\/)s?:?\S*\.(svg|png)\S*/gi;
+                var re =
+                  /(http| src="\/\/)s?:?\S*\.(svg|png|jpg|jpeg)[^\s>]*/gi;
+                urls = html.match(re);
+                if (urls) {
+                  urls.forEach((url) => {
+                    url = url.replace(/\\/g, "");
+                    if (url.includes("src=")) {
+                      url = url.replace("src=", "");
+                    }
+                    console.log("fetching url: ", url, " from html file");
+                    this._page
+                      .evaluate((url) => {
+                        var xhr = new XMLHttpRequest();
+                        xhr.open("GET", url, true);
+                        xhr.send();
+                      }, url)
+                      .catch((err) => {
+                        console.log(err);
+                      });
+                  });
                 }
-                console.log("fetching url: ", url, " from html file");
-                this._page.evaluate((url) => {
-                  var xhr = new XMLHttpRequest();
-                  xhr.open("GET", url, true);
-                  xhr.send();
-                }, url);
-              });
+              }
+            } catch (err) {
+              console.log("error: ", err);
             }
           }
         });
