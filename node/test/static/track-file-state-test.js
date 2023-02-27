@@ -197,8 +197,8 @@ describe("Data provenance testing", function () {
   describe("Data provenance 1", function () {
     it("simple data provenance", function () {
       const PREFIX = "tracer";
-      var input = `function i(){var a,b,c;a = b + c;}`;
-      var expected = `function i(){var a,b,c;a=__tracer__.dataProv(b+c,a,[b,c]);}`;
+      var input = `function i(){var a,b,c;a -= b + c;}`;
+      var expected = `function i(){var a,b,c;a-=__tracer__.dataProv(b+c,[b,c]);}`;
       var output = stateTracker.extractRelevantState(input, {
         PREFIX,
         provenance: true,

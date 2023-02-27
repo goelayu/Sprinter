@@ -21,3 +21,4 @@ go/pkg
 go/src
 **/node_modules
 !*list.txt
+!node/test
