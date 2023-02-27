@@ -303,7 +303,7 @@ class PageClient {
               if (response.request().resourceType() === "stylesheet") {
                 var css = await response.text();
                 // var re = /__injecturl: \S*/g;
-                var re = /url\(\S*\)/g;
+                var re = /url\([^\s\)]*\)/gm;
                 var urls = css.match(re);
                 if (urls) {
                   urls.forEach((url) => {
@@ -334,6 +334,7 @@ class PageClient {
                 if (urls) {
                   urls.forEach((url) => {
                     url = url.replace(/\\/g, "");
+                    url = url.replace(/"/g, "");
                     if (url.includes("src=")) {
                       url = url.replace("src=", "");
                     }
