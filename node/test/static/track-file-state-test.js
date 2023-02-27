@@ -160,9 +160,14 @@ describe("Closure syntax testing", function () {
       const PREFIX = "tracer";
       var input = `function outer(){var l=3; function inner(){l=4; return l;}}`;
       var expected = `function outer(){var l=3;function inner(){
-var __closure1={l,set_l:function(val){l=val;}};
-var __closureProxy1=__tracer__.createLogger(__closure1,'closure1');__closureProxy1.l=4;return __closureProxy1.l;}}`;
-      var output = stateTracker.extractRelevantState(input, { PREFIX });
+var __closure1={l,set_l:function(val){l=val;},
+get_l:function(){return l;}};
+var __closureProxy1=__tracer__.createLogger(__closure1,'closuretest_1');__closureProxy1.l=4;return __closureProxy1.l;}}`;
+      var output = stateTracker.extractRelevantState(input, {
+        PREFIX,
+        closureOn: true,
+        name: "test",
+      });
       assert.equal(output, expected);
     });
   });

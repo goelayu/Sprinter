@@ -84,7 +84,7 @@ AZPORT=`shuf -i 8000-16000 -n 1`
 (cd $AZDIR; GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port $AZPORT &> $rundir/output/az.log ) &
 # azpid=$!
 
-{ time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $2}' | grep sanrio ) -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT ; } &> $LOGDIR/$LOGFILE.log
+{ time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $2}' | grep koreus | grep 2021 | grep 'm\=3' ) -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT ; } &> $LOGDIR/$LOGFILE.log
 
 # kill the resource usage scripts
 echo "Sending ctrl-c to the monitoring tools" $sysupid

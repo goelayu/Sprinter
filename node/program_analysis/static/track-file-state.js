@@ -244,11 +244,12 @@ var extractRelevantState = function (input, opts) {
       decltomemExpr(path, PREFIX);
     },
     Identifier(path) {
+      var clScope;
       if (!isTrackableIdentifier(path)) return;
       if (isGlobalIdentifier(path, globalScope)) {
         rewriteGlobal(path, PREFIX);
-      } else if ((isClosureIdentifier(path), closureOn)) {
-        var clScope = isClosureIdentifier(path, closureOn);
+      } else if ((clScope = isClosureIdentifier(path, closureOn))) {
+        // var clScope = isClosureIdentifier(path, closureOn);
         closureList.push(`'closure${sn}_${clScope.uid}'`);
         var fnScope = path.scope.getFunctionParent();
         if (!fnScope)
@@ -335,7 +336,6 @@ var extractRelevantState = function (input, opts) {
       exit(path) {
         if (path.node.type == "ClassMethod") return;
         if (!closureScopes[path.scope.uid]) return;
-        if (!closureOn) return;
 
         var uid = path.scope.uid;
         var scopes = closureScopes[path.scope.uid];
