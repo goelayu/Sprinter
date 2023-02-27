@@ -109,10 +109,11 @@
     }
 
     dataProv(ret, ids) {
-      if (ret === undefined) return ret;
+      if (ret == undefined) return ret;
       if (ids && ids.length == 0) return ret;
       if (typeof ret === "string") this.provenanceData.s[ret] = ids;
-      else this.provenanceData.o.set(ret, ids);
+      else if (typeof ret == "object" || typeof ret == "function")
+        this.provenanceData.o.set(ret, ids);
 
       return ret;
     }

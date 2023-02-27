@@ -45,7 +45,7 @@ var instrumentJS = function (js) {
     PREFIX,
     name,
     addStack,
-    provenance: false,
+    provenance: true,
   });
   return output;
 };

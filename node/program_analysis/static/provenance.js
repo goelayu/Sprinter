@@ -14,7 +14,7 @@ var provenanceInject = function (path, ids, generate) {
 
   var newCode = `${generate(path.node.left).code} ${
     path.node.operator
-  } __tracer__.dataProv(${generate(path.node.right).code}, [${ids
+  } __tracer__.dataProv((${generate(path.node.right).code}), [${ids
     .map((id) => id.toString())
     .join(",")}])`;
 

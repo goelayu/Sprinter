@@ -260,7 +260,17 @@ var extractRelevantState = function (input, opts) {
         rewriteClosure(path, `__closureProxy${clScope.uid}`);
       }
       if (provenance) {
-        var ae = path.findParent((p) => p.isAssignmentExpression());
+        var ae = false;
+        var parent = path.parentPath;
+        while (parent && !parent.isFunction()) {
+          if (parent.isAssignmentExpression()) {
+            ae = parent;
+            break;
+          }
+          parent = parent.parentPath;
+        }
+        // var ae = path.findParent((p) => p.isAssignmentExpression());
+        // var fn = path.findParent((p) => p.isFunction());
         if (ae) {
           var ids = AEToId.get(ae);
           if (!ids) ids = [];
