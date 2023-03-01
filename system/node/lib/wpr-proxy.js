@@ -27,7 +27,7 @@ class Proxy {
   }
 
   start() {
-    var cmd = `GOGC=off GOROOT=${GOROOT} go run src/wpr.go ${this.mode}\
+    var cmd = `GOROOT=${GOROOT} go run src/wpr.go ${this.mode}\
     --http_port ${this.http_port} --https_port ${this.https_port}\
     --az_port ${this.az_port}\
     ${this.caching ? "--caching" : ""} ${this.dataOutput}`;

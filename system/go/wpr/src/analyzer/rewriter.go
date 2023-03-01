@@ -73,7 +73,7 @@ func extractBody(body string, encoding string) string {
 
 func invokeNode(body string, t string, name string, caching bool) ([]byte, error) {
 
-	SCRIPTPATH := "/run/user/99542426/goelayu/node/program_analysis/instrument.js"
+	SCRIPTPATH := "/run/user/99542426/goelayu/panode/program_analysis/instrument.js"
 	tmpdir := "/run/user/99542426/goelayu/tempdir/"
 
 	// store body in a temp file

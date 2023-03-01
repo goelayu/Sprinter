@@ -7,15 +7,15 @@
 # Example: ./cachestats.sh ../data/output/system/opt/
 # outputdir: directory containing the output of the crawler
 
-grep -inr 'all reads satisfied' $1 | grep 'console.json' | wc -l > h &
-grep -inr "reads not satisfied" $1 | grep 'console.json' | wc -l > m &
-grep -inr "Error in evalReads" $1 | grep 'console.json' | wc -l > e &
+grep -inr 'all reads satisfied' $1 | grep -v 'payload.json' | grep value > h &
+grep -inr "reads not satisfied" $1 | grep -v 'payload.json' | grep value > m &
+grep -inr "Error in evalReads" $1 | grep -v 'payload.json' | grep value > e &
 
 wait
 
-hits=`cat h`
-misses=`cat m`
-errors=`cat e`
+hits=`cat h | wc -l`
+misses=`cat m | wc -l`
+errors=`cat e | wc -l`
 
 rm h m e
 

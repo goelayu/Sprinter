@@ -218,14 +218,12 @@ class PageClient {
       }
 
       if (this._options.userAgent) {
-        await this._page.setUserAgent(this._options.userAgent);
-        this._options.verbose &&
-          console.log("User agent set to: ", this._options.userAgent);
-      } else {
-        // add info about research project
         await this._page.setUserAgent(
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36 -- Crawls as part of research project: https://webresearch.eecs.umich.edu/jawa/ "
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36 Crawls for Research project: https://webresearch.eecs.umich.edu/jawa/ "
         );
+        // await this._page.setUserAgent(this._options.userAgent);
+        // this._options.verbose &&
+        //   console.log("User agent set to: ", this._options.userAgent);
       }
 
       if (this._options.enableNetwork) {

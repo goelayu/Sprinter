@@ -119,7 +119,7 @@ var genBrowserArgs = (proxies) => {
   // Initialize the proxies if flag enabled
   var proxies = [],
     opts = {
-      concurrency: BrowserPageConcurrency,
+      concurrency: Cluster.CONCURRENCY_BROWSER,
       maxConcurrency: program.concurrency,
       monitor: program.monitor,
       timeout: program.testing ? 100000000 : program.timeout * 1000,

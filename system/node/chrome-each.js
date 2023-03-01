@@ -161,7 +161,7 @@ async function launch() {
 
   var pclient = new PageClient(page, cdp, {
     logId: pa,
-    url: data.url,
+    url: program.url,
     enableNetwork: program.network,
     enableConsole: program.logs,
     enableJSProfile: program.jsProfile,
@@ -169,7 +169,7 @@ async function launch() {
     enableScreenshot: program.screenshot,
     enablePayload: program.payload,
     userAgent: program.userAgent,
-    outputDir: outputDir,
+    outputDir: program.output,
     verbose: false,
     logTime: true,
     emulateCPU: program.emulateCPU,
