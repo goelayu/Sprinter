@@ -103,7 +103,7 @@ var CompareSites = function () {
         engineSet = true;
       }
       var missres = compareFidelity(bnet, onet, ENGINE);
-      console.log(p, missres[0].length, missres[1].length);
+      console.log(p, bnet.length, missres[0].length, missres[1].length);
       summarynet(bnet, bstore);
       summarynet(onet, ostore);
     } catch (e) {
