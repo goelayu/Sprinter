@@ -16,6 +16,14 @@
 # ensure ulimit is large enough
 # sudo ulimit -n 100000
 
+trap ctrl_c SIGINT
+
+function ctrl_c() {
+    echo "** Trapped CTRL-C"
+    echo "** Stopping all processes"
+    ps aux | grep sys-usage-track | awk '{print $2}' | xargs kill -9
+}
+
 echo "number of arguments: $#"
 echo "arguments: $@"
 if [ $# -ne 6 ]; then
@@ -99,7 +107,7 @@ AZPORT=`shuf -i 8000-16000 -n 1`
 
 create_crawl_instances(){
     ncrawlers=$1
-    PERSCRIPTCRAWLERS=5
+    PERSCRIPTCRAWLERS=10
     nscripts=$((ncrawlers / PERSCRIPTCRAWLERS))
     echo "Creating $nscripts scripts"
     first=0

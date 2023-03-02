@@ -100,8 +100,7 @@ func requestIsJSHTML(resp *http.Response) bool {
 	return (resp.ContentLength == -1 || resp.ContentLength > 500) &&
 		resp.StatusCode == 200 &&
 		(strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "html") ||
-			strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "javascript") ||
-			strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "css"))
+			strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "javascript"))
 }
 
 func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
