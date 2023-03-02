@@ -192,13 +192,16 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		body, ce, err := CompressBody(clientAE, body)
-		if err != nil {
-			logf("error recompressing response body: %v", err)
-			w.WriteHeader(http.StatusNotFound)
-			return
+		if clientAE != "identity" {
+			var ce string
+			body, ce, err = CompressBody(clientAE, body)
+			if err != nil {
+				logf("error recompressing response body: %v", err)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			storedResp.Header.Set("Content-Encoding", ce)
 		}
-		storedResp.Header.Set("Content-Encoding", ce)
 		storedResp.Body = ioutil.NopCloser(bytes.NewReader(body))
 		// ContentLength has changed, so update the outgoing headers accordingly.
 		if storedResp.ContentLength >= 0 {

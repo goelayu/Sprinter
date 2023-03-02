@@ -5,7 +5,23 @@
 
 # Usage: ./wget_fidelity.sh <pages> <recordeddir> <outputdir> <nCrawlers>
 
+cleanup(){
+    ps aux | grep 'go run' | awk '{print $2}' | xargs kill -9
+    ps aux | grep 'exe/wpr' | awk '{print $2}' | xargs kill -9
+    rm $sitesfile
+    ps aux | grep $AZPORT | awk '{print $2}' | xargs kill -9
+}
+
+trap ctrl_c SIGINT
+
+function ctrl_c() {
+    echo "** Trapped CTRL-C"
+    echo "** Stopping all processes"
+    cleanup
+}
+
 GOSYSDIR="/vault-swift/goelayu/balanced-crawler/system/go/wpr";
+GOROOT="/w/goelayu/uluyol-sigcomm/go"
 
 start_proxy(){
     DUMMYDATA="/vault-swift/goelayu/balanced-crawler/data/record/wpr/test/dummy.wprgo"
@@ -32,15 +48,19 @@ start_az_server(){
 }
 
 get_wget_cmd(){
-  # $1 -> outputdir
-  # $2 -> http port
-  # $3 -> site
-  port=$2
-  wgetcmd="wget -q -P$1 --timeout 30 --no-verbose --force-directories --span-hosts \
+    # $1 -> outputdir
+    # $2 -> http port
+    # $3 -> site
+    # #-S --header='accept-encoding: gzip' \
+    port=$2
+    mkdir -p $1
+    wgetcmd="wget -q -P$1 --no-check-certificate --no-verbose --no-hsts --timeout 30 \
+    --force-directories --span-hosts \
+    -t 1 \
     --no-parent -e robots=off  \
     -e use_proxy=on \
-    -e http_proxy=$port \
-    -e https_proxy=$((port+1000) \
+    -e http_proxy=127.0.0.1:$port \
+    -e https_proxy=127.0.0.1:$((port+1000)) \
     --user-agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36' \
     --warc-file=$1/warc \
     --warc-cdx=on \
@@ -50,18 +70,41 @@ get_wget_cmd(){
 
 
 AZPORT=1234
-start_az_server $4 $AZPORT $3
+start_az_server $AZPORT $3
 
-start_proxy $2 $4 $AZPORT $3
+start_proxy $4 $AZPORT $3
 
-allcmdfile=$(mktemp)
+sleep 2
 
+sitesfile=$(mktemp)
 
-for i in $(seq 1 $2); do
+cat $1 | awk '{print $2}' > $sitesfile
+
+first=0
+for i in $(seq 1 $4); do
     http=$((8000+i))
     https=$((9000+i))
-    while read site; do
-        wgetcmd=$(get_wget_cmd $3 $http $site)
-        echo $wgetcmd >> $allcmdfile
-    done<$1
+    totalurls=`cat $sitesfile | wc -l`
+    perinst=`echo $totalurls / $4 | bc`
+    first=$((first+perinst))
+    ( cat $sitesfile | head -n $first | tail -n $perinst | while read site; do
+            sitename=$(echo $site | sanitize)
+            echo $2/$sitename.wprgo > $3/$http
+            get_wget_cmd $3/$sitename $http $site
+            echo "Running cmd $wgetcmd"
+            eval $wgetcmd
+    done )
+    # pid=$!
+    # pids[${i}]=${pid}
 done
+
+# wait for all wget instances to finish
+# for pid in ${pids[*]}; do
+#     wait $pid
+# done
+
+#clean up
+# sleep 20
+
+cleanup
+
