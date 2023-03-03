@@ -51,11 +51,11 @@ args=$5
 
 urlfile=$tmpdir/urls.txt
 infile=$tmpdir/infile.txt
+
+cat $sites_file > $infile
+
 create_url_file(){
     rm -f $urlfile
-    
-    cat $sites_file > $infile
-    
     for i in $(seq 1 $NPAGES); do
         while read site; do
             p=`sed -n ${i}p $pages_dst/${site}.txt`;
@@ -64,12 +64,26 @@ create_url_file(){
     done
 }
 
-if [[ "$URLS" == "1" ]]; then
-    echo "Creating the urls file"
-    create_url_file
-else
-    echo "Not creating the urls file"
-fi
+create_url_dist(){
+    pagesfile=$1
+    ncrawlers=$2
+    NPAGES=`cat $pagesfile | wc -l`
+    
+    disturldir=$tmpdir/dist
+    mkdir -p $disturldir
+    
+    pagepercrawl=$((NPAGES / ncrawlers))
+    t=$pagepercrawl
+    h=0
+    for i in $(seq 1 $ncrawlers); do
+        h=$((h + pagepercrawl))
+        urlfile=$disturldir/urls-$i.txt
+        rm -f $urlfile
+        cat $pagesfile | head -n $h | tail -n $t | while read site; do
+            cat $pages_dst/${site}.txt >> $urlfile
+        done
+    done
+}
 
 if [[ "$COPY" == "1" ]]; then
     echo "Copying wprdata"
@@ -105,9 +119,9 @@ AZPORT=`shuf -i 8000-16000 -n 1`
 (cd $AZDIR; GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port $AZPORT &> $rundir/output/az.log ) &
 # azpid=$!
 
-create_crawl_instances(){
+create_crawl_instances_baseline(){
     ncrawlers=$1
-    PERSCRIPTCRAWLERS=10
+    PERSCRIPTCRAWLERS=5
     nscripts=$((ncrawlers / PERSCRIPTCRAWLERS))
     echo "Creating $nscripts scripts"
     first=0
@@ -128,8 +142,37 @@ create_crawl_instances(){
     echo "All scripts finished"
 }
 
-echo "Starting the distributed crawling script"
-create_crawl_instances $6
+create_crawl_instances_opt(){
+    ncrawlers=$1
+    PERSCRIPTCRAWLERS=1
+    for i in $(seq 1 $ncrawlers); do
+        [ ! -f $tmpdir/dist/urls-$i.txt ] && echo "File $tmpdir/dist/urls-$i.txt does not exist" && exit 1
+        
+        urlfile=$tmpdir/dist/urls-$i.txt
+        echo "Running cmd: node $CHROMESCRIPT -u $urlfile -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS &> $LOGDIR/$LOGFILE-$i.log "
+        { time node $CHROMESCRIPT -u $urlfile -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $LOGDIR/$LOGFILE-$i.log &
+        pids[${i}]=$!
+    done
+    echo "Waiting for all scripts to finish"
+    for pid in ${pids[*]}; do
+        wait $pid
+    done
+}
+
+if [[ "$RUN" == "baseline" ]]; then
+    echo "Creating the default url file"
+    create_url_file
+    echo "Starting the baseline crawling script"
+    create_crawl_instances_baseline $6
+    elif [[ "$RUN" == "opt" ]]; then
+    echo "Creating the optimized url file"
+    create_url_dist $infile $6
+    echo "Starting the optimized crawling script"
+    create_crawl_instances_opt $6
+else
+    echo "Invalid run type"
+fi
+
 
 # kill the resource usage scripts
 echo "Sending ctrl-c to the monitoring tools" $sysupid
