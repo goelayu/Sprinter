@@ -536,7 +536,7 @@ func (r *RootCACommand) Remove(c *cli.Context) error {
 }
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
 
 	progName := filepath.Base(os.Args[0])
 

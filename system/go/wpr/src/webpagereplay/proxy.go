@@ -172,6 +172,18 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		}
 	}
 
+	// dummy code to mimic the static wget based implementation
+	// keep this commented
+	// if strings.Contains(strings.ToLower(storedResp.Header.Get("Content-Type")), "javascript") {
+	// 	body := []byte("console.log('hello world');")
+	// 	storedResp.Body = io.NopCloser(bytes.NewReader(body))
+	// 	storedResp.ContentLength = int64(len(body))
+	// 	storedResp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+	// 	if storedResp.Header.Get("Content-Encoding") != "" {
+	// 		storedResp.Header.Del("Content-Encoding")
+	// 	}
+	// }
+
 	defer storedResp.Body.Close()
 
 	// Check if the stored Content-Encoding matches an encoding allowed by the client.

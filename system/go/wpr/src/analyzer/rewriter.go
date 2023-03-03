@@ -17,12 +17,6 @@ import (
 
 var FILEID uint64 = 0
 
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
-}
-
 func uncompressBody(body string, t string) string {
 
 	var zreader io.Reader
@@ -79,14 +73,14 @@ func invokeNode(body string, t string, name string, caching bool) ([]byte, error
 	// store body in a temp file
 	tempFile, err := os.CreateTemp(tmpdir, "insttmp")
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	defer os.Remove(tempFile.Name())
 
 	_, err = tempFile.WriteString(body)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	cmdString := fmt.Sprintf("node %s -i %s -t '%s' -n '%s' --analyzing %t", SCRIPTPATH, tempFile.Name(), t, name, caching)
