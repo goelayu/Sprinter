@@ -122,7 +122,7 @@ var genBrowserArgs = (proxies) => {
       concurrency: Cluster.CONCURRENCY_BROWSER,
       maxConcurrency: program.concurrency,
       monitor: program.monitor,
-      timeout: program.testing ? 100000000 : program.timeout * 1000,
+      timeout: program.testing ? 100000000 : program.timeout * 1000 * 10,
     },
     azClient;
 

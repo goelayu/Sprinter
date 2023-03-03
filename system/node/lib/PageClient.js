@@ -318,7 +318,7 @@ class PageClient {
                         xhr.send();
                       }, url)
                       .catch((err) => {
-                        console.log(err);
+                        console.log(`Handled error: ${err}`);
                       });
                   });
                 }
@@ -344,13 +344,13 @@ class PageClient {
                         xhr.send();
                       }, url)
                       .catch((err) => {
-                        console.log(err);
+                        console.log(`handled error: ${err}`);
                       });
                   });
                 }
               }
             } catch (err) {
-              console.log("error: ", err);
+              console.log("handled error: ", err);
             }
           }
         });
@@ -363,7 +363,7 @@ class PageClient {
           waitUntill: "networkidle2",
         })
         .catch((err) => {
-          console.log(err);
+          console.log(`Page goto error: ${err}`);
           this._options.closeBrowserOnError && this._page.browser().close();
         });
 
@@ -413,7 +413,7 @@ class PageClient {
 
       if (this._options.enableTracing) {
         await this._page.tracing.stop().catch((err) => {
-          console.log(err);
+          console.log(`Error while stopping trace: ${err}`);
         });
       }
 
