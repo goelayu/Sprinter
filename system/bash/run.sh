@@ -36,18 +36,20 @@ if [ $# -ne 6 ]; then
     exit 1
 fi
 
-NPAGES=10
+NPAGES=100
 CHROMESCRIPT=../node/chrome-distributed.js
 WPRDATA=/w/goelayu/bcrawling/wprdata
 LOGDIR=../../logs/eval
-tmpdir=/run/user/99542426/goelayu/tmp
 mkdir -p $tmpdir
 
 sites_file=$1
 pages_dst=$2
-rundir=$3
+rundir=$3/$LOGFILE
+tmpdir=$rundir/tmp
 wprpath=$4
 args=$5
+
+mkdir -p $rundir
 
 urlfile=$tmpdir/urls.txt
 infile=$tmpdir/infile.txt
@@ -116,7 +118,7 @@ echo "Starting the az server"
 GOROOT="/w/goelayu/uluyol-sigcomm/go";
 AZDIR=/vault-swift/goelayu/balanced-crawler/system/go/wpr
 AZPORT=`shuf -i 8000-16000 -n 1`
-(cd $AZDIR; GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port $AZPORT &> $rundir/output/az.log ) &
+(cd $AZDIR; { time GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port $AZPORT ; } &> $rundir/output/az.log ) &
 # azpid=$!
 
 create_crawl_instances_baseline(){
@@ -160,8 +162,12 @@ create_crawl_instances_opt(){
 }
 
 if [[ "$RUN" == "baseline" ]]; then
-    echo "Creating the default url file"
-    create_url_file
+    if [[ "$URLS" == 1 ]]; then
+        echo "Creating the default url file"
+        create_url_file
+    else
+        echo "Skipping url file creation"
+    fi
     echo "Starting the baseline crawling script"
     create_crawl_instances_baseline $6
     elif [[ "$RUN" == "opt" ]]; then
@@ -178,7 +184,7 @@ fi
 echo "Sending ctrl-c to the monitoring tools" $sysupid
 kill -SIGUSR1 $sysupid;
 # kill all usage scripts
-ps aux | grep usage | grep -v grep | awk '{print $2}' | xargs kill -9
+ps aux | grep sys-usage-track | grep -v grep | awk '{print $2}' | xargs kill -9
 
 # kill the az server
 ps aux | grep $AZPORT | grep -v grep | awk '{print $2}' | xargs kill -SIGINT
