@@ -118,6 +118,7 @@ var genBrowserArgs = (proxies) => {
 (async () => {
   // Initialize the proxies if flag enabled
   var proxies = [],
+    prefetchCache = {},
     opts = {
       concurrency: Cluster.CONCURRENCY_BROWSER,
       maxConcurrency: program.concurrency,
@@ -214,7 +215,8 @@ var genBrowserArgs = (proxies) => {
       azClient: azClient,
       testing: program.testing,
       timeout: program.timeout,
-      staticFetch: program.enableOPT,
+      staticFetch: true,
+      prefetchCache: prefetchCache,
     });
 
     await pclient.start().catch((err) => {

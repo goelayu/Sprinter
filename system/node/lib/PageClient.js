@@ -203,6 +203,15 @@ class PageClient {
       // always turn CDP on
       await initCDP(this._cdp);
 
+      var parsedUrl = URL.parse(this._options.url),
+        prefetchCache = this._options.prefetchCache;
+
+      var getPrefetchURL = function (url) {
+        if (url.indexOf("http") == 0 || url.indexOf("//") == 0) return url;
+        else if (url.indexOf("/") == 0) return parsedUrl.host + url;
+        else return parsedUrl.host + parsedUrl.pathname + url;
+      };
+
       // await this._page.setCacheEnabled(false);
 
       // create output directory recursively if it doesn't exist already
@@ -298,7 +307,14 @@ class PageClient {
             !(status === 204) // not a no-content response
           ) {
             try {
-              if (response.request().resourceType() === "stylesheet") {
+              var request = response.request();
+              if (request.resourceType() === "stylesheet") {
+                var url = request.url(),
+                  cacheUrl;
+                var cacheUrl = getPrefetchURL(url);
+                if (prefetchCache[cacheUrl]) {
+                  return;
+                } else prefetchCache[cacheUrl] = true;
                 var css = await response.text();
                 // var re = /__injecturl: \S*/g;
                 var re = /url\([^\s\)]*\)/gm;
@@ -311,6 +327,10 @@ class PageClient {
                       url = url.substring(0, url.length - 1);
                     }
                     console.log("fetching url: ", url, " from css file");
+                    var cacheUrl = getPrefetchURL(url);
+                    if (prefetchCache[cacheUrl]) {
+                      return;
+                    } else prefetchCache[cacheUrl] = true;
                     this._page
                       .evaluate((url) => {
                         var xhr = new XMLHttpRequest();
@@ -322,7 +342,13 @@ class PageClient {
                       });
                   });
                 }
-              } else if (response.request().resourceType() == "document") {
+              } else if (request.resourceType() == "document") {
+                var url = request.url(),
+                  cacheUrl;
+                var cacheUrl = getPrefetchURL(url);
+                if (prefetchCache[cacheUrl]) {
+                  return;
+                } else prefetchCache[cacheUrl] = true;
                 var html = await response.text();
                 // re = /https?:\S*\.(svg|png|jpg|jpeg)\S*/gi;
                 // var re = /(http| src="\/\/)s?:?\S*\.(svg|png)\S*/gi;
@@ -336,6 +362,10 @@ class PageClient {
                     if (url.includes("src=")) {
                       url = url.replace("src=", "");
                     }
+                    var cacheUrl = getPrefetchURL(url);
+                    if (prefetchCache[cacheUrl]) {
+                      return;
+                    } else prefetchCache[cacheUrl] = true;
                     console.log("fetching url: ", url, " from html file");
                     this._page
                       .evaluate((url) => {
