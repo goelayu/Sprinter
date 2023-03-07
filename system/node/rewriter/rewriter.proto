@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+
+package rewriter;
+
+service Rewriter {
+  rpc Rewrite(RewriteRequest) returns (RewriteResponse) {}
+}
+
+message RewriteRequest {
+  string content = 1;
+  string type = 2;
+  string name = 3;
+}
+
+message RewriteResponse {
+  string content = 1;
+}
