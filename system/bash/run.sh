@@ -36,23 +36,22 @@ if [ $# -ne 6 ]; then
     exit 1
 fi
 
-NPAGES=100
+NPAGES=50
 CHROMESCRIPT=../node/chrome-distributed.js
 WPRDATA=/w/goelayu/bcrawling/wprdata
-LOGDIR=../../logs/eval
-mkdir -p $tmpdir
 
 sites_file=$1
 pages_dst=$2
 rundir=$3/$LOGFILE
-tmpdir=$rundir/tmp
+urldir=$rundir/urls/
+logdir=$rundir/log
 wprpath=$4
 args=$5
 
-mkdir -p $rundir
+mkdir -p $rundir $urldir $logdir
 
-urlfile=$tmpdir/urls.txt
-infile=$tmpdir/infile.txt
+urlfile=$urldir/urls.txt
+infile=$urldir/infile.txt
 
 cat $sites_file > $infile
 
@@ -64,6 +63,8 @@ create_url_file(){
             echo $site $p >> $urlfile
         done < $infile
     done
+    # shuffle urlfile
+    shuf $urlfile | sponge $urlfile
 }
 
 create_url_dist(){
@@ -71,7 +72,7 @@ create_url_dist(){
     ncrawlers=$2
     NPAGES=`cat $pagesfile | wc -l`
     
-    disturldir=$tmpdir/dist
+    disturldir=$urldir/dist
     mkdir -p $disturldir
     
     pagepercrawl=$((NPAGES / ncrawlers))
@@ -134,7 +135,7 @@ create_crawl_instances_baseline(){
         echo "Running cmd: node $CHROMESCRIPT -u <(cat $urlfile | awk '{print \$2}' | head -n $first | tail -n $scripturls)\
         -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS"
         { time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $2}' | head -n $first | tail -n $scripturls) -o $rundir/output \
-        --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $LOGDIR/$LOGFILE-$i.log &
+        --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $logdir/$LOGFILE-$i.log &
         pids[${i}]=$!
     done
     echo "Waiting for all scripts to finish"
@@ -148,11 +149,11 @@ create_crawl_instances_opt(){
     ncrawlers=$1
     PERSCRIPTCRAWLERS=1
     for i in $(seq 1 $ncrawlers); do
-        [ ! -f $tmpdir/dist/urls-$i.txt ] && echo "File $tmpdir/dist/urls-$i.txt does not exist" && exit 1
+        [ ! -f $urldir/dist/urls-$i.txt ] && echo "File $urldir/dist/urls-$i.txt does not exist" && exit 1
         
-        urlfile=$tmpdir/dist/urls-$i.txt
-        echo "Running cmd: node $CHROMESCRIPT -u $urlfile -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS &> $LOGDIR/$LOGFILE-$i.log "
-        { time node $CHROMESCRIPT -u $urlfile -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $LOGDIR/$LOGFILE-$i.log &
+        urlfile=$urldir/dist/urls-$i.txt
+        echo "Running cmd: node $CHROMESCRIPT -u $urlfile -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS &> $logdir/$LOGFILE-$i.log "
+        { time node $CHROMESCRIPT -u $urlfile -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $logdir/$LOGFILE-$i.log &
         pids[${i}]=$!
     done
     echo "Waiting for all scripts to finish"
