@@ -5,6 +5,15 @@ package rewriter;
 
 service Rewriter {
   rpc Rewrite(RewriteRequest) returns (RewriteResponse) {}
+  rpc Test(TestRequest) returns (TestResponse) {}
+}
+
+message TestRequest {
+  string content = 1;
+}
+
+message TestResponse {
+  string content = 1;
 }
 
 message RewriteRequest {

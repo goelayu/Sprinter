@@ -31,8 +31,6 @@ function IsJsonString(str) {
 }
 
 var instrumentJS = function (js, name) {
-  console.log(`instrumenting js: ${js.length} bytes`);
-  // if (program.analyzing === "false") return js;
   if (IsJsonString(js)) return js;
   const PREFIX = "window.__proxy__";
   var addStack = true;
@@ -76,28 +74,37 @@ var rewrite = function (call, callback) {
   var input = call.request.content;
   var type = call.request.type;
   var name = call.request.name;
-  fs.writeFileSync("tmp", input);
   var output;
+  console.log(`input file: ${input.length} bytes`);
   if (type.includes("javascript")) output = instrumentJS(input, name);
   else output = instrumentHTML(input);
-  console.log(`rewriting ${type} file: ${output.length} bytes`);
+  console.log(`output file: ${output.length} bytes`);
   callback(null, { content: output });
+};
+
+var _test = function () {
+  for (var i = 1; i < 1000000000; i++) {
+    var x = i * i;
+  }
+};
+
+var test = function (call, callback) {
+  console.log("received test");
+  setTimeout(() => {
+    _test();
+    callback(null, { content: "test" });
+  }, 0);
 };
 
 var getServer = function () {
   var server = new grpc.Server();
   server.addService(rewriter.Rewriter.service, {
     rewrite: rewrite,
+    test: test,
   });
   return server;
 };
 
-// var input = fs.readFileSync(
-//   "/run/user/99542426/goelayu/tempdir/insttmp1082188931",
-//   "utf-8"
-// );
-// var output = instrumentJS(input);
-// console.log(`size of output: ${output.length}`);
 var rewriterServer = getServer();
 rewriterServer.bindAsync(
   `0.0.0.0:${program.port}`,
