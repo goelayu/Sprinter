@@ -60,7 +60,9 @@ var initConsoleHandlers = function (cdp, cLogs) {
   });
 };
 
-var getFileState = async function (page, options, nLogs) {
+var getFileState = async function (page, options, nLogs, benchmark) {
+  var starttime;
+  benchmark && (starttime = Date.now());
   var state = await page.evaluate(() => {
     try {
       window.__tracer__.resolveLogData();
@@ -70,16 +72,24 @@ var getFileState = async function (page, options, nLogs) {
     }
   });
 
+  benchmark && (benchmark.state.gen += Date.now() - starttime);
+
   if (!state || state.error) return;
+
+  starttime = Date.now();
 
   console.log(`extracting javaScript state`);
   var path = `${options.outputDir}/state.json`;
 
   var newState = combStateWithURLs(state, nLogs);
 
+  benchmark && (benchmark.state.combine += Date.now() - starttime);
+  starttime = Date.now();
+
   if (options.azClient) {
     await options.azClient.storesignature(newState, options.url);
   }
+  benchmark && (benchmark.state.send += Date.now() - starttime);
   dump(newState, path);
   dump(state, path + ".old");
 };
@@ -201,7 +211,9 @@ class PageClient {
         startTime,
         domLogs = [],
         endTime,
-        responses = { raw: [], final: [] };
+        responses = { raw: [], final: [] },
+        benchmark = this._options.benchmark,
+        starttime;
 
       // always turn CDP on
       await initCDP(this._cdp);
@@ -303,6 +315,7 @@ class PageClient {
         });
 
         this._page.on("response", async (response) => {
+          benchmark && (starttime = Date.now());
           var status = response.status();
           if (
             status && // we actually have an status for the response
@@ -386,6 +399,7 @@ class PageClient {
               console.log("handled error: ", err);
             }
           }
+          benchmark && (benchmark.prefetch += Date.now() - starttime);
         });
       }
 
@@ -468,7 +482,7 @@ class PageClient {
         for (var e of entries) {
           switch (e) {
             case "state":
-              await getFileState(this._page, this._options, nLogs);
+              await getFileState(this._page, this._options, nLogs, benchmark);
               break;
           }
         }

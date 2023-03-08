@@ -125,7 +125,15 @@ var genBrowserArgs = (proxies) => {
       monitor: program.monitor,
       timeout: program.testing ? 100000000 : program.timeout * 1000 * 10,
     },
-    azClient;
+    azClient,
+    benchmark = {
+      prefetch: 0,
+      state: {
+        gen: 0,
+        combine: 0,
+        send: 0,
+      },
+    };
 
   if (program.proxy) {
     if (!program.mode) {
@@ -215,8 +223,9 @@ var genBrowserArgs = (proxies) => {
       azClient: azClient,
       testing: program.testing,
       timeout: program.timeout,
-      staticFetch: true,
+      staticFetch: program.enableOPT,
       prefetchCache: prefetchCache,
+      benchmark: benchmark,
     });
 
     await pclient.start().catch((err) => {
@@ -265,6 +274,8 @@ var genBrowserArgs = (proxies) => {
   }
   // save the crawl data
   program.store && dumpData(crawlData);
+
+  typeof benchmark != "undefined" && console.log(benchmark);
 })();
 
 function interceptData(page, crawlData) {
