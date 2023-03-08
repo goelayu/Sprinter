@@ -134,7 +134,9 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 
 	// query the analyzer server if request is JavaScript or HTML
 	if requestIsJSHTML(storedResp) {
-		requestURI := req.URL.String()
+		// requestURI := req.URL.String()
+		// URI without query string
+		requestURI := req.URL.Scheme + "://" + req.URL.Host + req.URL.Path
 		body, _ := io.ReadAll(storedResp.Body)
 
 		ce := strings.ToLower(storedResp.Header.Get("Content-Encoding"))

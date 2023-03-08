@@ -70,6 +70,8 @@ var getFileState = async function (page, options, nLogs) {
     }
   });
 
+  if (!state || state.error) return;
+
   console.log(`extracting javaScript state`);
   var path = `${options.outputDir}/state.json`;
 
@@ -117,10 +119,11 @@ var combStateWithURLs = function (state, nLogs, domLogs) {
       !n.size
     )
       continue;
-    var sKey = filenamify(n.url);
+    var urlwoquery = n.url.split("?")[0];
+    var sKey = filenamify(urlwoquery);
     var st = state[sKey];
     var ft = fetches[n.url] ? fetches[n.url].map((e) => [e, urlType[e]]) : [];
-    newState[n.url] = {
+    newState[urlwoquery] = {
       state: st ? st : [],
       fetches: ft,
     };
