@@ -36,7 +36,8 @@ if [ $# -ne 6 ]; then
     exit 1
 fi
 
-NPAGES=50
+PAGESPERSITE=100
+PERSCRIPTCRAWLERS=5
 CHROMESCRIPT=../node/chrome-distributed.js
 WPRDATA=/w/goelayu/bcrawling/wprdata
 
@@ -56,35 +57,41 @@ infile=$urldir/infile.txt
 cat $sites_file > $infile
 
 create_url_file(){
+    cat $1 > tmp
+    infile=tmp
+    urlfile=$2
     rm -f $urlfile
-    for i in $(seq 1 $NPAGES); do
+    for i in $(seq 1 $PAGESPERSITE); do
         while read site; do
             p=`sed -n ${i}p $pages_dst/${site}.txt`;
-            echo $site $p >> $urlfile
+            echo $p >> $urlfile
         done < $infile
     done
+    rm -f tmp
     # shuffle urlfile
-    shuf $urlfile | sponge $urlfile
+    # shuf $urlfile | sponge $urlfile
 }
 
 create_url_dist(){
     pagesfile=$1
     ncrawlers=$2
+    nscripts=$((ncrawlers / PERSCRIPTCRAWLERS))
     NPAGES=`cat $pagesfile | wc -l`
     
     disturldir=$urldir/dist
     mkdir -p $disturldir
     
-    pagepercrawl=$((NPAGES / ncrawlers))
-    t=$pagepercrawl
+    pageperscript=$((NPAGES / nscripts))
+    t=$pageperscript
     h=0
-    for i in $(seq 1 $ncrawlers); do
-        h=$((h + pagepercrawl))
+    for i in $(seq 1 $nscripts); do
+        h=$((h + pageperscript))
         urlfile=$disturldir/urls-$i.txt
         rm -f $urlfile
-        cat $pagesfile | head -n $h | tail -n $t | while read site; do
-            cat $pages_dst/${site}.txt >> $urlfile
-        done
+        create_url_file <(cat $pagesfile | head -n $h | tail -n $t) $urlfile;
+        #  | while read site; do
+        #     cat $pages_dst/${site}.txt | head -n $PAGESPERSITE >> $urlfile
+        # done
     done
 }
 
@@ -124,7 +131,6 @@ AZPORT=`shuf -i 8000-16000 -n 1`
 
 create_crawl_instances_baseline(){
     ncrawlers=$1
-    PERSCRIPTCRAWLERS=5
     nscripts=$((ncrawlers / PERSCRIPTCRAWLERS))
     echo "Creating $nscripts scripts"
     first=0
@@ -134,7 +140,7 @@ create_crawl_instances_baseline(){
         first=$((first + scripturls));
         echo "Running cmd: node $CHROMESCRIPT -u <(cat $urlfile | awk '{print \$2}' | head -n $first | tail -n $scripturls)\
         -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS"
-        { time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $2}' | head -n $first | tail -n $scripturls) -o $rundir/output \
+        { time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $1}' | head -n $first | tail -n $scripturls) -o $rundir/output \
         --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $logdir/$LOGFILE-$i.log &
         pids[${i}]=$!
     done
@@ -147,8 +153,8 @@ create_crawl_instances_baseline(){
 
 create_crawl_instances_opt(){
     ncrawlers=$1
-    PERSCRIPTCRAWLERS=1
-    for i in $(seq 1 $ncrawlers); do
+    nscripts=$((ncrawlers / PERSCRIPTCRAWLERS))
+    for i in $(seq 1 $nscripts); do
         [ ! -f $urldir/dist/urls-$i.txt ] && echo "File $urldir/dist/urls-$i.txt does not exist" && exit 1
         
         urlfile=$urldir/dist/urls-$i.txt
