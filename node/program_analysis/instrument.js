@@ -3,10 +3,8 @@
 
 const fs = require("fs");
 const program = require("commander");
-const stateTracker = require("./static/track-file-state.js");
 const DYNPATH =
   "/vault-swift/goelayu/balanced-crawler/node/program_analysis/dynamic/tracer.js";
-const htmlparser = require("node-html-parser");
 
 program
   .version("0.0.1")
@@ -37,6 +35,7 @@ function IsJsonString(str) {
 var instrumentJS = function (js) {
   if (program.analyzing === "false") return js;
   if (IsJsonString(js)) return js;
+  const stateTracker = require("./static/track-file-state.js");
   const PREFIX = "window.__proxy__";
   const name = program.name;
   var addStack = true;
@@ -52,6 +51,7 @@ var instrumentJS = function (js) {
 };
 
 var modifyAttr = function (html, addImgSrc) {
+  const htmlparser = require("node-html-parser");
   var root = htmlparser.parse(html);
   var scripts = root.getElementsByTagName("script");
   var images = root.getElementsByTagName("img");
