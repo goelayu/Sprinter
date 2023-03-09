@@ -21,6 +21,7 @@ import (
 	pb "wpr/src/analyzer/proto"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const errStatus = http.StatusInternalServerError
@@ -74,7 +75,7 @@ func updateDates(h http.Header, now time.Time) {
 // The proxy is listening for requests on a port that uses the given scheme (e.g., http, https).
 func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransformer, quietMode bool, caching bool, az_port int) http.Handler {
 	azaddr := "localhost:" + strconv.Itoa(az_port)
-	conn, err := grpc.Dial(azaddr, grpc.WithInsecure())
+	conn, err := grpc.Dial(azaddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	} else {
