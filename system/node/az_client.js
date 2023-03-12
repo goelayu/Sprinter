@@ -14,6 +14,7 @@ function JSONtoPB(json, url) {
       la.setType(v[0]);
       la.setRoot(v[1]);
       la.setKey(v[2]);
+      if (typeof v[3] === "object") v[3] = JSON.stringify(v[3]);
       la.setValue(v[3]);
       fa.addLines(la);
     }

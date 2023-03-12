@@ -24,10 +24,10 @@ import (
 )
 
 type CStats struct {
-	inst  int32
-	instC int32
-	sig   int32
-	sigC  int32
+	instHTML int32
+	instJS   int32
+	instC    int32
+	sig      int32
 }
 
 type Analyzer struct {
@@ -46,8 +46,10 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 		log.Printf("File %s found in cache", arg.Name)
 		switch file.Status {
 		case 1: //file instrumented
-			log.Printf("File %s already instrumented but no signature yet??", arg.Name)
-			atomic.AddInt32(&a.stats.instC, 1)
+			if strings.Contains(strings.ToLower(arg.Type), "javascript") {
+				log.Printf("File %s already instrumented but no signature yet??", arg.Name)
+				atomic.AddInt32(&a.stats.instC, 1)
+			}
 			return &pb.AzResponse{Body: file.InstBody}, nil
 		case 2: // file instrumented and signature generated
 			log.Printf("Generating signature template for file %s", arg.Name)
@@ -55,11 +57,8 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			var newbody string
 			if strings.Contains(strings.ToLower(arg.Type), "javascript") {
 				newbody, err = JSGen(file.Sig, file.Body)
-			} else if strings.Contains(strings.ToLower(arg.Type), "css") {
-				// newbody, err = CSSGen(file.Sig.Fetches)
-				return &pb.AzResponse{Body: file.Body}, nil
 			} else {
-				log.Printf("Error: sig exists but file neither js or css %s", arg.Name)
+				log.Printf("Error: sig exists but file not js %s", arg.Name)
 				return &pb.AzResponse{Body: file.Body}, nil
 			}
 			if err != nil {
@@ -76,12 +75,16 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			}
 		case 3: //file instrumented and signature template generated
 			log.Printf("File %s already instrumented and signature template exists", arg.Name)
-			atomic.AddInt32(&a.stats.sigC, 1)
+			atomic.AddInt32(&a.stats.sig, 1)
 			return &pb.AzResponse{Body: file.SigBody}, nil
 		}
 	} else {
 		log.Printf("File %s not found in cache\n", arg.Name)
-		atomic.AddInt32(&a.stats.inst, 1)
+		if strings.Contains(arg.Type, "javascript") {
+			atomic.AddInt32(&a.stats.instJS, 1)
+		} else if strings.Contains(arg.Type, "html") {
+			atomic.AddInt32(&a.stats.instHTML, 1)
+		}
 		newbody, err := Rewrite(arg.Name, arg.Body, arg.Type, arg.Encoding, arg.Caching)
 		if err != nil {
 			log.Printf("Error rewriting file %s", arg.Name)
@@ -174,10 +177,10 @@ func createServer(c *cli.Context) {
 		signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigchan
 		log.Printf("Ctrl-C received, exiting...")
-		log.Printf("Total files instrumented: %d", az.stats.inst)
+		log.Printf("Total HTML files instrumented: %d", az.stats.instHTML)
+		log.Printf("Total JS files instrumented: %d", az.stats.instJS)
 		log.Printf("Total files using instrumented cache: %d", az.stats.instC)
 		log.Printf("Total files with signature generated: %d", az.stats.sig)
-		log.Printf("Total files using signature cache: %d", az.stats.sigC)
 		// stop server
 		grpcServer.Stop()
 		os.Exit(0)
