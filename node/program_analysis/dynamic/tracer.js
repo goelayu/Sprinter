@@ -6,6 +6,7 @@
 // unless explicitly specified using the window object
 (function () {
   window.__stackHead__ = null;
+  var tracking = true;
 
   class logger {
     constructor(rootObj, rootName, heap) {
@@ -42,6 +43,20 @@
         o: new WeakMap(),
         s: {},
       };
+      this.cacheStats = {
+        hits: 0,
+        misses: 0,
+        errors: 0,
+        firsts: 0,
+      };
+    }
+
+    getCacheStats() {
+      return this.cacheStats;
+    }
+
+    updateCacheStats(prop) {
+      this.cacheStats[prop] += 1;
     }
 
     removeProxy(obj) {
@@ -80,6 +95,7 @@
         }
       }
       this.finalTraceData = res;
+      tracking = false;
       return res;
     }
 
@@ -191,11 +207,16 @@
   var proxyWrapper = function (heap, logStore, scope) {
     var skipLogCondtion = function (target, key, method, type) {
       return (
-        (type == "write" && typeof method == "function") ||
-        typeof method == "object" ||
-        (type == "read" && typeof method == "function")
+        typeof method == "function" ||
+        (type == "read" &&
+          (typeof method == "object" || typeof method == "symbol"))
       );
-      return typeof method == "function" || typeof method == "object";
+      // return (
+      //   (type == "write" && typeof method == "function") ||
+      //   typeof method == "object" ||
+      //   (type == "read" && typeof method == "function")
+      // );
+      // return typeof method == "function" || typeof method == "object";
     };
 
     var logger = function (target, key, method, type) {
@@ -214,6 +235,7 @@
           logStore[id].pop();
       }
       if (skipLogCondtion(target, key, method, type)) return;
+      if (method && method.__isProxy__) method = method.__target__;
       logStore[id].push([type, n.id, key, method, heap.rootName]);
     };
 
@@ -240,7 +262,8 @@
 
         if (
           target.__proto__ === HTMLIFrameElement.prototype ||
-          ignoreKeys.indexOf(key) != -1
+          ignoreKeys.indexOf(key) != -1 ||
+          tracking == false
         )
           return method;
 

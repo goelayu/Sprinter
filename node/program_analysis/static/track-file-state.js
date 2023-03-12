@@ -225,6 +225,7 @@ var extractRelevantState = function (input, opts) {
         __tracer__.setFileClosure(__stackHead__, [${[
           ...new Set(closureList),
         ].join(",")}]);
+        __tracer__.updateCacheStats('firsts');
         } else {
           __tracer__ = {
             removeProxy: function (e) {return e;},
