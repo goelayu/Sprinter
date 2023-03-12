@@ -90,7 +90,7 @@ func JSGen(sig types.Signature, instBody string) (string, error) {
 
 		skip := false
 		for _, w := range globalwriteskeys {
-			log.Printf("[CHECK] k = %s w = %s", k, w)
+			// log.Printf("[CHECK] k = %s w = %s", k, w)
 			if strings.HasPrefix(k, w) {
 				skip = true
 				break
@@ -102,7 +102,7 @@ func JSGen(sig types.Signature, instBody string) (string, error) {
 		}
 
 		K := strings.ReplaceAll(k, "'", "\\'")
-		fmt.Printf("[TEMPLATE] k = %s v = %s \n", K, r.GetValue())
+		// fmt.Printf("[TEMPLATE] k = %s v = %s \n", K, r.GetValue())
 		if r.GetValue() == "" {
 			continue
 		}
