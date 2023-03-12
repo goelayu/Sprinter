@@ -171,7 +171,7 @@ create_crawl_instances_opt(){
 if [[ "$RUN" == "baseline" ]]; then
     if [[ "$URLS" == 1 ]]; then
         echo "Creating the default url file"
-        create_url_file
+        create_url_file $infile $urlfile
     else
         echo "Skipping url file creation"
     fi
@@ -195,3 +195,6 @@ ps aux | grep sys-usage-track | grep -v grep | awk '{print $2}' | xargs kill -9
 
 # kill the az server
 ps aux | grep $AZPORT | grep -v grep | awk '{print $2}' | xargs kill -SIGINT
+
+# wait a couple seconds for the az server to finish
+sleep 2
