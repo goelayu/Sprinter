@@ -135,13 +135,9 @@ var combStateWithURLs = function (state, nLogs, domLogs) {
   var newState = {};
 
   for (var n of netObj) {
-    if (
-      !n.type ||
-      (n.type.indexOf("script") == -1 && n.type.indexOf("css") == -1) ||
-      !n.size
-    )
-      continue;
-    var urlwoquery = n.url.split("?")[0];
+    if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
+    var pUrl = URL.parse(n.url);
+    var urlwoquery = pUrl.host + pUrl.pathname;
     var sKey = filenamify(urlwoquery);
     var st = state[sKey];
     var ft = fetches[n.url] ? fetches[n.url].map((e) => [e, urlType[e]]) : [];
