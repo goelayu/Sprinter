@@ -60,6 +60,18 @@ var initConsoleHandlers = function (cdp, cLogs) {
   });
 };
 
+var getCacheStats = async function (page, options) {
+  var cacheStats = await page.evaluate(() => {
+    try {
+      return window.__tracer__.getCacheStats();
+    } catch (e) {
+      return { error: e.message };
+    }
+  });
+  var path = `${options.outputDir}/cache.json`;
+  dump(cacheStats, path);
+};
+
 var getFileState = async function (page, options, nLogs, benchmark) {
   var starttime;
   benchmark && (starttime = Date.now());
@@ -483,6 +495,7 @@ class PageClient {
           switch (e) {
             case "state":
               await getFileState(this._page, this._options, nLogs, benchmark);
+              await getCacheStats(this._page, this._options);
               break;
           }
         }
