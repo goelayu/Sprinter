@@ -98,6 +98,7 @@ var genBrowserArgs = (proxies) => {
         "--disable-features=IsolateOrigins,site-per-process,CrossSiteDocumentBlockingAlways,CrossSiteDocumentBlockingIfIsolating",
         "--no-sandbox",
         "--disable-setuid-sandbox",
+        // "--blink-settings=scriptEnabled=false",
       ],
     };
   program.testing && template.args.push("--auto-open-devtools-for-tabs");
@@ -162,6 +163,7 @@ var genBrowserArgs = (proxies) => {
     opts.puppeteerOptions = {
       executablePath: "/usr/bin/google-chrome-stable",
       headless: program.testing ? false : true,
+      // args: ["--blink-settings=scriptEnabled=false"],
     };
   }
 
@@ -171,7 +173,6 @@ var genBrowserArgs = (proxies) => {
   var urls = getUrls(program.urls);
 
   if (program.testing) program.timeout = 1000;
-
   cluster.task(async ({ page, data }) => {
     var sanurl = bashSanitize(data.url);
     var outputDir = `${program.output}/${sanurl}`;
