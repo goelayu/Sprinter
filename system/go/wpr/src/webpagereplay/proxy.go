@@ -173,6 +173,21 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		if ce != "" && storedResp.Header.Get("Content-Encoding") != "" {
 			storedResp.Header.Del("Content-Encoding")
 		}
+		csp := storedResp.Header.Get("Content-Security-Policy")
+		// add unsafe-inline to script-src
+		if strings.Contains(csp, "script-src") {
+			csp = strings.ReplaceAll(csp, "script-src", "script-src 'unsafe-inline'")
+			// remove all sha256 hashes
+			csp = strings.ReplaceAll(csp, "sha256-", "")
+			storedResp.Header.Set("Content-Security-Policy", csp)
+		} else if strings.Contains(csp, "default-src") {
+			csp = strings.ReplaceAll(csp, "default-src", "default-src 'unsafe-inline'")
+			csp = strings.ReplaceAll(csp, "sha256-", "")
+			storedResp.Header.Set("Content-Security-Policy", csp)
+		} else {
+			// append script-src 'unsafe-inline' to the end
+			storedResp.Header.Set("Content-Security-Policy", csp+" script-src 'unsafe-inline'")
+		}
 	}
 
 	// dummy code to mimic the static wget based implementation
