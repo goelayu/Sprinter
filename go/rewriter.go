@@ -82,7 +82,7 @@ func invokeNode(body string, t string, name string, keepOrig bool) ([]byte, erro
 		panic(err)
 	}
 
-	// defer os.Remove(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	_, err = tempFile.WriteString(body)
 	if err != nil {

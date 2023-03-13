@@ -39,6 +39,7 @@ var filternet = function (n) {
 var traversePages = async function () {
   var store = {
     n: { total: 0, unique: 0 },
+    all: { total: 0, unique: 0 },
     size: { total: 0, unique: 0 },
     urls: {},
   };
@@ -47,15 +48,16 @@ var traversePages = async function () {
     pages.map(async (p) => {
       if (p.length == 0) return;
       try {
-        var netpath = `${program.basedir}/${p}/network.json`;
-        var _net = await fsp.readFile(netpath, "utf-8");
-        var net = netParser.parseNetworkLogs(JSON.parse(_net));
-        var js = net
-          .filter(filternet)
-          .filter((n) => n.type.indexOf("script") != -1);
+        var net = getNet(`${program.basedir}/${p}/network.json`);
+        var fnet = net.filter(filternet);
+        var js = fnet.filter((n) => n.type.indexOf("script") != -1);
+        store.all.total += fnet.length;
+        console.log(p, js.length);
+        store.size.alltotal += fnet.reduce((a, b) => a + b.size, 0);
         for (var j of js) {
           store.n.total++;
           store.size.total += j.size;
+          var url = j.url.split("?")[0];
           if (!store.urls[j.url]) {
             store.urls[j.url] = true;
             store.n.unique++;
@@ -69,8 +71,8 @@ var traversePages = async function () {
   );
   // print n and size
   // print n and size
-  console.log("n", store.n.total, store.n.unique);
-  console.log("size", store.size.total, store.size.unique);
+  console.log("n", store.n.total, store.n.unique, store.all.total);
+  // console.log("size", store.size.total, store.size.unique, store.size.alltotal);
 };
 
 traversePages();
