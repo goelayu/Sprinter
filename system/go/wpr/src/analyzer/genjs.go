@@ -21,7 +21,7 @@ var jsTemplate = `
 			for (var r of readArr){
 				if (r.value == "null") r.value = null;
 				var e = eval(r.key);
-				if (e && r.value != e){
+				if (e && r.value && r.value != e){
 					return false;
 				}
 			}
@@ -31,7 +31,7 @@ var jsTemplate = `
 		var applyWrites = function(writeArr){
 			for (var w of writeArr){
 				if (w.value == "") w.value = null;
-				eval(w.key + " = " + w.value);
+				eval(w.key + " = '" + w.value + "'");
 			}
 		}
 		

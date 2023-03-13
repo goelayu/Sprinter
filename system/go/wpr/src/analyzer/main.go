@@ -49,6 +49,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			if strings.Contains(strings.ToLower(arg.Type), "javascript") {
 				log.Printf("File %s already instrumented but no signature yet??", arg.Name)
 				atomic.AddInt32(&a.stats.instC, 1)
+				return &pb.AzResponse{Body: file.Body}, nil
 			}
 			return &pb.AzResponse{Body: file.InstBody}, nil
 		case 2: // file instrumented and signature generated
