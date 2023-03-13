@@ -20,7 +20,8 @@ var jsTemplate = `
 		var evalReads = function(readArr){
 			for (var r of readArr){
 				if (r.value == "null") r.value = null;
-				if (r.value != eval(r.key)){
+				var e = eval(r.key);
+				if (e && r.value != e){
 					return false;
 				}
 			}
