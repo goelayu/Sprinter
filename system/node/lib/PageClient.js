@@ -136,7 +136,10 @@ var combStateWithURLs = function (state, nLogs, domLogs) {
 
   for (var n of netObj) {
     if (!n.type || n.type.indexOf("script") == -1 || !n.size) continue;
-    var pUrl = URL.parse(n.url);
+    var _url = n.redirects.length
+      ? n.redirects[n.redirects.length - 1].url
+      : n.url;
+    var pUrl = URL.parse(_url);
     var urlwoquery = pUrl.host + pUrl.pathname;
     var sKey = filenamify(urlwoquery);
     var st = state[sKey];

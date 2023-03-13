@@ -206,16 +206,16 @@
 
   var proxyWrapper = function (heap, logStore, scope) {
     var skipLogCondtion = function (target, key, method, type) {
-      return (
-        typeof method == "function" ||
-        (type == "read" &&
-          (typeof method == "object" || typeof method == "symbol"))
-      );
       // return (
-      //   (type == "write" && typeof method == "function") ||
-      //   typeof method == "object" ||
-      //   (type == "read" && typeof method == "function")
+      //   typeof method == "function" ||
+      //   (type == "read" &&
+      //     (typeof method == "object" || typeof method == "symbol"))
       // );
+      return (
+        (type == "write" && typeof method == "function") ||
+        typeof method == "object" ||
+        (type == "read" && typeof method == "function")
+      );
       // return typeof method == "function" || typeof method == "object";
     };
 
