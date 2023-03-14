@@ -141,6 +141,7 @@ var combStateWithURLs = function (state, nLogs, domLogs) {
       : n.url;
     var pUrl = URL.parse(_url);
     var urlwoquery = pUrl.host + pUrl.pathname;
+    var urlwoquery = n.url.split("?")[0];
     var sKey = filenamify(urlwoquery);
     var st = state[sKey];
     var ft = fetches[n.url] ? fetches[n.url].map((e) => [e, urlType[e]]) : [];
@@ -414,6 +415,8 @@ class PageClient {
         });
       }
 
+      var failedLoad = false;
+      // await this._page.waitForTimeout(300000);
       // load the page
       await this._page
         .goto(this._options.url, {
@@ -422,6 +425,7 @@ class PageClient {
         })
         .catch((err) => {
           console.log(`Page goto error: ${err}`);
+          failedLoad = true;
           this._options.closeBrowserOnError && this._page.browser().close();
         });
 
@@ -432,7 +436,6 @@ class PageClient {
           endTime[0] + endTime[1] / 1e9
         );
       }
-
       // await this._page.waitForTimeout(3000);
 
       this._options.verbose && console.log("Page loaded");
@@ -488,6 +491,10 @@ class PageClient {
         );
       }
 
+      if (failedLoad) {
+        return;
+      }
+
       if (this._options.custom) {
         var entries = this._options.custom.split(",");
         for (var e of entries) {
@@ -503,7 +510,7 @@ class PageClient {
       if (this._options.testing) {
         console.log("waiting for __done === true");
         await this._page.waitForFunction("window.__done === true", {
-          timeout: this._options.timeout * 1000,
+          timeout: this._options.timeout * 10000,
         });
       }
 

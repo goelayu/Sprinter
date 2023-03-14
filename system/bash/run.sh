@@ -178,8 +178,12 @@ if [[ "$RUN" == "baseline" ]]; then
     echo "Starting the baseline crawling script"
     create_crawl_instances_baseline $6
     elif [[ "$RUN" == "opt" ]]; then
-    echo "Creating the optimized url file"
-    create_url_dist $infile $6
+    if [[ "$URLS" == 1 ]]; then
+        echo "Creating the optimized url file"
+        create_url_dist $infile $6
+    else
+        echo "Skipping url file creation"
+    fi
     echo "Starting the optimized crawling script"
     create_crawl_instances_opt $6
 else

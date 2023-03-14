@@ -6,22 +6,17 @@
 # $3 -> page requisites flag
 
 mkdir -p $2
+site=$1
+echo "site is",$site
+sitedir=`echo $site | sanitize`
+dir=$2/$sitedir
+mkdir -p $dir
+cmd="wget -P$dir --timeout 30 --no-verbose --no-directories --span-hosts \
+--no-parent -e robots=off \
+--user-agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36 Crawls for Research project: https://webresearch.eecs.umich.edu/jawa/' \
+$3 \
+$site"
+echo Running cmd $cmd
+eval timeout 15 $cmd >> $2/wget.log 2>&1
+# done < $1
 
-while read site; do
-  echo "site is",$site
-  mkdir -p $2
-  
-  cmd="wget -q -P$2 --timeout 30 --no-verbose --force-directories --span-hosts \
-    --no-parent -e robots=off \
-    --user-agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36' \
-    --timeout=10 \
-    --warc-file=$2/warc \
-    --warc-cdx=on \
-    $3 \
-    $site" 
-    echo Running cmd $cmd
-    eval timeout 10 $cmd &> /dev/null
-done<$1
-
-#clean up
-# rm -r tmpdir

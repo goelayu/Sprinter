@@ -105,8 +105,8 @@ var genBrowserArgs = (proxies) => {
   for (var i = 0; i < proxies.length; i++) {
     var proxy = proxies[i];
     var proxyFlags = [
-      `--host-resolver-rules="MAP *:80 127.0.0.1:${proxy.http_port},MAP *:443 127.0.0.1:${proxy.https_port},EXCLUDE localhost`,
-      `--proxy-server=http=https://127.0.0.1:${proxy.https_port}`,
+      `--host-resolver-rules=MAP *:80 127.0.0.1:${proxy.http_port},MAP *:443 127.0.0.1:${proxy.https_port},EXCLUDE localhost`,
+      // `--proxy-server=http=https://127.0.0.1:${proxy.https_port}`,
     ];
     var browserArgs = Object.assign({}, template);
     browserArgs.args = browserArgs.args.concat(proxyFlags);
@@ -189,9 +189,9 @@ var genBrowserArgs = (proxies) => {
     if (program.proxy) {
       var args = page.browser().process().spawnargs;
       var pa = args
-        .find((e) => e.includes("proxy-server"))
-        .split("=")[2]
-        .split(":")[2];
+        .find((e) => e.includes("resolver-rules"))
+        .split(":")[4]
+        .split(",")[0];
       var proxyDataFile = `${program.proxy}/${pa}`;
       var proxyData = `${program.proxy}/${sanurl}.wprgo`;
       console.log(

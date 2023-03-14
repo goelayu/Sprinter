@@ -375,7 +375,7 @@ func logServeStarted(scheme string, ln net.Listener) {
 	log.Printf("Starting server on %s://%s", scheme, ln.Addr().String())
 }
 
-func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, replayProxy *webpagereplay.ReplayingProxy, replayProxyTLS *webpagereplay.ReplayingProxy) {
+func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, replayProxy *webpagereplay.ReplayingProxy, replayProxyTLS *webpagereplay.ReplayingProxy, r *ReplayCommand) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatalf("Failed to create watcher: %v", err)
@@ -403,6 +403,9 @@ func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, 
 						replayProxy.Mu.Unlock()
 						continue
 					}
+
+					archive.ServeResponseInChronologicalSequence = r.serveResponseInChronologicalSequence
+					archive.DisableFuzzyURLMatching = r.disableFuzzyURLMatching
 
 					replayProxyTLS.A = archive
 					replayProxy.A = archive
@@ -516,7 +519,7 @@ func (r *ReplayCommand) Run(c *cli.Context) error {
 		fmt.Fprintf(os.Stderr, "Error creating TLSConfig: %v", err)
 		os.Exit(1)
 	}
-	watchArchivePathChange(archiveFilePath, archive, httpHandler.(*webpagereplay.ReplayingProxy), httpsHandler.(*webpagereplay.ReplayingProxy))
+	watchArchivePathChange(archiveFilePath, archive, httpHandler.(*webpagereplay.ReplayingProxy), httpsHandler.(*webpagereplay.ReplayingProxy), r)
 	startServers(tlsconfig, httpHandler, httpsHandler, &r.common)
 	return nil
 }
