@@ -48,7 +48,7 @@ var traversePages = async function () {
     pages.map(async (p) => {
       if (p.length == 0) return;
       try {
-        var net = getNet(`${program.basedir}/${p}/network.json`);
+        var net = getNet(`${p}`);
         var fnet = net.filter(filternet);
         var js = fnet.filter((n) => n.type.indexOf("script") != -1);
         store.all.total += fnet.length;
@@ -58,11 +58,11 @@ var traversePages = async function () {
           store.n.total++;
           store.size.total += j.size;
           var url = j.url.split("?")[0];
-          if (!store.urls[j.url]) {
-            store.urls[j.url] = true;
+          if (!store.urls[url]) {
+            store.urls[url] = 1;
             store.n.unique++;
             store.size.unique += j.size;
-          }
+          } else store.urls[url]++;
         }
       } catch (e) {
         console.log(e);
@@ -72,6 +72,7 @@ var traversePages = async function () {
   // print n and size
   // print n and size
   console.log("n", store.n.total, store.n.unique, store.all.total);
+  fs.writeFileSync("js-props.json", JSON.stringify(store.urls, null, 2));
   // console.log("size", store.size.total, store.size.unique, store.size.alltotal);
 };
 
