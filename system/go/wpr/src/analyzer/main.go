@@ -32,9 +32,10 @@ type CStats struct {
 
 type Analyzer struct {
 	pb.UnimplementedAnalyzerServer
-	store types.Store
-	stats CStats
-	mu    sync.Mutex
+	store    types.Store
+	rewriter Rewriter
+	stats    CStats
+	mu       sync.Mutex
 }
 
 func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzResponse, error) {
@@ -86,7 +87,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 		} else if strings.Contains(arg.Type, "html") {
 			atomic.AddInt32(&a.stats.instHTML, 1)
 		}
-		newbody, err := Rewrite(arg.Name, arg.Body, arg.Type, arg.Encoding, arg.Caching)
+		newbody, err := a.rewriter.Rewrite(arg.Name, arg.Body, arg.Type, arg.Encoding, arg.Caching)
 		if err != nil {
 			log.Printf("Error rewriting file %s", arg.Name)
 			return nil, err
@@ -161,8 +162,12 @@ func createServer(c *cli.Context) {
 	az.store.Files = make([]types.File, 0)
 	az.stats = CStats{0, 0, 0, 0}
 
-	// rpc.Register(&az)
-	// rpc.HandleHTTP()
+	var DYNSCRIPTPATH = "/run/user/99542426/goelayu/panode/program_analysis/dynamic/tracer.js"
+
+	// open the file DYNSCRIPTPATH and read content
+	tracerstr, _ := os.ReadFile(DYNSCRIPTPATH)
+	az.rewriter = Rewriter{string(tracerstr)}
+
 	l, e := net.Listen("tcp", ":"+strconv.Itoa(port))
 	if e != nil {
 		log.Fatal("listen error:", e)

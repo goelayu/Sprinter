@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"log"
@@ -11,58 +10,45 @@ import (
 	"strings"
 	"time"
 
-	"github.com/andybalholm/brotli"
+	"github.com/PuerkitoBio/goquery"
 	"github.com/flytam/filenamify"
 )
 
-var FILEID uint64 = 0
-
-func uncompressBody(body string, t string) string {
-
-	var zreader io.Reader
-	var output []byte
-	reader := bytes.NewReader([]byte(body))
-	// uncompress the body
-	if strings.Contains(strings.ToLower(t), "gzip") {
-		var err error
-		zreader, err = gzip.NewReader(reader)
-		if err != nil {
-			fmt.Println("Error reading gzip body", err)
-			output = []byte(body)
-		} else {
-			output, err = io.ReadAll(zreader)
-			if err != nil {
-				fmt.Println("Error reading uncompressed body", err)
-				panic(err)
-			}
-		}
-	} else if strings.Contains(strings.ToLower(t), "br") {
-		zreader = brotli.NewReader(reader)
-		var err error
-		output, err = io.ReadAll(zreader)
-		if err != nil {
-			fmt.Println("Error reading uncompressed body", err)
-			panic(err)
-		}
-	} else {
-		panic("Unknown compression type: " + t)
-	}
-
-	return string(output)
+type Rewriter struct {
+	tracerstr string
 }
 
-func extractBody(body string, encoding string) string {
-	// extract body if it is compressed
-	if encoding != "" {
-		body = uncompressBody(body, encoding)
+func rewriteHTML(body string, caching bool, tracerstr string) []byte {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(body))
+	if err != nil {
+		fmt.Println("ERROR: reading html", err)
+		return []byte(body)
 	}
+	doc.Find("script").Each(func(i int, s *goquery.Selection) {
+		intg, exists := s.Attr("integrity")
+		if exists {
+			fmt.Println("removing integrity: ", intg)
+			s.RemoveAttr("integrity")
+		}
+	})
+	doc.Find("img").Each(func(i int, s *goquery.Selection) {
+		_, srcexists := s.Attr("src")
+		datasrc, datasrcexists := s.Attr("data-src")
+		if !srcexists && datasrcexists {
+			fmt.Println("setting src: ", datasrc)
+			s.SetAttr("src", datasrc)
+		}
+	})
+	h, err := doc.Html()
+	if err != nil {
+		fmt.Println("ERROR: reading html after rewriting", err)
+		return []byte(body)
+	}
+	if caching {
+		return []byte("<script>" + tracerstr + "</script>" + h)
+	}
+	return []byte(h)
 
-	// extract body if it is chunked
-	// if h.Get("Transfer-Encoding").lower().includes("chunked") {
-	// 	body = unchunkBody(body)
-	// }
-
-	return body
 }
 
 func invokeNode(body string, t string, name string, caching bool) ([]byte, error) {
@@ -111,10 +97,14 @@ func invokeNode(body string, t string, name string, caching bool) ([]byte, error
 	return newbody, nil
 }
 
-func Rewrite(name string, bodyBytes string, contentType string, encoding string, caching bool) ([]byte, error) {
+func (r *Rewriter) Rewrite(name string, bodyBytes string, contentType string, encoding string, caching bool) ([]byte, error) {
 	// if type is css then return
 	if strings.Contains(contentType, "css") {
 		return []byte(bodyBytes), nil
+	}
+
+	if strings.Contains(contentType, "html") {
+		return rewriteHTML(bodyBytes, caching, r.tracerstr), nil
 	}
 
 	name, _ = filenamify.Filenamify(name, filenamify.Options{})
