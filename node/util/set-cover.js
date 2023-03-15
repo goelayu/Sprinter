@@ -17,6 +17,12 @@ program
   .option("-v, --verbose", "verbose output")
   .parse(process.argv);
 
+const DYNDOMAINS = [
+  "fundingchoicesmessages.google.com",
+  "tr.hit.gemius.pl",
+  "gemhu.adocean.pl",
+];
+
 var shuffle = function (arr) {
   var array = arr.slice(0);
   let currentIndex = array.length,
@@ -50,6 +56,7 @@ var filternet = function (n) {
     n.request &&
     n.request.method == "GET" &&
     n.url.indexOf("data") != 0 &&
+    !DYNDOMAINS.some((d) => n.url.includes(d)) &&
     n.type &&
     n.size &&
     n.size > 100 &&
