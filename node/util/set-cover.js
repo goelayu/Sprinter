@@ -102,6 +102,7 @@ var customSched = function (net, union) {
     dirtoUrl[dir].push(url);
   }
   var dirOrder = Object.keys(dirtoUrl).sort((a, b) => a.length - b.length);
+  var skipped = {};
   while (js.length < union.length) {
     for (var dir of dirOrder) {
       var pages = dirtoUrl[dir];
@@ -122,6 +123,7 @@ var customSched = function (net, union) {
         if (unchanged >= UNCHANGEDLIM) {
           program.verbose &&
             console.log(`unchanged for ${UNCHANGEDLIM} pages in ${dir}`);
+
           break;
         }
         program.verbose &&
@@ -150,26 +152,42 @@ var randomSched = function (net, union) {
   return nPages;
 };
 
-var greedySched = function (net, union) {
+var greedySched = function (nets, union) {
   var nPages = 0;
   var js = [];
-  net = net.sort((a, b) => {
-    b = b.filter((n) => n.type.indexOf("script") != -1);
-    a = a.filter((n) => n.type.indexOf("script") != -1);
-    return b.length - a.length;
-  });
+  nets = nets
+    .map((net) => net.filter((n) => n.type.indexOf("script") != -1))
+    .map((net) => net.map((n) => n.url.split("?")[0]));
+
+  var largestUncovered = function (nets, union) {
+    var largest = nets[0],
+      largestLen = 0;
+    for (var net of nets) {
+      var uncovered = net.filter((n) => union.includes(n));
+      if (uncovered.length > largestLen) {
+        largest = uncovered;
+        largestLen = uncovered.length;
+      }
+    }
+    return largest;
+  };
+
   var iter = 0;
-  for (var n of net) {
-    var jsn = n.filter((n) => n.type.indexOf("script") != -1);
-    program.verbose && console.log(`iter: ${iter++}: ${jsn.length}`);
-    jsn
-      .map((n) => n.url.split("?")[0])
-      .forEach((u) => {
-        if (js.indexOf(u) == -1) js.push(u);
-      });
+  var unioncp = union.slice();
+  while (js.length < unioncp.length) {
+    var net = largestUncovered(nets, union);
+    program.verbose && console.log(`largest uncovered: ${net.length}`);
+    for (var n of net) {
+      if (js.indexOf(n) == -1) js.push(n);
+    }
     nPages++;
-    if (js.length >= union.length) break;
+    union = union.filter((n) => !net.includes(n));
+    program.verbose && console.log(`js: ${js.length}, union: ${union.length}`);
+    // remove net from nets
+    var netindex = nets.indexOf(net);
+    netindex != -1 && nets.splice(netindex, 1);
   }
+
   return nPages;
 };
 
