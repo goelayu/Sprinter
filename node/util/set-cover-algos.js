@@ -109,12 +109,13 @@ var customSched = function (net, union) {
     dirtoUrl[dir].push(url);
   }
   var dirOrder = Object.keys(dirtoUrl).sort((a, b) => a.length - b.length);
-  var skipped = {};
+  var entireloop = 0;
   while (js.length < union.length) {
+    if (entireloop > 3) return nPages;
     for (var dir of dirOrder) {
       var pages = dirtoUrl[dir];
-      var UNCHANGEDLIM = 2,
-        unchanged = 0;
+      var UNCHANGEDLIM = 2;
+      unchanged = 0;
       while (pages.length > 0) {
         var url = pages.shift();
         if (!url) continue;
@@ -130,15 +131,18 @@ var customSched = function (net, union) {
         if (unchanged >= UNCHANGEDLIM) {
           program.verbose &&
             console.log(`unchanged for ${UNCHANGEDLIM} pages in ${dir}`);
-
+          nPages++;
           break;
         }
         program.verbose &&
-          console.log(`page: ${url} from dir: ${dir} js: ${js.length}`);
+          console.log(
+            `page: ${nPages} ${url} from dir: ${dir} js: ${js.length}`
+          );
         nPages++;
         if (js.length >= union.length) return nPages;
       }
     }
+    entireloop++;
   }
   return nPages;
 };
