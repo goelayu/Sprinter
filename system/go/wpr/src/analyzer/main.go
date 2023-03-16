@@ -5,6 +5,8 @@ import (
 
 	"context"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -154,7 +156,10 @@ func createServer(c *cli.Context) {
 
 	port := c.Int("port")
 
-	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
+	// log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
+	// disable logging
+	log.SetFlags(0)
+	log.SetOutput(ioutil.Discard)
 
 	az := Analyzer{}
 	az.store = types.Store{}
@@ -184,19 +189,19 @@ func createServer(c *cli.Context) {
 		sigchan := make(chan os.Signal, 1)
 		signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigchan
-		log.Printf("Ctrl-C received, exiting...")
-		log.Printf("Total HTML files instrumented: %d", az.stats.instHTML)
-		log.Printf("Total JS files instrumented: %d", az.stats.instJS)
-		log.Printf("Total files using instrumented cache: %d", az.stats.instC)
-		log.Printf("Total files with signature generated: %d", az.stats.sig)
+		fmt.Printf("Ctrl-C received, exiting...")
+		fmt.Printf("Total HTML files instrumented: %d", az.stats.instHTML)
+		fmt.Printf("Total JS files instrumented: %d", az.stats.instJS)
+		fmt.Printf("Total files using instrumented cache: %d", az.stats.instC)
+		fmt.Printf("Total files with signature generated: %d", az.stats.sig)
 		// stop server
 		grpcServer.Stop()
 		os.Exit(0)
 	}()
 
-	log.Printf("Analyzer server started")
-	log.Printf("Listening on port %d", port)
-	log.Printf("Press Ctrl-C to exit")
+	fmt.Printf("Analyzer server started")
+	fmt.Printf("Listening on port %d", port)
+	fmt.Printf("Press Ctrl-C to exit")
 	grpcServer.Serve(l)
 
 }

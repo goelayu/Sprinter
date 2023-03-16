@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -539,7 +540,9 @@ func (r *RootCACommand) Remove(c *cli.Context) error {
 }
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
+	// log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
+	log.SetFlags(0)
+	log.SetOutput(ioutil.Discard)
 
 	progName := filepath.Base(os.Args[0])
 
