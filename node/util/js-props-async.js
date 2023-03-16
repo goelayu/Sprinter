@@ -12,6 +12,12 @@ const program = require("commander");
 const netParser = require("../lib/network.js");
 var fsp = require("fs-promise");
 
+const DYNDOMAINS = [
+  "fundingchoicesmessages.google.com",
+  "tr.hit.gemius.pl",
+  "gemhu.adocean.pl",
+];
+
 program
   .option("-b, --basedir <dir>", "dir containing network.json files")
   .option("-p, --pages <pages>", " file containing list of pages")
@@ -29,6 +35,7 @@ var filternet = function (n) {
     n.request &&
     n.request.method == "GET" &&
     n.url.indexOf("data") != 0 &&
+    !DYNDOMAINS.some((d) => n.url.includes(d)) &&
     n.type &&
     n.size &&
     n.size > 100 &&
@@ -38,11 +45,21 @@ var filternet = function (n) {
 
 var traversePages = async function () {
   var store = {
-    n: { total: 0, unique: 0 },
+    type: {
+      image: { total: 0, unique: 0 },
+      script: { total: 0, unique: 0 },
+      css: { total: 0, unique: 0 },
+      html: { total: 0, unique: 0 },
+    },
     all: { total: 0, unique: 0 },
     size: { total: 0, unique: 0 },
     urls: {},
   };
+
+  var getType = function (n) {
+    return Object.keys(store.type).find((t) => n.type.indexOf(t) != -1);
+  };
+
   var pages = fs.readFileSync(program.pages, "utf-8").split("\n");
   await Promise.all(
     pages.map(async (p) => {
@@ -54,14 +71,14 @@ var traversePages = async function () {
         store.all.total += fnet.length;
         console.log(p, js.length);
         store.size.alltotal += fnet.reduce((a, b) => a + b.size, 0);
-        for (var j of js) {
-          store.n.total++;
-          store.size.total += j.size;
-          var url = j.url.split("?")[0];
+        for (var n of fnet) {
+          var type = getType(n);
+          if (!type) continue;
+          store.type[type].total++;
+          var url = n.url.split("?")[0];
           if (!store.urls[url]) {
             store.urls[url] = 1;
-            store.n.unique++;
-            store.size.unique += j.size;
+            store.type[type].unique++;
           } else store.urls[url]++;
         }
       } catch (e) {
@@ -71,7 +88,7 @@ var traversePages = async function () {
   );
   // print n and size
   // print n and size
-  console.log("n", store.n.total, store.n.unique, store.all.total);
+  console.log("n", JSON.stringify(store.type), store.all.total);
   fs.writeFileSync("js-props.json", JSON.stringify(store.urls, null, 2));
   // console.log("size", store.size.total, store.size.unique, store.size.alltotal);
 };

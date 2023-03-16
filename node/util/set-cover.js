@@ -162,20 +162,32 @@ var randomSched = function (net, union) {
 var greedySched = function (nets, union) {
   var nPages = 0;
   var js = [];
-  nets = nets
-    .map((net) => net.filter((n) => n.type.indexOf("script") != -1))
-    .map((net) => net.map((n) => n.url.split("?")[0]));
+  var nettoUrl = {};
+
+  class JSNet {
+    constructor(net) {
+      this.jss = net
+        .filter((n) => n.type.indexOf("script") != -1)
+        .map((n) => n.url.split("?")[0]);
+      this.url = net.length > 0 ? net[0].documentURL : "";
+    }
+  }
+
+  nets = nets.map((n) => new JSNet(n));
 
   var largestUncovered = function (nets, union) {
     var largest = nets[0],
-      largestLen = 0;
+      largestLen = 0,
+      largestUrl = "";
     for (var net of nets) {
-      var uncovered = net.filter((n) => union.includes(n));
+      var uncovered = net.jss.filter((n) => union.includes(n));
       if (uncovered.length > largestLen) {
         largest = uncovered;
         largestLen = uncovered.length;
+        largestUrl = net.url;
       }
     }
+    program.verbose && console.log(`Picking next: ${largestUrl}`);
     return largest;
   };
 
