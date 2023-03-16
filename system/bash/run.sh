@@ -64,7 +64,7 @@ create_url_file(){
     for i in $(seq 1 $PAGESPERSITE); do
         while read site; do
             p=`sed -n ${i}p $pages_dst/${site}.txt`;
-            echo $p >> $urlfile
+            [ ! -z "$p" ] && echo $p >> $urlfile
         done < $infile
     done
     rm -f tmp
@@ -93,6 +93,14 @@ create_url_dist(){
         #     cat $pages_dst/${site}.txt | head -n $PAGESPERSITE >> $urlfile
         # done
     done
+}
+
+crawl_rate(){
+    t=0;
+    while true; do
+        t=$((t + 1));
+        echo -n $t " "; cat $rundir/log/*.log  | grep "Page load time" | wc -l ; sleep 1;
+    done > $logdir/crawl_rate.log
 }
 
 if [[ "$COPY" == "1" ]]; then
@@ -176,6 +184,8 @@ if [[ "$RUN" == "baseline" ]]; then
         echo "Skipping url file creation"
     fi
     echo "Starting the baseline crawling script"
+    crawl_rate &
+    crawlratepid=$!
     create_crawl_instances_baseline $6
     elif [[ "$RUN" == "opt" ]]; then
     if [[ "$URLS" == 1 ]]; then
@@ -185,6 +195,8 @@ if [[ "$RUN" == "baseline" ]]; then
         echo "Skipping url file creation"
     fi
     echo "Starting the optimized crawling script"
+    crawl_rate &
+    crawlratepid=$!
     create_crawl_instances_opt $6
 else
     echo "Invalid run type"
@@ -200,5 +212,6 @@ ps aux | grep sys-usage-track | grep -v grep | awk '{print $2}' | xargs kill -9
 # kill the az server
 ps aux | grep $AZPORT | grep -v grep | awk '{print $2}' | xargs kill -SIGINT
 
+kill $crawlratepid;
 # wait a couple seconds for the az server to finish
 sleep 2
