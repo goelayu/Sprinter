@@ -174,6 +174,8 @@ func createServer(c *cli.Context) {
 	}
 
 	var opts []grpc.ServerOption
+	// increase the max message size
+	opts = append(opts, grpc.MaxRecvMsgSize(1024*1024*20))
 	grpcServer := grpc.NewServer(opts...)
 	// Register the service with the gRPC server
 	pb.RegisterAnalyzerServer(grpcServer, &az)

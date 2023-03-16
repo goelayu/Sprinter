@@ -36,7 +36,8 @@ class AZClient {
   constructor(address) {
     this.client = new services.AnalyzerClient(
       address,
-      grpc.credentials.createInsecure()
+      grpc.credentials.createInsecure(),
+      { "grpc.max_receive_message_length": 1024 * 1024 * 10 }
     );
     console.log("AZClient created...");
   }

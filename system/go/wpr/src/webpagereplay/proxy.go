@@ -75,7 +75,8 @@ func updateDates(h http.Header, now time.Time) {
 // The proxy is listening for requests on a port that uses the given scheme (e.g., http, https).
 func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransformer, quietMode bool, caching bool, az_port int) http.Handler {
 	azaddr := "localhost:" + strconv.Itoa(az_port)
-	conn, err := grpc.Dial(azaddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(azaddr, grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(1024*1024*10)))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	} else {
