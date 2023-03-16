@@ -27,7 +27,7 @@ func rewriteHTML(body string, caching bool, tracerstr string) []byte {
 	doc.Find("script").Each(func(i int, s *goquery.Selection) {
 		intg, exists := s.Attr("integrity")
 		if exists {
-			fmt.Println("removing integrity: ", intg)
+			log.Println("removing integrity: ", intg)
 			s.RemoveAttr("integrity")
 		}
 	})
@@ -35,7 +35,7 @@ func rewriteHTML(body string, caching bool, tracerstr string) []byte {
 		_, srcexists := s.Attr("src")
 		datasrc, datasrcexists := s.Attr("data-src")
 		if !srcexists && datasrcexists {
-			fmt.Println("setting src: ", datasrc)
+			log.Println("setting src: ", datasrc)
 			s.SetAttr("src", datasrc)
 		}
 	})

@@ -189,19 +189,19 @@ func createServer(c *cli.Context) {
 		sigchan := make(chan os.Signal, 1)
 		signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 		<-sigchan
-		fmt.Printf("Ctrl-C received, exiting...")
-		fmt.Printf("Total HTML files instrumented: %d", az.stats.instHTML)
-		fmt.Printf("Total JS files instrumented: %d", az.stats.instJS)
-		fmt.Printf("Total files using instrumented cache: %d", az.stats.instC)
-		fmt.Printf("Total files with signature generated: %d", az.stats.sig)
+		fmt.Printf("Ctrl-C received, exiting...\n")
+		fmt.Printf("Total HTML files instrumented: %d\n", az.stats.instHTML)
+		fmt.Printf("Total JS files instrumented: %d\n", az.stats.instJS)
+		fmt.Printf("Total files using instrumented cache: %d\n", az.stats.instC)
+		fmt.Printf("Total files with signature generated: %d\n", az.stats.sig)
 		// stop server
 		grpcServer.Stop()
 		os.Exit(0)
 	}()
 
-	fmt.Printf("Analyzer server started")
-	fmt.Printf("Listening on port %d", port)
-	fmt.Printf("Press Ctrl-C to exit")
+	fmt.Printf("Analyzer server started\n")
+	fmt.Printf("Listening on port %d\n", port)
+	fmt.Printf("Press Ctrl-C to exit\n")
 	grpcServer.Serve(l)
 
 }
