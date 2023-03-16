@@ -75,9 +75,7 @@ var addRemainingPages = function (all, sc) {
 var schedPages = function () {
   var nets = traversePages();
   var allpages = _allPages(nets);
-  console.log(allpages.length);
   var scpages = SC.setCover(nets);
-  console.log(scpages.length);
   var res = addRemainingPages(allpages, scpages);
   for (var p of res) {
     console.log(p);

@@ -63,7 +63,6 @@ var setCover = function (nets) {
     var netindex = nets.indexOf(net);
     netindex != -1 && nets.splice(netindex, 1);
   }
-
   return pages;
 };
 
