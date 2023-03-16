@@ -17,7 +17,7 @@ const { PuppeteerWARCGenerator, PuppeteerCapturer } = require("node-warc");
 const PageClient = require("./lib/PageClient.js");
 const Proxy = require("./lib/wpr-proxy");
 const AZ = require("./lib/az-server.js");
-const azclient = require("./az_client.js");
+const azclient = require("./az-client.js");
 const BrowserPageConcurrency =
   require("./pptr-concurrency/browserpage").default;
 
