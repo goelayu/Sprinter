@@ -16,6 +16,7 @@ program
   .option("-b, --basedir <dir>", "dir containing network.json files")
   .option("-o, --optdir <dir>", "dir containing opt network.json files")
   .option("-p, --pages <pages>", " file containing list of pages")
+  .option("-v, --verbose", "verbose output")
   .parse(process.argv);
 
 var initAdBlock = function (sourceUrl) {
@@ -72,7 +73,7 @@ var compareFidelity = function (bnet, onet, engine) {
   bnet.forEach((bn) => {
     if (!onet.map((n) => n.url).includes(bn.url)) {
       missing.push(bn);
-      if (checkBlockUrl(bn, engine)) admissing.push(bn);
+      if (!checkBlockUrl(bn, engine)) admissing.push(bn);
     }
   });
   return [missing, admissing];
@@ -118,6 +119,8 @@ var CompareSites = function () {
     ENGINE
   );
   console.log("total missing", totalmisres[0].length, totalmisres[1].length);
+  program.verbose && console.log(totalmisres[0].map((n) => n.url));
+  program.verbose && console.log(totalmisres[1].map((n) => n.url));
 };
 
 CompareSites();
