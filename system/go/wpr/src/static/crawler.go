@@ -5,14 +5,11 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
-	"flag"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -20,9 +17,9 @@ import (
 )
 
 type Crawler struct {
-	httpServer  string
-	httpsServer string
-	client      *http.Client
+	HttpServer  string
+	HttpsServer string
+	Client      *http.Client
 }
 
 func HTMLParser(body io.ReadCloser) []string {
@@ -79,7 +76,14 @@ func xtractJSURLS(body io.ReadCloser) []string {
 func (c *Crawler) Crawl(u string, host string) (*io.ReadCloser, error) {
 	log.Printf("Crawling %s from host %s", u, host)
 
-	reqURL, _ := url.Parse(c.httpsServer + u)
+	var portaddr string
+	if strings.Index(u, "https") == 0 {
+		portaddr = c.HttpsServer
+	} else {
+		portaddr = c.HttpServer
+	}
+
+	reqURL, _ := url.Parse(portaddr + u)
 
 	req := &http.Request{
 		Method: "GET",
@@ -87,7 +91,7 @@ func (c *Crawler) Crawl(u string, host string) (*io.ReadCloser, error) {
 		Host:   host,
 	}
 
-	resp, err := c.client.Do(req)
+	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +134,7 @@ func (c *Crawler) HandleJS(path string, host string) error {
 	return nil
 }
 
-func (c *Crawler) MainHTML(u string) {
+func (c *Crawler) Visit(u string) {
 
 	mainParsed, err := url.Parse(u)
 	if err != nil {
@@ -165,28 +169,28 @@ func (c *Crawler) MainHTML(u string) {
 	log.Printf("Finished crawling Page %s", u)
 }
 
-func main() {
+// func main() {
 
-	var u string
-	var httpPort int
-	var httpsPort int
+// 	var u string
+// 	var httpPort int
+// 	var httpsPort int
 
-	flag.IntVar(&httpPort, "http_port", 8080, "http server address")
-	flag.IntVar(&httpsPort, "https_port", 8081, "https server address")
-	flag.StringVar(&u, "url", "http://www.example.com", "url to crawl")
-	flag.Parse()
+// 	flag.IntVar(&httpPort, "http_port", 8080, "http server address")
+// 	flag.IntVar(&httpsPort, "https_port", 8081, "https server address")
+// 	flag.StringVar(&u, "url", "http://www.example.com", "url to crawl")
+// 	flag.Parse()
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
+// 	tr := &http.Transport{
+// 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+// 	}
 
-	c := &Crawler{
-		client: &http.Client{
-			Transport: tr,
-		},
-		httpServer:  "http://127.0.0.1:" + strconv.Itoa(httpPort),
-		httpsServer: "https://127.0.0.1:" + strconv.Itoa(httpsPort),
-	}
+// 	c := &Crawler{
+// 		client: &http.Client{
+// 			Transport: tr,
+// 		},
+// 		httpServer:  "http://127.0.0.1:" + strconv.Itoa(httpPort),
+// 		httpsServer: "https://127.0.0.1:" + strconv.Itoa(httpsPort),
+// 	}
 
-	c.MainHTML(u)
-}
+// 	c.MainHTML(u)
+// }
