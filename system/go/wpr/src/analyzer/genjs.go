@@ -15,6 +15,7 @@ import (
 )
 
 var jsTemplate = `
+  /**INJECTED CODE BEGIN*/
 	(function() {
 
 		var evalReads = function(readArr){
@@ -85,6 +86,7 @@ var jsTemplate = `
 		throw "[SUCCESS] all reads satisfied, skipped execution"
 		
 	}
+	/**INJECTED CODE END*/
 	{{.InstBody}}
 `
 

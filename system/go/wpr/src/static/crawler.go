@@ -4,12 +4,14 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"flag"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,25 +42,6 @@ func HTMLParser(body io.ReadCloser) []string {
 	return jsurls
 }
 
-func (c *Crawler) Crawl(u string, host string) *io.ReadCloser {
-	log.Printf("Crawling %s from host %s", u, host)
-
-	reqURL, _ := url.Parse(c.httpsServer + u)
-
-	req := &http.Request{
-		Method: "GET",
-		URL:    reqURL,
-		Host:   host,
-	}
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		panic(err)
-	}
-	log.Printf("Received response from %s with status code %d", reqURL, resp.StatusCode)
-	return &resp.Body
-}
-
 func constURL(u string) (host string, path string) {
 	if strings.Index(u, "http") == 0 || strings.Index(u, "//") == 0 {
 		pu, err := url.Parse(u)
@@ -73,6 +56,80 @@ func constURL(u string) (host string, path string) {
 	}
 }
 
+func xtractJSURLS(body io.ReadCloser) []string {
+	buf := new(bytes.Buffer)
+	io.Copy(buf, body)
+	tregex, _ := regexp.Compile(`CODE BEGIN[\s\S]*CODE END`)
+	tmplt := tregex.FindString(buf.String())
+
+	if tmplt == "" {
+		return []string{}
+	}
+
+	var jsurls []string
+	urlrgx, _ := regexp.Compile(`fetchVia(DOM|XHR)\("(\S*)"\)`)
+	m := urlrgx.FindAllStringSubmatch(tmplt, -1)
+	for _, v := range m {
+		jsurls = append(jsurls, v[2])
+	}
+
+	return jsurls
+}
+
+func (c *Crawler) Crawl(u string, host string) (*io.ReadCloser, error) {
+	log.Printf("Crawling %s from host %s", u, host)
+
+	reqURL, _ := url.Parse(c.httpsServer + u)
+
+	req := &http.Request{
+		Method: "GET",
+		URL:    reqURL,
+		Host:   host,
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Received response from %s with status code %d", reqURL, resp.StatusCode)
+	return &resp.Body, nil
+}
+
+func (c *Crawler) HandleJS(path string, host string) error {
+	jsbody, err := c.Crawl(path, host)
+	if err != nil {
+		return err
+	}
+
+	jsurls := xtractJSURLS(*jsbody)
+
+	if len(jsurls) == 0 {
+		log.Printf("No template OR no embedded URLS found in %s", host+path)
+		return nil
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(jsurls))
+
+	for _, jsurl := range jsurls {
+		go func(jsurl string) {
+			defer wg.Done()
+
+			jsHost, jsPath := constURL(jsurl)
+			if jsHost == "" {
+				jsHost = host
+				jsPath = path + jsPath
+			} else if jsHost == "/" {
+				jsHost = host
+			}
+			c.HandleJS(jsPath, jsHost)
+		}(jsurl)
+	}
+	wg.Wait()
+
+	return nil
+}
+
 func (c *Crawler) MainHTML(u string) {
 
 	mainParsed, err := url.Parse(u)
@@ -80,7 +137,7 @@ func (c *Crawler) MainHTML(u string) {
 		panic(err)
 	}
 
-	htmlBody := c.Crawl(mainParsed.Path, mainParsed.Host)
+	htmlBody, _ := c.Crawl(mainParsed.Path, mainParsed.Host)
 	jsurls := HTMLParser(*htmlBody)
 
 	var wg sync.WaitGroup
@@ -97,13 +154,15 @@ func (c *Crawler) MainHTML(u string) {
 			} else if jsHost == "/" {
 				jsHost = mainParsed.Host
 			}
-			c.Crawl(jsPath, jsHost)
+			err := c.HandleJS(jsPath, jsHost)
+			if err != nil {
+				log.Printf("Error while crawling %s: %v", jsHost+jsPath, err)
+			}
 		}(jsurl)
 	}
 
 	wg.Wait()
 	log.Printf("Finished crawling Page %s", u)
-
 }
 
 func main() {
