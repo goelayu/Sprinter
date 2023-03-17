@@ -4,8 +4,7 @@ const exec = util.promisify(child_process.exec);
 const fs = require("fs");
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
-const GOPATH =
-  "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
+const GOPATH = "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
 const WPRDIR =
   "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/pkg/mod/github.com/catapult-project/catapult/web_page_replay_go@v0.0.0-20220815222316-b3421074fa70";
 
@@ -14,7 +13,6 @@ function sleep(ms) {
     setTimeout(resolve, ms);
   });
 }
-  
 
 class Proxy {
   constructor(options) {
@@ -60,8 +58,8 @@ class ProxyManager {
   constructor(nProxies, proxyDir, logDir, mode) {
     this.nProxies = nProxies;
     this.proxies = [];
-    this.startHttpPort = 8000+Math.floor(Math.random()*1000);
-    this.startHttpsPort = 9000+Math.floor(Math.random()*1000);
+    this.startHttpPort = 8000 + Math.floor(Math.random() * 1000);
+    this.startHttpsPort = 9000 + Math.floor(Math.random() * 1000);
     this.logDir = logDir;
     this.outputDir = proxyDir;
     this.mode = mode;
@@ -110,7 +108,7 @@ var genBrowserArgs = (proxies) => {
   for (var i = 0; i < proxies.length; i++) {
     var proxy = proxies[i];
     var proxyFlags = [
-      `--host-resolver-rules="MAP *:80 127.0.0.1:${proxy.http_port},MAP *:443 127.0.0.1:${proxy.https_port},EXCLUDE localhost`,
+      `--host-resolver-rules=MAP *:80 127.0.0.1:${proxy.http_port},MAP *:443 127.0.0.1:${proxy.https_port},EXCLUDE localhost`,
       `--proxy-server=http=https://127.0.0.1:${proxy.https_port}`,
     ];
     var browserArgs = Object.assign({}, template);
@@ -124,4 +122,4 @@ var genBrowserArgs = (proxies) => {
 module.exports = {
   ProxyManager,
   genBrowserArgs,
-}
+};

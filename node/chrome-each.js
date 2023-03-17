@@ -144,6 +144,7 @@ async function launch() {
     userAgent: program.userAgent,
     outputDir: program.output,
     enableDOM: program.dom,
+    timeout: program.timeout / 1000,
     logTime: true,
     verbose: true,
   });
