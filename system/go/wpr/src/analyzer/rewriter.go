@@ -84,7 +84,7 @@ func invokeNode(body string, t string, name string, caching bool) ([]byte, error
 		log.Printf("Returning the original body")
 		return []byte(body), nil
 	}
-	log.Printf("Instrumentating %s  took %v", name, time.Since(startTime))
+	log.Printf("Instrumentation %s  took %v", name, time.Since(startTime))
 
 	// fmt.Println("stdout is", out.String())
 	// read the temp file

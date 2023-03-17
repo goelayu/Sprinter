@@ -9,7 +9,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -388,14 +387,21 @@ func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, 
 	}
 
 	go func() {
+		prevFilePath := ""
 		for {
 			select {
 			case event := <-watcher.Events:
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					log.Printf("Archive file %s was modified, reloading", event.Name)
+					archiveFilePath, _ := os.ReadFile(archivePath)
+					if prevFilePath == string(archiveFilePath) {
+						log.Printf("Archive file path is the same as before, skipping")
+						continue
+					}
+					prevFilePath = string(archiveFilePath)
 					replayProxyTLS.Mu.Lock()
 					replayProxy.Mu.Lock()
-					archiveFilePath, _ := os.ReadFile(archivePath)
+
 					log.Printf("Archive file path: %s", archiveFilePath)
 					archive, err = webpagereplay.OpenArchive(strings.TrimSpace(string(archiveFilePath)))
 					if err != nil {
@@ -540,9 +546,9 @@ func (r *RootCACommand) Remove(c *cli.Context) error {
 }
 
 func main() {
-	// log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
-	log.SetFlags(0)
-	log.SetOutput(ioutil.Discard)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
+	// log.SetFlags(0)
+	// log.SetOutput(ioutil.Discard)
 
 	progName := filepath.Base(os.Args[0])
 
