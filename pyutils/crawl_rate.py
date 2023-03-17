@@ -9,10 +9,10 @@ def print_rate(args):
   prev = 0
   for c in content:
     counter += 1
-    if counter % 10 == 0:
+    if counter % 5 == 0:
       time, pages = c.split()
       pages = int(pages) - prev
-      print(time,pages/10)
+      print(time,pages/5)
       prev = int(c.split()[1])
       
 

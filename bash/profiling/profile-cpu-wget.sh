@@ -11,7 +11,7 @@ echo "site is",$site
 sitedir=`echo $site | sanitize`
 dir=$2/$sitedir
 mkdir -p $dir
-cmd="wget -P$dir --timeout 30 --no-verbose --no-directories --span-hosts \
+cmd="/home/goelayu/local/bin/wget -P$dir --timeout 30 --no-verbose --no-directories --span-hosts \
 --no-parent -e robots=off \
 --user-agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36 Crawls for Research project: https://webresearch.eecs.umich.edu/jawa/' \
 $3 \
