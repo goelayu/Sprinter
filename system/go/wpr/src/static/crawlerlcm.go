@@ -77,12 +77,15 @@ func initProxies(n int, proxyData string, wprData string, azPort int) []*Proxy {
 	}
 
 	//sleep for 3 seconds to make sure all proxies are up
-	time.Sleep(3 * time.Second)
+	time.Sleep(15 * time.Second)
 	return proxies
 }
 
 func (p *Proxy) Stop() {
-	p.cmd.Process.Kill()
+	log.Printf("Stopping proxy on port %d", p.port)
+	// killcmd := fmt.Sprintf("ps aux | grep https_port | grep %d | awk '{print $2}' | xargs kill -SIGINT", p.port)
+	// exec.Command("bash", "-c", killcmd).Run()
+	p.cmd.Process.Signal(os.Interrupt)
 	os.Remove(p.dataFile)
 }
 
@@ -108,6 +111,8 @@ func (lcm *LCM) Start() {
 				lcm.mu.Lock()
 				if len(pages) == 0 {
 					lcm.mu.Unlock()
+					log.Printf("Crawler %s finished", c.HttpServer)
+					cproxy.Stop()
 					return
 				}
 				page := pages[0]
@@ -117,8 +122,6 @@ func (lcm *LCM) Start() {
 				cproxy.UpdateDataFile(page)
 				c.Visit(page)
 			}
-			log.Printf("Crawler %s finished", c.HttpServer)
-			cproxy.Stop()
 		}(i)
 	}
 

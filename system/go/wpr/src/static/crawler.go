@@ -22,10 +22,10 @@ type Crawler struct {
 	Client      *http.Client
 }
 
-func HTMLParser(body io.ReadCloser) []string {
+func HTMLParser(body io.ReadCloser) ([]string, error) {
 	doc, err := goquery.NewDocumentFromReader(body)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	var jsurls []string
@@ -36,20 +36,20 @@ func HTMLParser(body io.ReadCloser) []string {
 		}
 	})
 
-	return jsurls
+	return jsurls, nil
 }
 
-func constURL(u string) (host string, path string) {
+func constURL(u string) (host string, path string, err error) {
 	if strings.Index(u, "http") == 0 || strings.Index(u, "//") == 0 {
 		pu, err := url.Parse(u)
 		if err != nil {
-			panic(err)
+			return "", "", err
 		}
-		return pu.Host, pu.Path
+		return pu.Host, pu.Path, nil
 	} else if strings.Index(u, "/") == 0 {
-		return "/", u
+		return "/", u, nil
 	} else {
-		return "", u
+		return "", u, nil
 	}
 }
 
@@ -119,7 +119,11 @@ func (c *Crawler) HandleJS(path string, host string) error {
 		go func(jsurl string) {
 			defer wg.Done()
 
-			jsHost, jsPath := constURL(jsurl)
+			jsHost, jsPath, err := constURL(jsurl)
+			if err != nil {
+				log.Printf("Error while parsing URL %s: %v", jsurl, err)
+				return
+			}
 			if jsHost == "" {
 				jsHost = host
 				jsPath = path + jsPath
@@ -138,11 +142,20 @@ func (c *Crawler) Visit(u string) {
 
 	mainParsed, err := url.Parse(u)
 	if err != nil {
-		panic(err)
+		log.Printf("[Visiting page] Error while parsing URL %s: %v", u, err)
+		return
 	}
 
-	htmlBody, _ := c.Crawl(mainParsed.Path, mainParsed.Host)
-	jsurls := HTMLParser(*htmlBody)
+	htmlBody, err := c.Crawl(mainParsed.Path, mainParsed.Host)
+	if err != nil {
+		log.Printf("[Visiting page] Error while crawling %s: %v", u, err)
+		return
+	}
+	jsurls, err := HTMLParser(*htmlBody)
+	if err != nil {
+		log.Printf("[Visiting page] Error while parsing HTML %s: %v", u, err)
+		return
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(len(jsurls))
@@ -151,14 +164,18 @@ func (c *Crawler) Visit(u string) {
 		go func(jsurl string) {
 			defer wg.Done()
 
-			jsHost, jsPath := constURL(jsurl)
+			jsHost, jsPath, err := constURL(jsurl)
+			if err != nil {
+				log.Printf("Error while parsing URL %s: %v", jsurl, err)
+				return
+			}
 			if jsHost == "" {
 				jsHost = mainParsed.Host
 				jsPath = mainParsed.Path + jsPath
 			} else if jsHost == "/" {
 				jsHost = mainParsed.Host
 			}
-			err := c.HandleJS(jsPath, jsHost)
+			err = c.HandleJS(jsPath, jsHost)
 			if err != nil {
 				log.Printf("Error while crawling %s: %v", jsHost+jsPath, err)
 			}
