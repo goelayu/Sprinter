@@ -168,29 +168,3 @@ func (c *Crawler) Visit(u string) {
 	wg.Wait()
 	log.Printf("Finished crawling Page %s", u)
 }
-
-// func main() {
-
-// 	var u string
-// 	var httpPort int
-// 	var httpsPort int
-
-// 	flag.IntVar(&httpPort, "http_port", 8080, "http server address")
-// 	flag.IntVar(&httpsPort, "https_port", 8081, "https server address")
-// 	flag.StringVar(&u, "url", "http://www.example.com", "url to crawl")
-// 	flag.Parse()
-
-// 	tr := &http.Transport{
-// 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-// 	}
-
-// 	c := &Crawler{
-// 		client: &http.Client{
-// 			Transport: tr,
-// 		},
-// 		httpServer:  "http://127.0.0.1:" + strconv.Itoa(httpPort),
-// 		httpsServer: "https://127.0.0.1:" + strconv.Itoa(httpsPort),
-// 	}
-
-// 	c.MainHTML(u)
-// }

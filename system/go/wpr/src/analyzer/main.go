@@ -47,18 +47,18 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 	if ok {
 		log.Printf("File %s found in cache", arg.Name)
 		switch file.Status {
-		// case 1: //file instrumented
-		// 	if strings.Contains(strings.ToLower(arg.Type), "javascript") {
-		// 		log.Printf("File %s already instrumented but no signature yet??", arg.Name)
-		// 		atomic.AddInt32(&a.stats.instC, 1)
-		// 		return &pb.AzResponse{Body: file.InstBody}, nil
-		// 	}
-		// 	return &pb.AzResponse{Body: file.InstBody}, nil
-		case 1, 2: // file instrumented and signature generated
-			if file.Status == 1 {
-				log.Printf("File %s already instrumented but no signature yet; dummy sig", arg.Name)
-				file.Sig = types.Signature{Input: []pb.Lineaccess{}, Output: []pb.Lineaccess{}, Fetches: []*pb.Fetches{}}
+		case 1: //file instrumented
+			if strings.Contains(strings.ToLower(arg.Type), "javascript") {
+				log.Printf("File %s already instrumented but no signature yet??", arg.Name)
+				atomic.AddInt32(&a.stats.instC, 1)
+				return &pb.AzResponse{Body: file.InstBody}, nil
 			}
+			return &pb.AzResponse{Body: file.InstBody}, nil
+		case 2: // file instrumented and signature generated
+			// if file.Status == 1 {
+			// 	log.Printf("File %s already instrumented but no signature yet; dummy sig", arg.Name)
+			// 	file.Sig = types.Signature{Input: []pb.Lineaccess{}, Output: []pb.Lineaccess{}, Fetches: []*pb.Fetches{}}
+			// }
 			log.Printf("Generating signature template for file %s", arg.Name)
 			var err error
 			var newbody string

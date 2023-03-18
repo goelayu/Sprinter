@@ -50,7 +50,7 @@ func readLines(path string) ([]string, error) {
 	return lines, scanner.Err()
 }
 
-func initProxies(n int, proxyData string, wprData string) []*Proxy {
+func initProxies(n int, proxyData string, wprData string, azPort int) []*Proxy {
 	GOROOT := "/w/goelayu/uluyol-sigcomm/go"
 	WPRDIR := "/vault-swift/goelayu/balanced-crawler/system/go/wpr"
 	DUMMYDATA := "/vault-swift/goelayu/balanced-crawler/data/record/wpr/test/dummy.wprgo"
@@ -65,8 +65,8 @@ func initProxies(n int, proxyData string, wprData string) []*Proxy {
 		httpsport := startHTTPSPORT + i
 		dataFile := fmt.Sprintf("%s/%s", proxyData, strconv.Itoa(httpsport))
 		os.WriteFile(dataFile, []byte(DUMMYDATA), 0644)
-		cmdstr := fmt.Sprintf("GOROOT=%s go run src/wpr.go replay --http_port %d --https_port %d %s",
-			GOROOT, httpport, httpsport, dataFile)
+		cmdstr := fmt.Sprintf("GOROOT=%s go run src/wpr.go replay --http_port %d --https_port %d --az_port %d %s",
+			GOROOT, httpport, httpsport, azPort, dataFile)
 		cmd := exec.Command("bash", "-c", cmdstr)
 		cmd.Dir = WPRDIR
 		cmd.Stdout = os.Stdout
@@ -125,13 +125,14 @@ func (lcm *LCM) Start() {
 	wg.Wait()
 }
 
-func initLCM(n int, pagePath string, proxyData string, wprData string) *LCM {
+func initLCM(n int, pagePath string, proxyData string, wprData string,
+	azPort int) *LCM {
 	// read pages
 	pages, _ := readLines(pagePath)
 	log.Printf("Read %d pages", len(pages))
 
 	// initialize proxies
-	proxies := initProxies(n, proxyData, wprData)
+	proxies := initProxies(n, proxyData, wprData, azPort)
 
 	// initialize crawlers
 	crawlers := make([]*Crawler, n)
@@ -158,11 +159,13 @@ func main() {
 	var proxyData string
 	var nCrawlers int
 	var verbose bool
+	var azPort int
 
 	flag.StringVar(&pagePath, "pages", "", "path to pages file")
 	flag.IntVar(&nCrawlers, "n", 1, "number of crawlers")
 	flag.StringVar(&wprData, "wpr", "", "path to wpr data directory")
 	flag.StringVar(&proxyData, "proxy", "", "path to proxy data directory")
+	flag.IntVar(&azPort, "az", 0, "port of azure load balancer")
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.Parse()
 
@@ -173,6 +176,6 @@ func main() {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData)
+	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort)
 	lcm.Start()
 }
