@@ -16,11 +16,13 @@ getstatuscodedist(){
     sort -n $2 | uniq -c | sort -n | sponge $2
 }
 
-getstatuscodedist $1 $tmpfile &
+getstatuscodedist $2 $tmpfile &
 
 wait
 
 echo "Recorded size $1 : $sizerecord"
 echo "Output size $1 : $sizeoutput"
-cat $tmpfile
+
+echo "Status code distribution"
+cat $tmpfile | tail -n5
 rm $tmpfile

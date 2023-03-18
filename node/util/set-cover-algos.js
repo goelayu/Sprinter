@@ -164,7 +164,7 @@ var randomSched = function (net, union) {
 };
 
 var greedySched = function (nets, union) {
-  var nPages = 0;
+  var nPages = [];
   var js = [];
   var nettoUrl = {};
 
@@ -192,18 +192,18 @@ var greedySched = function (nets, union) {
       }
     }
     program.verbose && console.log(`Picking next: ${largestUrl}`);
-    return largest;
+    return [largest, largestUrl];
   };
 
   var iter = 0;
   var unioncp = union.slice();
   while (js.length < unioncp.length) {
-    var net = largestUncovered(nets, union);
+    var [net, u] = largestUncovered(nets, union);
     program.verbose && console.log(`largest uncovered: ${net.length}`);
     for (var n of net) {
       if (js.indexOf(n) == -1) js.push(n);
     }
-    nPages++;
+    nPages.push(u);
     union = union.filter((n) => !net.includes(n));
     program.verbose && console.log(`js: ${js.length}, union: ${union.length}`);
     // remove net from nets
@@ -230,7 +230,7 @@ var main = function () {
     case "custom":
       var nPages = customSched(nets, js);
   }
-  console.log(nPages);
+  for (var p of nPages) console.log(p);
 };
 
 main();
