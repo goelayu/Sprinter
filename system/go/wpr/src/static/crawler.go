@@ -20,6 +20,7 @@ type Crawler struct {
 	HttpServer  string
 	HttpsServer string
 	Client      *http.Client
+	url2scheme  map[string]string
 }
 
 func HTMLParser(body io.ReadCloser) ([]string, error) {
@@ -73,11 +74,11 @@ func xtractJSURLS(body io.ReadCloser) []string {
 	return jsurls
 }
 
-func (c *Crawler) Crawl(u string, host string) (*io.ReadCloser, error) {
+func (c *Crawler) Crawl(u string, host string, useHttps bool) (*io.ReadCloser, error) {
 	log.Printf("Crawling %s from host %s", u, host)
 
 	var portaddr string
-	if strings.Index(u, "https") == 0 {
+	if useHttps {
 		portaddr = c.HttpsServer
 	} else {
 		portaddr = c.HttpServer
@@ -100,7 +101,12 @@ func (c *Crawler) Crawl(u string, host string) (*io.ReadCloser, error) {
 }
 
 func (c *Crawler) HandleJS(path string, host string) error {
-	jsbody, err := c.Crawl(path, host)
+	useHttps := false
+	log.Printf("Url %s, has scheme %s", host+path, c.url2scheme[host+path])
+	if c.url2scheme[host+path] == "https" {
+		useHttps = true
+	}
+	jsbody, err := c.Crawl(path, host, useHttps)
 	if err != nil {
 		return err
 	}
@@ -110,6 +116,8 @@ func (c *Crawler) HandleJS(path string, host string) error {
 	if len(jsurls) == 0 {
 		log.Printf("No template OR no embedded URLS found in %s", host+path)
 		return nil
+	} else {
+		log.Printf("Found %d embedded URLS in %s", len(jsurls), host+path)
 	}
 
 	var wg sync.WaitGroup
@@ -117,6 +125,7 @@ func (c *Crawler) HandleJS(path string, host string) error {
 
 	for _, jsurl := range jsurls {
 		go func(jsurl string) {
+			log.Printf("Crawling %s", jsurl)
 			defer wg.Done()
 
 			jsHost, jsPath, err := constURL(jsurl)
@@ -146,7 +155,13 @@ func (c *Crawler) Visit(u string) {
 		return
 	}
 
-	htmlBody, err := c.Crawl(mainParsed.Path, mainParsed.Host)
+	useHttps := false
+
+	if mainParsed.Scheme == "https" {
+		useHttps = true
+	}
+
+	htmlBody, err := c.Crawl(mainParsed.Path, mainParsed.Host, useHttps)
 	if err != nil {
 		log.Printf("[Visiting page] Error while crawling %s: %v", u, err)
 		return
@@ -162,8 +177,8 @@ func (c *Crawler) Visit(u string) {
 
 	for _, jsurl := range jsurls {
 		go func(jsurl string) {
+			log.Printf("Crawling %s", jsurl)
 			defer wg.Done()
-
 			jsHost, jsPath, err := constURL(jsurl)
 			if err != nil {
 				log.Printf("Error while parsing URL %s: %v", jsurl, err)

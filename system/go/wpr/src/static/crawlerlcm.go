@@ -12,18 +12,21 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 type LCM struct {
-	crawlers []*Crawler
-	proxies  []*Proxy
-	pages    []string
-	mu       sync.Mutex
+	crawlers   []*Crawler
+	proxies    []*Proxy
+	pages      []string
+	mu         sync.Mutex
+	url2scheme map[string]string
 }
 
 type Proxy struct {
@@ -31,6 +34,28 @@ type Proxy struct {
 	dataFile string
 	cmd      *exec.Cmd
 	wprData  string
+}
+
+func buildUrl2Scheme(logPath string) (map[string]string, error) {
+	url2scheme := make(map[string]string)
+	lines, err := readLines(logPath)
+	if err != nil {
+		log.Printf("Error reading log file: %s", err)
+	}
+	for _, line := range lines {
+		if !strings.Contains(line, "generated with signature") {
+			continue
+		}
+		parts := strings.Split(line, " ")
+		u := parts[6]
+		// log.Printf("adding %s to url2scheme", u)
+		parsedUrl, err := url.Parse(u)
+		if err != nil {
+			continue
+		}
+		url2scheme[parsedUrl.Host+parsedUrl.Path] = parsedUrl.Scheme
+	}
+	return url2scheme, nil
 }
 
 // readLines reads a whole file into memory
@@ -44,6 +69,8 @@ func readLines(path string) ([]string, error) {
 
 	var lines []string
 	scanner := bufio.NewScanner(file)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
@@ -77,15 +104,15 @@ func initProxies(n int, proxyData string, wprData string, azPort int) []*Proxy {
 	}
 
 	//sleep for 3 seconds to make sure all proxies are up
-	time.Sleep(15 * time.Second)
+	time.Sleep(10 * time.Second)
 	return proxies
 }
 
 func (p *Proxy) Stop() {
 	log.Printf("Stopping proxy on port %d", p.port)
-	// killcmd := fmt.Sprintf("ps aux | grep https_port | grep %d | awk '{print $2}' | xargs kill -SIGINT", p.port)
-	// exec.Command("bash", "-c", killcmd).Run()
-	p.cmd.Process.Signal(os.Interrupt)
+	killcmd := fmt.Sprintf("ps aux | grep https_port | grep %d | awk '{print $2}' | xargs kill -SIGINT", p.port)
+	exec.Command("bash", "-c", killcmd).Run()
+	// p.cmd.Process.Signal(os.Interrupt)
 	os.Remove(p.dataFile)
 }
 
@@ -129,10 +156,13 @@ func (lcm *LCM) Start() {
 }
 
 func initLCM(n int, pagePath string, proxyData string, wprData string,
-	azPort int) *LCM {
+	azPort int, azLogPath string) *LCM {
 	// read pages
 	pages, _ := readLines(pagePath)
 	log.Printf("Read %d pages", len(pages))
+
+	// build url2scheme
+	url2scheme, _ := buildUrl2Scheme(azLogPath)
 
 	// initialize proxies
 	proxies := initProxies(n, proxyData, wprData, azPort)
@@ -148,11 +178,12 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 			Client:      client,
 			HttpServer:  fmt.Sprintf("http://127.0.0.1:%d", proxies[i].port-1000),
 			HttpsServer: fmt.Sprintf("https://127.0.0.1:%d", proxies[i].port),
+			url2scheme:  url2scheme,
 		}
 		log.Printf("Initialized crawler %d with proxy port %d", i, proxies[i].port)
 	}
 
-	return &LCM{crawlers, proxies, pages, sync.Mutex{}}
+	return &LCM{crawlers, proxies, pages, sync.Mutex{}, url2scheme}
 }
 
 func main() {
@@ -163,12 +194,14 @@ func main() {
 	var nCrawlers int
 	var verbose bool
 	var azPort int
+	var azLogPath string
 
 	flag.StringVar(&pagePath, "pages", "", "path to pages file")
 	flag.IntVar(&nCrawlers, "n", 1, "number of crawlers")
 	flag.StringVar(&wprData, "wpr", "", "path to wpr data directory")
 	flag.StringVar(&proxyData, "proxy", "", "path to proxy data directory")
 	flag.IntVar(&azPort, "az", 0, "port of azure load balancer")
+	flag.StringVar(&azLogPath, "azlog", "", "path to azure load balancer log")
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.Parse()
 
@@ -179,6 +212,6 @@ func main() {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort)
+	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort, azLogPath)
 	lcm.Start()
 }
