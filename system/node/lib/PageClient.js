@@ -230,6 +230,8 @@ class PageClient {
       // always turn CDP on
       await initCDP(this._cdp);
 
+      await this._page.setBypassCSP(true);
+
       var parsedUrl = URL.parse(this._options.url),
         prefetchCache = this._options.prefetchCache;
 
@@ -378,10 +380,16 @@ class PageClient {
                   return;
                 } else prefetchCache[cacheUrl] = true;
                 var html = await response.text();
+                // try {
+                //   html = decodeURIComponent(escape(html));
+                // } catch (e) {
+                //   console.log("error decoding html");
+                // }
                 // re = /https?:\S*\.(svg|png|jpg|jpeg)\S*/gi;
                 // var re = /(http| src="\/\/)s?:?\S*\.(svg|png)\S*/gi;
+                // /(http| src="\/\/)s?:?\S*\.(svg|png|jpg|jpeg)[^\s>]*/gi;
                 var re =
-                  /(http| src="\/\/)s?:?\S*\.(svg|png|jpg|jpeg)[^\s>]*/gi;
+                  /(http| src="\/\/|\/\/)s?:?[^\s"&')]+\.(svg|png|jpg|jpeg)[^\s>)'"&]*/gm;
                 urls = html.match(re);
                 if (urls) {
                   urls.forEach((url) => {
