@@ -393,14 +393,16 @@ func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, 
 			case event := <-watcher.Events:
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					log.Printf("Archive file %s was modified, reloading", event.Name)
+					replayProxyTLS.Mu.Lock()
+					replayProxy.Mu.Lock()
 					archiveFilePath, _ := os.ReadFile(archivePath)
 					if prevFilePath == string(archiveFilePath) {
 						log.Printf("Archive file path is the same as before, skipping")
+						replayProxyTLS.Mu.Unlock()
+						replayProxy.Mu.Unlock()
 						continue
 					}
 					prevFilePath = string(archiveFilePath)
-					replayProxyTLS.Mu.Lock()
-					replayProxy.Mu.Lock()
 
 					log.Printf("Archive file path: %s", archiveFilePath)
 					archive, err = webpagereplay.OpenArchive(strings.TrimSpace(string(archiveFilePath)))

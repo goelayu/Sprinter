@@ -37,7 +37,7 @@ if [ $# -ne 6 ]; then
 fi
 
 PAGESPERSITE=100
-PERSCRIPTCRAWLERS=5
+PERSCRIPTCRAWLERS=8
 CHROMESCRIPT=../node/chrome-distributed.js
 WPRDATA=/w/goelayu/bcrawling/wprdata
 
@@ -68,6 +68,7 @@ create_url_file(){
         done < $infile
     done
     rm -f tmp
+    # head -n1 $urlfile | sponge $urlfile
     # shuffle urlfile
     # shuf $urlfile | sponge $urlfile
 }
@@ -124,7 +125,7 @@ $sysscript $rundir/sys &
 sysupid=$!;
 
 mkdir -p $rundir/output
-# rm -rf $rundir/output/*
+rm -rf $rundir/output/*
 
 # copy the static analysis tool to tmpfs
 cp -r /vault-swift/goelayu/balanced-crawler/node/program_analysis/ /run/user/99542426/goelayu/panode/
@@ -133,7 +134,7 @@ echo "Starting the az server"
 # start the az server
 GOROOT="/w/goelayu/uluyol-sigcomm/go";
 AZDIR=/vault-swift/goelayu/balanced-crawler/system/go/wpr
-AZPORT=`shuf -i 8000-16000 -n 1`
+[ -z "$AZPORT" ] && AZPORT=`shuf -i 8000-16000 -n 1` && echo "AZPORT: $AZPORT"
 (cd $AZDIR; { time GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port $AZPORT ; } &> $rundir/output/az.log ) &
 # azpid=$!
 
@@ -210,7 +211,7 @@ kill -SIGUSR1 $sysupid;
 ps aux | grep sys-usage-track | grep -v grep | awk '{print $2}' | xargs kill -9
 
 # kill the az server
-ps aux | grep $AZPORT | grep -v grep | awk '{print $2}' | xargs kill -SIGINT
+# ps aux | grep $AZPORT | grep -v grep | awk '{print $2}' | xargs kill -SIGINT
 
 kill $crawlratepid;
 # wait a couple seconds for the az server to finish

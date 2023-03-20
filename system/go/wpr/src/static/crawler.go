@@ -6,7 +6,6 @@ package main
 import (
 	"bytes"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -16,14 +15,17 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
+type logprintf func(msg string, args ...interface{})
+
 type Crawler struct {
 	HttpServer  string
 	HttpsServer string
 	Client      *http.Client
 	url2scheme  map[string]string
+	logf        logprintf
 }
 
-func HTMLParser(body io.ReadCloser) ([]string, error) {
+func HTMLParser(body io.ReadCloser, logf logprintf) ([]string, error) {
 	doc, err := goquery.NewDocumentFromReader(body)
 	if err != nil {
 		return nil, err
@@ -37,6 +39,8 @@ func HTMLParser(body io.ReadCloser) ([]string, error) {
 		}
 	})
 
+	dhtml, _ := doc.Html()
+	logf("Htmlbody: %s", dhtml)
 	return jsurls, nil
 }
 
@@ -74,8 +78,9 @@ func xtractJSURLS(body io.ReadCloser) []string {
 	return jsurls
 }
 
-func (c *Crawler) Crawl(u string, host string, useHttps bool) (*io.ReadCloser, error) {
-	log.Printf("Crawling %s from host %s", u, host)
+func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, error) {
+	h := *host
+	c.logf("Crawling %s from host %s", u, h)
 
 	var portaddr string
 	if useHttps {
@@ -86,27 +91,44 @@ func (c *Crawler) Crawl(u string, host string, useHttps bool) (*io.ReadCloser, e
 
 	reqURL, _ := url.Parse(portaddr + u)
 
+	c.logf("Requesting %s", reqURL)
+	c.logf("Host is %s", h)
+
 	req := &http.Request{
 		Method: "GET",
 		URL:    reqURL,
-		Host:   host,
+		Host:   h,
+	}
+
+	var location string
+
+	c.Client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		location = req.URL.String()
+		c.logf("Redirecting to %s", location)
+		return nil
 	}
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Received response from %s with status code %d", reqURL, resp.StatusCode)
+
+	if location != "" {
+		c.logf("Updating host to %s", location)
+		lParsed, _ := url.Parse(location)
+		*host = lParsed.Host
+	}
+	c.logf("Received response from %s with status code %d", reqURL, resp.StatusCode)
 	return &resp.Body, nil
 }
 
 func (c *Crawler) HandleJS(path string, host string) error {
 	useHttps := false
-	log.Printf("Url %s, has scheme %s", host+path, c.url2scheme[host+path])
+	c.logf("Url %s, has scheme %s", host+path, c.url2scheme[host+path])
 	if c.url2scheme[host+path] == "https" {
 		useHttps = true
 	}
-	jsbody, err := c.Crawl(path, host, useHttps)
+	jsbody, err := c.Crawl(path, &host, useHttps)
 	if err != nil {
 		return err
 	}
@@ -114,10 +136,10 @@ func (c *Crawler) HandleJS(path string, host string) error {
 	jsurls := xtractJSURLS(*jsbody)
 
 	if len(jsurls) == 0 {
-		log.Printf("No template OR no embedded URLS found in %s", host+path)
+		c.logf("No template OR no embedded URLS found in %s", host+path)
 		return nil
 	} else {
-		log.Printf("Found %d embedded URLS in %s", len(jsurls), host+path)
+		c.logf("Found %d embedded URLS in %s", len(jsurls), host+path)
 	}
 
 	var wg sync.WaitGroup
@@ -125,12 +147,12 @@ func (c *Crawler) HandleJS(path string, host string) error {
 
 	for _, jsurl := range jsurls {
 		go func(jsurl string) {
-			log.Printf("Crawling %s", jsurl)
+			c.logf("Crawling %s", jsurl)
 			defer wg.Done()
 
 			jsHost, jsPath, err := constURL(jsurl)
 			if err != nil {
-				log.Printf("Error while parsing URL %s: %v", jsurl, err)
+				c.logf("Error while parsing URL %s: %v", jsurl, err)
 				return
 			}
 			if jsHost == "" {
@@ -151,7 +173,7 @@ func (c *Crawler) Visit(u string) {
 
 	mainParsed, err := url.Parse(u)
 	if err != nil {
-		log.Printf("[Visiting page] Error while parsing URL %s: %v", u, err)
+		c.logf("[Visiting page] Error while parsing URL %s: %v", u, err)
 		return
 	}
 
@@ -161,14 +183,15 @@ func (c *Crawler) Visit(u string) {
 		useHttps = true
 	}
 
-	htmlBody, err := c.Crawl(mainParsed.Path, mainParsed.Host, useHttps)
+	htmlBody, err := c.Crawl(mainParsed.Path, &mainParsed.Host, useHttps)
+	c.logf("value of mainParsed.Host is %s", mainParsed.Host)
 	if err != nil {
-		log.Printf("[Visiting page] Error while crawling %s: %v", u, err)
+		c.logf("[Visiting page] Error while crawling %s: %v", u, err)
 		return
 	}
-	jsurls, err := HTMLParser(*htmlBody)
+	jsurls, err := HTMLParser(*htmlBody, c.logf)
 	if err != nil {
-		log.Printf("[Visiting page] Error while parsing HTML %s: %v", u, err)
+		c.logf("[Visiting page] Error while parsing HTML %s: %v", u, err)
 		return
 	}
 
@@ -177,11 +200,11 @@ func (c *Crawler) Visit(u string) {
 
 	for _, jsurl := range jsurls {
 		go func(jsurl string) {
-			log.Printf("Crawling %s", jsurl)
+			// c.logf("Crawling %s from %s", jsurl, u)
 			defer wg.Done()
 			jsHost, jsPath, err := constURL(jsurl)
 			if err != nil {
-				log.Printf("Error while parsing URL %s: %v", jsurl, err)
+				c.logf("Error while parsing URL %s: %v", jsurl, err)
 				return
 			}
 			if jsHost == "" {
@@ -192,11 +215,11 @@ func (c *Crawler) Visit(u string) {
 			}
 			err = c.HandleJS(jsPath, jsHost)
 			if err != nil {
-				log.Printf("Error while crawling %s: %v", jsHost+jsPath, err)
+				c.logf("Error while crawling %s: %v", jsHost+jsPath, err)
 			}
 		}(jsurl)
 	}
 
 	wg.Wait()
-	log.Printf("Finished crawling Page %s", u)
+	c.logf("Finished crawling Page %s", u)
 }

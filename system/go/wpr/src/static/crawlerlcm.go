@@ -34,6 +34,7 @@ type Proxy struct {
 	dataFile string
 	cmd      *exec.Cmd
 	wprData  string
+	outFile  *os.File
 }
 
 func buildUrl2Scheme(logPath string) (map[string]string, error) {
@@ -48,7 +49,7 @@ func buildUrl2Scheme(logPath string) (map[string]string, error) {
 		}
 		parts := strings.Split(line, " ")
 		u := parts[6]
-		// log.Printf("adding %s to url2scheme", u)
+		log.Printf("adding %s to url2scheme", u)
 		parsedUrl, err := url.Parse(u)
 		if err != nil {
 			continue
@@ -70,11 +71,18 @@ func readLines(path string) ([]string, error) {
 	var lines []string
 	scanner := bufio.NewScanner(file)
 	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
+	scanner.Buffer(buf, 1024*1024*1024)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
 	return lines, scanner.Err()
+}
+
+func makeLogger(p string) func(msg string, args ...interface{}) {
+	prefix := fmt.Sprintf("[Crawler:%s]: ", p)
+	return func(msg string, args ...interface{}) {
+		log.Print(prefix + fmt.Sprintf(msg, args...))
+	}
 }
 
 func initProxies(n int, proxyData string, wprData string, azPort int) []*Proxy {
@@ -91,20 +99,22 @@ func initProxies(n int, proxyData string, wprData string, azPort int) []*Proxy {
 		httpport := startHTTPPORT + i
 		httpsport := startHTTPSPORT + i
 		dataFile := fmt.Sprintf("%s/%s", proxyData, strconv.Itoa(httpsport))
+		outFilePath := fmt.Sprintf("%s/%s.replay.log", proxyData, strconv.Itoa(httpsport))
+		outFile, _ := os.Create(outFilePath)
 		os.WriteFile(dataFile, []byte(DUMMYDATA), 0644)
 		cmdstr := fmt.Sprintf("GOROOT=%s go run src/wpr.go replay --http_port %d --https_port %d --az_port %d %s",
 			GOROOT, httpport, httpsport, azPort, dataFile)
 		cmd := exec.Command("bash", "-c", cmdstr)
 		cmd.Dir = WPRDIR
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stdout = outFile
+		cmd.Stderr = outFile
 		go cmd.Run()
-		proxies[i] = &Proxy{httpsport, dataFile, cmd, wprData}
+		proxies[i] = &Proxy{httpsport, dataFile, cmd, wprData, outFile}
 		log.Printf("Started proxy on port %d", httpsport)
 	}
 
 	//sleep for 3 seconds to make sure all proxies are up
-	time.Sleep(10 * time.Second)
+	time.Sleep(25 * time.Second)
 	return proxies
 }
 
@@ -114,6 +124,7 @@ func (p *Proxy) Stop() {
 	exec.Command("bash", "-c", killcmd).Run()
 	// p.cmd.Process.Signal(os.Interrupt)
 	os.Remove(p.dataFile)
+	p.outFile.Close()
 }
 
 func (p *Proxy) UpdateDataFile(page string) {
@@ -147,6 +158,7 @@ func (lcm *LCM) Start() {
 				lcm.mu.Unlock()
 				log.Printf("Crawler %s crawling %s", c.HttpServer, page)
 				cproxy.UpdateDataFile(page)
+				c.logf = makeLogger(fmt.Sprintf("%s:%s", c.HttpsServer, page))
 				c.Visit(page)
 			}
 		}(i)
@@ -188,6 +200,8 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 
 func main() {
 
+	fmt.Println(len(os.Args), os.Args)
+
 	var pagePath string
 	var wprData string
 	var proxyData string
@@ -200,8 +214,8 @@ func main() {
 	flag.IntVar(&nCrawlers, "n", 1, "number of crawlers")
 	flag.StringVar(&wprData, "wpr", "", "path to wpr data directory")
 	flag.StringVar(&proxyData, "proxy", "", "path to proxy data directory")
-	flag.IntVar(&azPort, "az", 0, "port of azure load balancer")
-	flag.StringVar(&azLogPath, "azlog", "", "path to azure load balancer log")
+	flag.IntVar(&azPort, "az", 0, "port of analyzer server")
+	flag.StringVar(&azLogPath, "azlog", "", "path to az server log")
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.Parse()
 
