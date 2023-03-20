@@ -88,7 +88,7 @@ func makeLogger(p string) func(msg string, args ...interface{}) {
 func initProxies(n int, proxyData string, wprData string, azPort int) []*Proxy {
 	GOROOT := "/w/goelayu/uluyol-sigcomm/go"
 	WPRDIR := "/vault-swift/goelayu/balanced-crawler/system/go/wpr"
-	DUMMYDATA := "/vault-swift/goelayu/balanced-crawler/data/record/wpr/test/dummy.wprgo"
+	DUMMYDATA := "/run/user/99542426/goelayu/dummy.wprgo"
 
 	startHTTPPORT := 8080
 	startHTTPSPORT := 9080
@@ -114,7 +114,7 @@ func initProxies(n int, proxyData string, wprData string, azPort int) []*Proxy {
 	}
 
 	//sleep for 3 seconds to make sure all proxies are up
-	time.Sleep(25 * time.Second)
+	time.Sleep(5 * time.Second)
 	return proxies
 }
 
@@ -159,7 +159,7 @@ func (lcm *LCM) Start() {
 				log.Printf("Crawler %s crawling %s", c.HttpServer, page)
 				cproxy.UpdateDataFile(page)
 				c.logf = makeLogger(fmt.Sprintf("%s:%s", c.HttpsServer, page))
-				c.Visit(page)
+				c.VisitWithTimeout(page, 10*time.Second)
 			}
 		}(i)
 	}

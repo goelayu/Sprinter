@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -23,6 +24,7 @@ type Crawler struct {
 	Client      *http.Client
 	url2scheme  map[string]string
 	logf        logprintf
+	forceExit   bool
 }
 
 func HTMLParser(body io.ReadCloser, logf logprintf) ([]string, error) {
@@ -79,6 +81,11 @@ func xtractJSURLS(body io.ReadCloser) []string {
 }
 
 func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, error) {
+	if c.forceExit {
+		c.logf("Force exiting Crawl")
+		return nil, nil
+	}
+
 	h := *host
 	c.logf("Crawling %s from host %s", u, h)
 
@@ -123,6 +130,11 @@ func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, 
 }
 
 func (c *Crawler) HandleJS(path string, host string) error {
+	if c.forceExit {
+		c.logf("Force exiting Crawl")
+		return nil
+	}
+
 	useHttps := false
 	c.logf("Url %s, has scheme %s", host+path, c.url2scheme[host+path])
 	if c.url2scheme[host+path] == "https" {
@@ -169,12 +181,12 @@ func (c *Crawler) HandleJS(path string, host string) error {
 	return nil
 }
 
-func (c *Crawler) Visit(u string) {
+func (c *Crawler) Visit(u string) error {
 
 	mainParsed, err := url.Parse(u)
 	if err != nil {
 		c.logf("[Visiting page] Error while parsing URL %s: %v", u, err)
-		return
+		return nil
 	}
 
 	useHttps := false
@@ -187,12 +199,12 @@ func (c *Crawler) Visit(u string) {
 	c.logf("value of mainParsed.Host is %s", mainParsed.Host)
 	if err != nil {
 		c.logf("[Visiting page] Error while crawling %s: %v", u, err)
-		return
+		return err
 	}
 	jsurls, err := HTMLParser(*htmlBody, c.logf)
 	if err != nil {
 		c.logf("[Visiting page] Error while parsing HTML %s: %v", u, err)
-		return
+		return err
 	}
 
 	var wg sync.WaitGroup
@@ -222,4 +234,24 @@ func (c *Crawler) Visit(u string) {
 
 	wg.Wait()
 	c.logf("Finished crawling Page %s", u)
+
+	return nil
+}
+
+func (c *Crawler) VisitWithTimeout(u string, timeout time.Duration) error {
+	c.logf("Visiting %s with timeout %d", u, timeout)
+	res := make(chan error)
+	go func() {
+		res <- c.Visit(u)
+	}()
+
+	select {
+	case err := <-res:
+		return err
+	case <-time.After(timeout):
+		c.logf("Timeout while visiting %s", u)
+		c.forceExit = true
+		return nil
+	}
+
 }
