@@ -145,7 +145,7 @@ func JSGen(sig types.Signature, instBody string) (string, error) {
 		if r.GetValue() == "" {
 			continue
 		}
-		jsfmtReads[K] = "`" + r.GetValue() + "`"
+		jsfmtReads[K] = "`" + strings.ReplaceAll(r.GetValue(), "`", "\\`") + "`"
 		// if r.GetValue() == "" {
 		// 	jsfmtReads[K] = "null"
 		// }
@@ -157,7 +157,7 @@ func JSGen(sig types.Signature, instBody string) (string, error) {
 			continue
 		}
 		K := strings.ReplaceAll(k, "'", "\\'")
-		jsfmtWrites[K] = "`" + w.GetValue() + "`"
+		jsfmtWrites[K] = "`" + strings.ReplaceAll(w.GetValue(), "`", "\\`") + "`"
 	}
 
 	fetches := make([][2]string, 0)
