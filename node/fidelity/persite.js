@@ -32,11 +32,15 @@ var initAdBlock = function (sourceUrl) {
 var checkBlockUrl = function (n, engine) {
   var types = ["image", "script", "stylesheet", "document"];
   var urltype = types.find((t) => n.type.indexOf(t) != -1);
-  if (!urltype) return false;
-  // console.log(
-  //   `checking adblock with args ${n.url}, ${urltype}, ${engine.sourceUrl}`
-  // );
-  return engine.check(n.url, urltype, engine.sourceUrl);
+  console.log(n.type);
+  if (!urltype) urltype = "other";
+
+  var u = n.url;
+  if (u.indexOf("http") != 0) u = "http" + u;
+  console.log(
+    `checking adblock with args ${u}, ${urltype}, ${engine.sourceUrl}`
+  );
+  return engine.check(u, urltype, engine.sourceUrl);
 };
 
 var filternet = function (n) {
@@ -60,11 +64,11 @@ var getNet = function (path) {
 
 var compareFidelity = function (bnet, onet, engine) {
   var bnet = bnet.map((n) => {
-    n.url = n.url.split("?")[0];
+    n.url = n.url.replace(/https*/, "").split("?")[0];
     return n;
   });
   var onet = onet.map((n) => {
-    n.url = n.url.split("?")[0];
+    n.url = n.url.replace(/https*/, "").split("?")[0];
     return n;
   });
 
@@ -73,6 +77,7 @@ var compareFidelity = function (bnet, onet, engine) {
   bnet.forEach((bn) => {
     if (!onet.map((n) => n.url).includes(bn.url)) {
       missing.push(bn);
+      console.log(`missing ${bn.url} in opt network`);
       if (!checkBlockUrl(bn, engine)) admissing.push(bn);
     }
   });
@@ -81,7 +86,7 @@ var compareFidelity = function (bnet, onet, engine) {
 
 var summarynet = function (net, store) {
   net.forEach((n) => {
-    var url = n.url.split("?")[0];
+    var url = n.url;
     if (!store[url]) store[url] = n;
   });
 };
