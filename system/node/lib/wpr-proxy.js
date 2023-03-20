@@ -6,8 +6,7 @@ const fs = require("fs");
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
 const GOPATH = "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
 const WPRDIR = "/vault-swift/goelayu/balanced-crawler/system/go/wpr";
-const DUMMYDATA =
-  "/vault-swift/goelayu/balanced-crawler/data/record/wpr/test/dummy.wprgo";
+const DUMMYDATA = "/run/user/99542426/goelayu/dummy.wprgo";
 
 function sleep(ms) {
   return new Promise((resolve) => {
