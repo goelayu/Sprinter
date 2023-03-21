@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -27,37 +28,53 @@ type Crawler struct {
 	forceExit   bool
 }
 
-func HTMLParser(body io.ReadCloser, logf logprintf) ([]string, error) {
+func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
 	doc, err := goquery.NewDocumentFromReader(body)
 	if err != nil {
 		return nil, err
 	}
 
-	var jsurls []string
-	doc.Find("script").Each(func(i int, s *goquery.Selection) {
+	var urls []string
+
+	doc.Find("script, img, link").Each(func(i int, s *goquery.Selection) {
 		src, exists := s.Attr("src")
 		if exists {
-			jsurls = append(jsurls, src)
+			urls = append(urls, src)
+		}
+		href, exists := s.Attr("href")
+		if exists {
+			urls = append(urls, href)
 		}
 	})
 
+	var urls2 [][2]string
+
+	for _, u := range urls {
+		pu, _ := url.Parse(u)
+		switch filepath.Ext(pu.Path) {
+		case ".js":
+			urls2 = append(urls2, [2]string{u, "js"})
+		case ".css":
+			urls2 = append(urls2, [2]string{u, "css"})
+		case ".png", ".jpg", ".jpeg", ".gif":
+			urls2 = append(urls2, [2]string{u, "image"})
+		}
+		if strings.Contains(u, "css") {
+			urls2 = append(urls2, [2]string{u, "css"})
+		}
+	}
+
 	dhtml, _ := doc.Html()
 	logf("Htmlbody: %s", dhtml)
-	return jsurls, nil
+	logf("Urls: %v", urls2)
+	return urls2, nil
 }
 
-func constURL(u string) (host string, path string, err error) {
-	if strings.Index(u, "http") == 0 || strings.Index(u, "//") == 0 {
-		pu, err := url.Parse(u)
-		if err != nil {
-			return "", "", err
-		}
-		return pu.Host, pu.Path, nil
-	} else if strings.Index(u, "/") == 0 {
-		return "/", u, nil
-	} else {
-		return "", u, nil
-	}
+func constURL(target string, main string) (host string, path string, err error) {
+	mainP, _ := url.Parse(main)
+	targetP, _ := url.Parse(target)
+	res := mainP.ResolveReference(targetP)
+	return res.Host, res.Path, nil
 }
 
 func xtractJSURLS(body io.ReadCloser) []string {
@@ -129,6 +146,36 @@ func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, 
 	return &resp.Body, nil
 }
 
+func (c *Crawler) HandleCSS(path string, host string, useHttps bool) error {
+	if c.forceExit {
+		c.logf("Force exiting Crawl")
+		return nil
+	}
+
+	cssbody, err := c.Crawl(path, &host, useHttps)
+	if err != nil {
+		return err
+	}
+
+	b, err := io.ReadAll(*cssbody)
+	if err != nil {
+		return err
+	}
+
+	rgx, _ := regexp.Compile(`url\((\S*)\)`)
+	m := rgx.FindAllStringSubmatch(string(b), -1)
+
+	for _, v := range m {
+		h, p, err := constURL(v[1], host+path)
+		if err != nil {
+			continue
+		}
+		c.Crawl(p, &h, useHttps)
+	}
+
+	return nil
+}
+
 func (c *Crawler) HandleJS(path string, host string) error {
 	if c.forceExit {
 		c.logf("Force exiting Crawl")
@@ -162,16 +209,10 @@ func (c *Crawler) HandleJS(path string, host string) error {
 			c.logf("Crawling %s", jsurl)
 			defer wg.Done()
 
-			jsHost, jsPath, err := constURL(jsurl)
+			jsHost, jsPath, err := constURL(jsurl, host+path)
 			if err != nil {
 				c.logf("Error while parsing URL %s: %v", jsurl, err)
 				return
-			}
-			if jsHost == "" {
-				jsHost = host
-				jsPath = path + jsPath
-			} else if jsHost == "/" {
-				jsHost = host
 			}
 			c.HandleJS(jsPath, jsHost)
 		}(jsurl)
@@ -201,35 +242,41 @@ func (c *Crawler) Visit(u string) error {
 		c.logf("[Visiting page] Error while crawling %s: %v", u, err)
 		return err
 	}
-	jsurls, err := HTMLParser(*htmlBody, c.logf)
+	urls, err := HTMLParser(*htmlBody, c.logf)
 	if err != nil {
 		c.logf("[Visiting page] Error while parsing HTML %s: %v", u, err)
 		return err
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(len(jsurls))
+	wg.Add(len(urls))
 
-	for _, jsurl := range jsurls {
-		go func(jsurl string) {
+	for _, tup := range urls {
+		go func(tup [2]string) {
+			url := tup[0]
+			t := tup[1]
 			// c.logf("Crawling %s from %s", jsurl, u)
 			defer wg.Done()
-			jsHost, jsPath, err := constURL(jsurl)
+			host, path, err := constURL(url, u)
 			if err != nil {
-				c.logf("Error while parsing URL %s: %v", jsurl, err)
+				c.logf("Error while parsing URL %s: %v", url, err)
 				return
 			}
-			if jsHost == "" {
-				jsHost = mainParsed.Host
-				jsPath = mainParsed.Path + jsPath
-			} else if jsHost == "/" {
-				jsHost = mainParsed.Host
+			switch t {
+			case "js":
+				err = c.HandleJS(path, host)
+				if err != nil {
+					c.logf("Error while crawling %s: %v", host+path, err)
+				}
+			case "image":
+				c.Crawl(path, &host, useHttps)
+			case "css":
+				err = c.HandleCSS(path, host, useHttps)
+				if err != nil {
+					c.logf("Error while crawling %s: %v", host+path, err)
+				}
 			}
-			err = c.HandleJS(jsPath, jsHost)
-			if err != nil {
-				c.logf("Error while crawling %s: %v", jsHost+jsPath, err)
-			}
-		}(jsurl)
+		}(tup)
 	}
 
 	wg.Wait()
