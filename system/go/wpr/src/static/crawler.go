@@ -45,7 +45,7 @@ type NWLog struct {
 }
 
 func HTMLREParser(body string, logf logprintf) ([]string, error) {
-	re := regexp.MustCompile(`(http| src="\/\/|\/\/)s?:?[^\s"&')]+\.(svg|png|jpg|jpeg)[^\s>)'"&]*`)
+	re := regexp.MustCompile(`(http| src="\/\/|\/\/)s?:?[^\s"&')]+\.(svg|png|jpg|jpeg|js)[^\s>)'"&]*`)
 	matches := re.FindAllString(body, -1)
 
 	urls := []string{}
@@ -108,7 +108,11 @@ func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
 			}
 		}
 		if !inurls {
-			urls2 = append(urls2, [2]string{u, "image"})
+			if strings.Contains(u, ".js") {
+				urls2 = append(urls2, [2]string{u, "js"})
+			} else {
+				urls2 = append(urls2, [2]string{u, "image"})
+			}
 		}
 	}
 
@@ -118,6 +122,10 @@ func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
 }
 
 func constURL(target string, main string) (host string, path string, err error) {
+
+	if !strings.HasPrefix(main, "http") {
+		main = "http://" + main
+	}
 	mainP, err := url.Parse(main)
 	if err != nil {
 		return "", "", err
@@ -223,12 +231,14 @@ func (c *Crawler) DumpNetLog(outPath string, u string) {
 		return
 	}
 	writer := bufio.NewWriter(f)
-	defer writer.Flush()
-	defer f.Close()
 
+	c.net.mu.Lock()
 	for _, v := range c.net.Reqs {
 		writer.WriteString(fmt.Sprintf("%s %d\n", v.Url, v.Status))
 	}
+	c.net.mu.Unlock()
+	writer.Flush()
+	f.Close()
 }
 
 func (c *Crawler) HandleCSS(path string, host string, useHttps bool) error {
