@@ -4,10 +4,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -26,6 +30,16 @@ type Crawler struct {
 	url2scheme  map[string]string
 	logf        logprintf
 	forceExit   bool
+	net         *NWLog
+}
+
+type NWRequest struct {
+	Url    string
+	Status int
+}
+
+type NWLog struct {
+	Reqs []NWRequest
 }
 
 func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
@@ -71,8 +85,15 @@ func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
 }
 
 func constURL(target string, main string) (host string, path string, err error) {
-	mainP, _ := url.Parse(main)
-	targetP, _ := url.Parse(target)
+	mainP, err := url.Parse(main)
+	if err != nil {
+		return "", "", err
+	}
+	targetP, err := url.Parse(target)
+	if err != nil {
+		return "", "", err
+	}
+
 	res := mainP.ResolveReference(targetP)
 	return res.Host, res.Path, nil
 }
@@ -143,7 +164,27 @@ func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, 
 		*host = lParsed.Host
 	}
 	c.logf("Received response from %s with status code %d", reqURL, resp.StatusCode)
+	nr := NWRequest{Url: reqURL.String(), Status: resp.StatusCode}
+	c.net.Reqs = append(c.net.Reqs, nr)
 	return &resp.Body, nil
+}
+
+func (c *Crawler) DumpNetLog(outPath string, u string) {
+	sanitizecmd := fmt.Sprintf("echo '%s' | sanitize", u)
+	sanpage, _ := exec.Command("bash", "-c", sanitizecmd).Output()
+	fullpath := fmt.Sprintf("%s/%s.net", outPath, string(sanpage))
+	f, err := os.Create(fullpath)
+	if err != nil {
+		c.logf("Error creating netlog file: %s", err)
+		return
+	}
+	writer := bufio.NewWriter(f)
+	defer writer.Flush()
+	defer f.Close()
+
+	for _, v := range c.net.Reqs {
+		writer.WriteString(fmt.Sprintf("%s %d\n", v.Url, v.Status))
+	}
 }
 
 func (c *Crawler) HandleCSS(path string, host string, useHttps bool) error {
@@ -285,8 +326,14 @@ func (c *Crawler) Visit(u string) error {
 	return nil
 }
 
-func (c *Crawler) VisitWithTimeout(u string, timeout time.Duration) error {
+func (c *Crawler) VisitWithTimeout(u string, timeout time.Duration, outPath string) error {
 	c.logf("Visiting %s with timeout %d", u, timeout)
+
+	c.net = &NWLog{}
+	c.net.Reqs = make([]NWRequest, 0)
+
+	defer c.DumpNetLog(outPath, u)
+
 	res := make(chan error)
 	go func() {
 		res <- c.Visit(u)
@@ -297,6 +344,7 @@ func (c *Crawler) VisitWithTimeout(u string, timeout time.Duration) error {
 		return err
 	case <-time.After(timeout):
 		c.logf("Timeout while visiting %s", u)
+		c.logf("Finished crawling Page %s", u)
 		c.forceExit = true
 		return nil
 	}

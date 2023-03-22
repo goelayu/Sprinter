@@ -19,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/ratelimit"
 )
 
 type LCM struct {
@@ -27,6 +29,7 @@ type LCM struct {
 	pages      []string
 	mu         sync.Mutex
 	url2scheme map[string]string
+	outDir     string
 }
 
 type Proxy struct {
@@ -114,7 +117,7 @@ func initProxies(n int, proxyData string, wprData string, azPort int) []*Proxy {
 	}
 
 	//sleep for 3 seconds to make sure all proxies are up
-	time.Sleep(5 * time.Second)
+	time.Sleep(15 * time.Second)
 	return proxies
 }
 
@@ -144,8 +147,10 @@ func (lcm *LCM) Start() {
 		go func(index int) {
 			cproxy := lcm.proxies[index]
 			c := lcm.crawlers[index]
+			rl := ratelimit.New(3)
 			defer wg.Done()
 			for {
+				rl.Take()
 				lcm.mu.Lock()
 				if len(pages) == 0 {
 					lcm.mu.Unlock()
@@ -159,7 +164,7 @@ func (lcm *LCM) Start() {
 				log.Printf("Crawler %s crawling %s", c.HttpServer, page)
 				cproxy.UpdateDataFile(page)
 				c.logf = makeLogger(fmt.Sprintf("%s:%s", c.HttpsServer, page))
-				c.VisitWithTimeout(page, 10*time.Second)
+				c.VisitWithTimeout(page, 10*time.Second, lcm.outDir)
 			}
 		}(i)
 	}
@@ -195,7 +200,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 		log.Printf("Initialized crawler %d with proxy port %d", i, proxies[i].port)
 	}
 
-	return &LCM{crawlers, proxies, pages, sync.Mutex{}, url2scheme}
+	return &LCM{crawlers, proxies, pages, sync.Mutex{}, url2scheme, proxyData}
 }
 
 func main() {
