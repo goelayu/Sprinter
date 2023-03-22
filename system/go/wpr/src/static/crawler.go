@@ -41,6 +41,23 @@ type NWRequest struct {
 
 type NWLog struct {
 	Reqs []NWRequest
+	mu   sync.Mutex
+}
+
+func HTMLREParser(body string, logf logprintf) ([]string, error) {
+	re := regexp.MustCompile(`(http| src="\/\/|\/\/)s?:?[^\s"&')]+\.(svg|png|jpg|jpeg)[^\s>)'"&]*`)
+	matches := re.FindAllString(body, -1)
+
+	urls := []string{}
+	for _, m := range matches {
+		u := strings.ReplaceAll(m, "\\", "")
+		u = strings.ReplaceAll(u, "\"", "")
+		u = strings.ReplaceAll(u, "'", "")
+		u = strings.ReplaceAll(u, "src=", "")
+		logf("Found url using regex from HTML: %s", u)
+		urls = append(urls, u)
+	}
+	return urls, nil
 }
 
 func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
@@ -62,6 +79,9 @@ func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
 		}
 	})
 
+	dhtml, _ := doc.Html()
+	reurls, _ := HTMLREParser(dhtml, logf)
+
 	var urls2 [][2]string
 
 	for _, u := range urls {
@@ -71,7 +91,7 @@ func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
 			urls2 = append(urls2, [2]string{u, "js"})
 		case ".css":
 			urls2 = append(urls2, [2]string{u, "css"})
-		case ".png", ".jpg", ".jpeg", ".gif":
+		case ".png", ".jpg", ".jpeg", ".gif", ".svg":
 			urls2 = append(urls2, [2]string{u, "image"})
 		}
 		if strings.Contains(u, "css") {
@@ -79,7 +99,19 @@ func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
 		}
 	}
 
-	dhtml, _ := doc.Html()
+	for _, u := range reurls {
+		inurls := false
+		for _, u2 := range urls {
+			if u == u2 {
+				inurls = true
+				break
+			}
+		}
+		if !inurls {
+			urls2 = append(urls2, [2]string{u, "image"})
+		}
+	}
+
 	logf("Htmlbody: %s", dhtml)
 	logf("Urls: %v", urls2)
 	return urls2, nil
@@ -174,8 +206,10 @@ func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, 
 		*host = lParsed.Host
 	}
 	c.logf("Received response from %s with status code %d", reqURL, resp.StatusCode)
-	nr := NWRequest{Url: reqURL.String(), Status: resp.StatusCode}
+	nr := NWRequest{Url: *host + u, Status: resp.StatusCode}
+	c.net.mu.Lock()
 	c.net.Reqs = append(c.net.Reqs, nr)
+	c.net.mu.Unlock()
 	return &resp.Body, nil
 }
 

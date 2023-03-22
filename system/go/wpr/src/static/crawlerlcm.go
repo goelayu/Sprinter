@@ -222,7 +222,7 @@ func main() {
 	flag.StringVar(&proxyData, "proxy", "", "path to proxy data directory")
 	flag.IntVar(&azPort, "az", 0, "port of analyzer server")
 	flag.StringVar(&azLogPath, "azlog", "", "path to az server log")
-	flag.IntVar(&sleep, "sleep", 1, "sleep time")
+	flag.IntVar(&sleep, "sleep", 5, "sleep time")
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.Parse()
 
