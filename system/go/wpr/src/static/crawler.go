@@ -6,6 +6,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -95,6 +96,9 @@ func constURL(target string, main string) (host string, path string, err error) 
 	}
 
 	res := mainP.ResolveReference(targetP)
+	if res.Host == "" && res.Path == "" {
+		return "", "", errors.New("Could not resolve url")
+	}
 	return res.Host, res.Path, nil
 }
 
@@ -121,7 +125,7 @@ func xtractJSURLS(body io.ReadCloser) []string {
 func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, error) {
 	if c.forceExit {
 		c.logf("Force exiting Crawl")
-		return nil, nil
+		return nil, errors.New("Force exiting Crawl")
 	}
 
 	h := *host
@@ -134,7 +138,10 @@ func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, 
 		portaddr = c.HttpServer
 	}
 
-	reqURL, _ := url.Parse(portaddr + u)
+	reqURL, err := url.Parse(portaddr + u)
+	if err != nil {
+		return nil, err
+	}
 
 	c.logf("Requesting %s", reqURL)
 	c.logf("Host is %s", h)
@@ -160,7 +167,10 @@ func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, 
 
 	if location != "" {
 		c.logf("Updating host to %s", location)
-		lParsed, _ := url.Parse(location)
+		lParsed, err := url.Parse(location)
+		if err != nil {
+			return nil, err
+		}
 		*host = lParsed.Host
 	}
 	c.logf("Received response from %s with status code %d", reqURL, resp.StatusCode)

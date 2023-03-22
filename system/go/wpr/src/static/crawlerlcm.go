@@ -88,7 +88,7 @@ func makeLogger(p string) func(msg string, args ...interface{}) {
 	}
 }
 
-func initProxies(n int, proxyData string, wprData string, azPort int) []*Proxy {
+func initProxies(n int, proxyData string, wprData string, azPort int, sleep int) []*Proxy {
 	GOROOT := "/w/goelayu/uluyol-sigcomm/go"
 	WPRDIR := "/vault-swift/goelayu/balanced-crawler/system/go/wpr"
 	DUMMYDATA := "/run/user/99542426/goelayu/dummy.wprgo"
@@ -117,7 +117,7 @@ func initProxies(n int, proxyData string, wprData string, azPort int) []*Proxy {
 	}
 
 	//sleep for 3 seconds to make sure all proxies are up
-	time.Sleep(15 * time.Second)
+	time.Sleep(time.Duration(sleep) * time.Second)
 	return proxies
 }
 
@@ -173,7 +173,7 @@ func (lcm *LCM) Start() {
 }
 
 func initLCM(n int, pagePath string, proxyData string, wprData string,
-	azPort int, azLogPath string) *LCM {
+	azPort int, azLogPath string, sleep int) *LCM {
 	// read pages
 	pages, _ := readLines(pagePath)
 	log.Printf("Read %d pages", len(pages))
@@ -182,7 +182,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 	url2scheme, _ := buildUrl2Scheme(azLogPath)
 
 	// initialize proxies
-	proxies := initProxies(n, proxyData, wprData, azPort)
+	proxies := initProxies(n, proxyData, wprData, azPort, sleep)
 
 	// initialize crawlers
 	crawlers := make([]*Crawler, n)
@@ -214,6 +214,7 @@ func main() {
 	var verbose bool
 	var azPort int
 	var azLogPath string
+	var sleep int
 
 	flag.StringVar(&pagePath, "pages", "", "path to pages file")
 	flag.IntVar(&nCrawlers, "n", 1, "number of crawlers")
@@ -221,6 +222,7 @@ func main() {
 	flag.StringVar(&proxyData, "proxy", "", "path to proxy data directory")
 	flag.IntVar(&azPort, "az", 0, "port of analyzer server")
 	flag.StringVar(&azLogPath, "azlog", "", "path to az server log")
+	flag.IntVar(&sleep, "sleep", 1, "sleep time")
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.Parse()
 
@@ -231,6 +233,6 @@ func main() {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort, azLogPath)
+	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort, azLogPath, sleep)
 	lcm.Start()
 }
