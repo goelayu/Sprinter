@@ -332,47 +332,44 @@ class PageClient {
           benchmark && (starttime = Date.now());
           var status = response.status();
           if (
-            status && // we actually have an status for the response
+            status && // we actually have a status for the response
             !(status > 299 && status < 400) && // not a redirect
             !(status === 204) // not a no-content response
           ) {
             try {
               var request = response.request();
-              if (request.resourceType() === "stylesheet") {
-                var url = request.url(),
-                  cacheUrl;
-                var cacheUrl = getPrefetchURL(url);
-                if (prefetchCache[cacheUrl]) {
-                  return;
-                } else prefetchCache[cacheUrl] = true;
-                var css = await response.text();
-                // var re = /__injecturl: \S*/g;
-                var re = /url\([^\s\)]*\)/gm;
-                var urls = css.match(re);
-                if (urls) {
-                  urls.forEach((url) => {
-                    url = url.replace("url(", "").replace(")", "");
-                    // if last character is comma, remove it
-                    if (url[url.length - 1] == ",") {
-                      url = url.substring(0, url.length - 1);
-                    }
-                    console.log("fetching url: ", url, " from css file");
-                    var cacheUrl = getPrefetchURL(url);
-                    if (prefetchCache[cacheUrl]) {
-                      return;
-                    } else prefetchCache[cacheUrl] = true;
-                    this._page
-                      .evaluate((url) => {
-                        var xhr = new XMLHttpRequest();
-                        xhr.open("GET", url, true);
-                        xhr.send();
-                      }, url)
-                      .catch((err) => {
-                        console.log(`Handled error: ${err}`);
-                      });
-                  });
-                }
-              } else if (request.resourceType() == "document") {
+              // if (request.resourceType() === "stylesheet") {
+              //   var url = request.url(),
+              //     cacheUrl;
+              //   var cacheUrl = getPrefetchURL(url);
+              //   if (prefetchCache[cacheUrl]) {
+              //     return;
+              //   } else prefetchCache[cacheUrl] = true;
+              //   var css = await response.text();
+              //   var re = /url\(["']([^\s\)]*)["']\)/g;
+              //   var urls = css.matchAll(re);
+              //   for (var u of urls) {
+              //     var url = u[1];
+              //     if (url[url.length - 1] == ",") {
+              //       url = url.substring(0, url.length - 1);
+              //     }
+              //     console.log("fetching url: ", url, " from css file");
+              //     var cacheUrl = getPrefetchURL(url);
+              //     if (prefetchCache[cacheUrl]) {
+              //       return;
+              //     } else prefetchCache[cacheUrl] = true;
+              //     this._page
+              //       .evaluate((url) => {
+              //         var xhr = new XMLHttpRequest();
+              //         xhr.open("GET", url, true);
+              //         xhr.send();
+              //       }, url)
+              //       .catch((err) => {
+              //         console.log(`Handled error: ${err}`);
+              //       });
+              //   }
+              // } else
+              if (request.resourceType() == "document") {
                 var url = request.url(),
                   cacheUrl;
                 var cacheUrl = getPrefetchURL(url);
@@ -380,14 +377,6 @@ class PageClient {
                   return;
                 } else prefetchCache[cacheUrl] = true;
                 var html = await response.text();
-                // try {
-                //   html = decodeURIComponent(escape(html));
-                // } catch (e) {
-                //   console.log("error decoding html");
-                // }
-                // re = /https?:\S*\.(svg|png|jpg|jpeg)\S*/gi;
-                // var re = /(http| src="\/\/)s?:?\S*\.(svg|png)\S*/gi;
-                // /(http| src="\/\/)s?:?\S*\.(svg|png|jpg|jpeg)[^\s>]*/gi;
                 var re =
                   /(http| src="\/\/|\/\/)s?:?[^\s"&')]+\.(svg|png|jpg|jpeg)[^\s>)'"&]*/gm;
                 urls = html.match(re);
