@@ -36,8 +36,8 @@ if [ $# -ne 6 ]; then
     exit 1
 fi
 
-PAGESPERSITE=100
-PERSCRIPTCRAWLERS=8
+PAGESPERSITE=50
+PERSCRIPTCRAWLERS=1
 CHROMESCRIPT=../node/chrome-distributed.js
 WPRDATA=/w/goelayu/bcrawling/wprdata
 
@@ -45,7 +45,7 @@ sites_file=$1
 pages_dst=$2
 rundir=$3/$LOGFILE
 urldir=$rundir/urls/
-logdir=$rundir/log
+logdir=$rundir/logs
 wprpath=$4
 args=$5
 
@@ -100,7 +100,7 @@ crawl_rate(){
     t=0;
     while true; do
         t=$((t + 1));
-        echo -n $t " "; cat $rundir/log/*.log  | grep "Page load time" | wc -l ; sleep 1;
+        echo -n $t " "; cat $logdir/*-*.log  | grep "Page load time" | wc -l ; sleep 1;
     done > $logdir/crawl_rate.log
 }
 
@@ -134,8 +134,8 @@ echo "Starting the az server"
 # start the az server
 GOROOT="/w/goelayu/uluyol-sigcomm/go";
 AZDIR=/vault-swift/goelayu/balanced-crawler/system/go/wpr
-[ -z "$AZPORT" ] && AZPORT=`shuf -i 8000-16000 -n 1` && echo "AZPORT: $AZPORT"
-(cd $AZDIR; { time GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port $AZPORT ; } &> $rundir/output/az.log ) &
+[ -z "$AZPORT" ] && AZPORT=`shuf -i 8000-16000 -n 1` && echo "AZPORT: $AZPORT" && KILLAZ=1
+(cd $AZDIR; { time GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port $AZPORT ; } &> $logdir/az.log ) &
 # azpid=$!
 
 create_crawl_instances_baseline(){
@@ -148,8 +148,8 @@ create_crawl_instances_baseline(){
         scripturls=`echo $totalurls / $nscripts | bc`;
         first=$((first + scripturls));
         echo "Running cmd: node $CHROMESCRIPT -u <(cat $urlfile | awk '{print \$2}' | head -n $first | tail -n $scripturls)\
-        -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS"
-        { time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $1}' | head -n $first | tail -n $scripturls) -o $rundir/output \
+        -o $rundir --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS"
+        { time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $1}' | head -n $first | tail -n $scripturls) -o $rundir \
         --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $logdir/$LOGFILE-$i.log &
         pids[${i}]=$!
     done
@@ -167,8 +167,8 @@ create_crawl_instances_opt(){
         [ ! -f $urldir/dist/urls-$i.txt ] && echo "File $urldir/dist/urls-$i.txt does not exist" && exit 1
         
         urlfile=$urldir/dist/urls-$i.txt
-        echo "Running cmd: node $CHROMESCRIPT -u $urlfile -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS &> $logdir/$LOGFILE-$i.log "
-        { time node $CHROMESCRIPT -u $urlfile -o $rundir/output --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $logdir/$LOGFILE-$i.log &
+        echo "Running cmd: node $CHROMESCRIPT -u $urlfile -o $rundir --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS &> $logdir/$LOGFILE-$i.log "
+        { time node $CHROMESCRIPT -u $urlfile -o $rundir --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $logdir/$LOGFILE-$i.log &
         pids[${i}]=$!
     done
     echo "Waiting for all scripts to finish"
@@ -211,7 +211,8 @@ kill -SIGUSR1 $sysupid;
 ps aux | grep sys-usage-track | grep -v grep | awk '{print $2}' | xargs kill -9
 
 # kill the az server
-# ps aux | grep $AZPORT | grep -v grep | awk '{print $2}' | xargs kill -SIGINT
+[ ! -z "$KILLAZ" ] && echo "Killing the az server" && ps aux | grep $AZPORT | grep -v grep | awk '{print $2}' | xargs kill -SIGINT
+
 
 kill $crawlratepid;
 # wait a couple seconds for the az server to finish

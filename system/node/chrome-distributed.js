@@ -150,7 +150,7 @@ var genBrowserArgs = (proxies) => {
     var proxyManager = new Proxy.ProxyManager(
       program.concurrency,
       program.proxy,
-      program.output,
+      `${program.output}/logs`,
       program.mode,
       program.enableOPT,
       program.azport
@@ -175,7 +175,7 @@ var genBrowserArgs = (proxies) => {
   if (program.testing) program.timeout = 1000;
   cluster.task(async ({ page, data }) => {
     var sanurl = bashSanitize(data.url);
-    var outputDir = `${program.output}/${sanurl}`;
+    var outputDir = `${program.output}/output/${sanurl}`;
 
     if (program.store) {
       // await page.setRequestInterception(true);
