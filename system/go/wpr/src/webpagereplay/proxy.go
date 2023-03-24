@@ -26,11 +26,11 @@ import (
 
 const errStatus = http.StatusInternalServerError
 
-func makeLogger(req *http.Request, quietMode bool) func(msg string, args ...interface{}) {
+func makeLogger(req *http.Request, quietMode bool, an string) func(msg string, args ...interface{}) {
 	if quietMode {
 		return func(string, ...interface{}) {}
 	}
-	prefix := fmt.Sprintf("ServeHTTP(%s): ", req.URL)
+	prefix := fmt.Sprintf("%s: ServeHTTP(%s): ", an, req.URL)
 	return func(msg string, args ...interface{}) {
 		log.Print(prefix + fmt.Sprintf(msg, args...))
 	}
@@ -73,7 +73,7 @@ func updateDates(h http.Header, now time.Time) {
 
 // NewReplayingProxy constructs an HTTP proxy that replays responses from an archive.
 // The proxy is listening for requests on a port that uses the given scheme (e.g., http, https).
-func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransformer, quietMode bool, caching bool, az_port int) http.Handler {
+func NewReplayingProxy(a *Archive, an string, scheme string, transformers []ResponseTransformer, quietMode bool, caching bool, az_port int) http.Handler {
 	azaddr := "localhost:" + strconv.Itoa(az_port)
 	conn, err := grpc.Dial(azaddr, grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(1024*1024*10)))
@@ -83,11 +83,12 @@ func NewReplayingProxy(a *Archive, scheme string, transformers []ResponseTransfo
 		log.Printf("Connected to analyzer server at %s", azaddr)
 	}
 	client := pb.NewAnalyzerClient(conn)
-	return &ReplayingProxy{a, scheme, transformers, quietMode, sync.Mutex{}, client, caching}
+	return &ReplayingProxy{a, an, scheme, transformers, quietMode, sync.Mutex{}, client, caching}
 }
 
 type ReplayingProxy struct {
 	A            *Archive
+	ArchiveName  string
 	scheme       string
 	transformers []ResponseTransformer
 	quietMode    bool
@@ -122,7 +123,7 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		return
 	}
 	fixupRequestURL(req, proxy.scheme)
-	logf := makeLogger(req, proxy.quietMode)
+	logf := makeLogger(req, proxy.quietMode, proxy.ArchiveName)
 
 	// Lookup the response in the archive.
 	proxy.Mu.Lock()
@@ -284,7 +285,7 @@ func (proxy *recordingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		return
 	}
 	fixupRequestURL(req, proxy.scheme)
-	logf := makeLogger(req, false)
+	logf := makeLogger(req, false, "")
 	// https://github.com/golang/go/issues/16036. Server requests always
 	// have non-nil body even for GET and HEAD. This prevents http.Transport
 	// from retrying requests on dead reused conns. Catapult Issue 3706.

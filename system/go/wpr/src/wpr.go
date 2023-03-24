@@ -413,11 +413,15 @@ func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, 
 						continue
 					}
 
+					archiveName := filepath.Base(strings.TrimSpace(string(archiveFilePath)))
+
 					archive.ServeResponseInChronologicalSequence = r.serveResponseInChronologicalSequence
 					archive.DisableFuzzyURLMatching = r.disableFuzzyURLMatching
 
 					replayProxyTLS.A = archive
 					replayProxy.A = archive
+					replayProxyTLS.ArchiveName = archiveName
+					replayProxy.ArchiveName = archiveName
 					log.Printf("Reloaded archive file %s", archiveFilePath)
 
 					replayProxyTLS.Mu.Unlock()
@@ -491,6 +495,7 @@ func (r *ReplayCommand) Run(c *cli.Context) error {
 		os.Exit(1)
 	}
 	log.Printf("Opened archive %s", archiveFileName)
+	archiveName := filepath.Base(strings.TrimSpace(string(archiveFileName)))
 
 	archive.ServeResponseInChronologicalSequence = r.serveResponseInChronologicalSequence
 	archive.DisableFuzzyURLMatching = r.disableFuzzyURLMatching
@@ -521,8 +526,8 @@ func (r *ReplayCommand) Run(c *cli.Context) error {
 		log.Printf("Loaded replay rules from %s", r.rulesFile)
 	}
 
-	httpHandler := webpagereplay.NewReplayingProxy(archive, "http", r.common.transformers, r.quietMode, r.caching, r.azPort)
-	httpsHandler := webpagereplay.NewReplayingProxy(archive, "https", r.common.transformers, r.quietMode, r.caching, r.azPort)
+	httpHandler := webpagereplay.NewReplayingProxy(archive, archiveName, "http", r.common.transformers, r.quietMode, r.caching, r.azPort)
+	httpsHandler := webpagereplay.NewReplayingProxy(archive, archiveName, "https", r.common.transformers, r.quietMode, r.caching, r.azPort)
 	tlsconfig, err := webpagereplay.ReplayTLSConfig(r.common.root_cert, archive)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating TLSConfig: %v", err)
@@ -548,7 +553,7 @@ func (r *RootCACommand) Remove(c *cli.Context) error {
 }
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 	// log.SetFlags(0)
 	// log.SetOutput(ioutil.Discard)
 
