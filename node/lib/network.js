@@ -100,9 +100,9 @@ function parseNetworkLogs(netLog) {
         netObject.response = payLoad.response;
         payLoad.response.mimeType &&
           (netObject.type = payLoad.response.mimeType);
-        payLoad.response.headers["content-length"] &&
+        payLoad.response.headers["Content-Length"] &&
           (netObject.size = Number.parseInt(
-            payLoad.response.headers["content-length"]
+            payLoad.response.headers["Content-Length"]
           ));
         break;
       case "Network.dataReceived":
