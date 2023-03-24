@@ -62,70 +62,65 @@ var getNet = function (path) {
   return net;
 };
 
-var compareFidelity = function (bnet, onet, engine) {
+var compareFidelity = function (bnet, ourls, engine) {
   var bnet = bnet.map((n) => {
-    n.url = n.url.replace(/https*/, "").split("?")[0];
-    return n;
-  });
-  var onet = onet.map((n) => {
-    n.url = n.url.replace(/https*/, "").split("?")[0];
+    n.url = n.url.replace(/https?:\/\//, "").split("?")[0];
     return n;
   });
 
   var missing = [],
     admissing = [];
   bnet.forEach((bn) => {
-    if (!onet.map((n) => n.url).includes(bn.url)) {
+    if (!ourls[bn.url]) {
       missing.push(bn);
-      console.log(`missing ${bn.url} in opt network`);
-      if (!checkBlockUrl(bn, engine)) admissing.push(bn);
+      program.verbose && console.log(`missing: ${bn.url}`);
+      // if (!checkBlockUrl(bn, engine)) admissing.push(bn);
     }
   });
   return [missing, admissing];
 };
 
-var summarynet = function (net, store) {
+var saveUrls = function (path, store) {
+  var net = getNet(path);
   net.forEach((n) => {
-    var url = n.url;
-    if (!store[url]) store[url] = n;
+    var url = n.url.replace(/https?:\/\//, "").split("?")[0];
+    if (!store.urls[url]) store.urls[url] = n;
   });
 };
 
 var CompareSites = function () {
-  var bstore = {},
-    ostore = {};
+  var store = {
+      urls: {},
+      nets: {},
+    },
+    t = (m = 0);
   var pages = fs.readFileSync(program.pages, "utf8").split("\n");
+  var procpages = [];
   var engineSet = false;
   for (var p of pages) {
-    if (p == "") continue;
-    var path = `${program.dir}/${p}/network.json`;
+    if (p.length == 0) continue;
     try {
-      var bpath = `${program.basedir}/${p}/network.json`;
-      var opath = `${program.optdir}/${p}/network.json`;
-      var bnet = getNet(bpath);
-      var onet = getNet(opath);
-      if (!engineSet) {
-        ENGINE = initAdBlock(bnet[0].url);
-        engineSet = true;
-      }
-      var missres = compareFidelity(bnet, onet, ENGINE);
-      console.log(p, bnet.length, missres[0].length, missres[1].length);
-      summarynet(bnet, bstore);
-      summarynet(onet, ostore);
+      var ppath = `${program.optdir}/${p}/network.json`;
+      saveUrls(ppath, store);
+      procpages.push(p);
     } catch (e) {
-      console.log(e);
+      program.verbose && console.log(`[preprocessing] error in ${p}: ${e}`);
     }
   }
-  console.log("total requests", Object.keys(bstore).length);
-  console.log("total opt requests", Object.keys(ostore).length);
-  var totalmisres = compareFidelity(
-    Object.values(bstore),
-    Object.values(ostore),
-    ENGINE
-  );
-  console.log("total missing", totalmisres[0].length, totalmisres[1].length);
-  program.verbose && console.log(totalmisres[0].map((n) => n.url));
-  program.verbose && console.log(totalmisres[1].map((n) => n.url));
+  for (var p of procpages) {
+    if (p.length == 0) continue;
+    try {
+      var ppath = `${program.basedir}/${p}/network.json`;
+      var bnet = getNet(ppath);
+      var [missing, admissing] = compareFidelity(bnet, store.urls);
+      console.log(`${p}: total: ${bnet.length} missing: ${missing.length}`);
+      t += bnet.length;
+      m += missing.length;
+    } catch (e) {
+      program.verbose && console.log(`error in ${p}: ${e}`);
+    }
+  }
+  console.log(`total: ${t} missing: ${m}`);
 };
 
 CompareSites();
