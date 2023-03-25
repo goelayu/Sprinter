@@ -8,6 +8,8 @@
   window.__stackHead__ = null;
   var tracking = true;
 
+  window.__customLog__ = console.log; // save the original console.log, since some weired pages would silence it :|
+
   class logger {
     constructor(rootObj, rootName, heap) {
       this.log = {};
@@ -335,8 +337,10 @@
     return handler;
   };
 
-  window.__tracer__ = new __Tracer__();
-  window.__proxy__ = window.__tracer__.createLogger(window, "window");
+  if (!window.__tracer__) {
+    window.__tracer__ = new __Tracer__();
+    window.__proxy__ = window.__tracer__.createLogger(window, "window");
+  }
 
   /*Creates shim for every dom methods
      The purpose of the shim is to check for proxy argument types
