@@ -378,30 +378,30 @@ class PageClient {
                 } else prefetchCache[cacheUrl] = true;
                 var html = await response.text();
                 var re =
-                  /(http| src="\/\/|\/\/)s?:?[^\s"&')]+\.(svg|png|jpg|jpeg)[^\s>)'"&]*/gm;
-                urls = html.match(re);
-                if (urls) {
-                  urls.forEach((url) => {
-                    url = url.replace(/\\/g, "");
-                    url = url.replace(/"/g, "");
-                    if (url.includes("src=")) {
-                      url = url.replace("src=", "");
-                    }
-                    var cacheUrl = getPrefetchURL(url);
-                    if (prefetchCache[cacheUrl]) {
-                      return;
-                    } else prefetchCache[cacheUrl] = true;
-                    console.log("fetching url: ", url, " from html file");
-                    this._page
-                      .evaluate((url) => {
-                        var xhr = new XMLHttpRequest();
-                        xhr.open("GET", url, true);
-                        xhr.send();
-                      }, url)
-                      .catch((err) => {
-                        console.log(`handled error: ${err}`);
-                      });
-                  });
+                  /(https?:|\Ssrc="\/?\/|\/\/)[^\s"&')]+\.(svg|png|jpg|jpeg)[^\s>)'"]*/g;
+                var urls = html.matchAll(re);
+                for (var u of urls) {
+                  if (u.length < 2) continue;
+                  var url;
+                  if (u[1].includes("src=")) {
+                    url = u[0].split("src=")[1];
+                  } else url = u[0];
+                  url = url.replace(/\\/g, "");
+                  url = url.replace(/"/g, "");
+                  var cacheUrl = getPrefetchURL(url);
+                  if (prefetchCache[cacheUrl]) {
+                    continue;
+                  } else prefetchCache[cacheUrl] = true;
+                  console.log("fetching url: ", url, " from html file");
+                  this._page
+                    .evaluate((url) => {
+                      var xhr = new XMLHttpRequest();
+                      xhr.open("GET", url, true);
+                      xhr.send();
+                    }, url)
+                    .catch((err) => {
+                      console.log(`handled error: ${err}`);
+                    });
                 }
               }
             } catch (err) {
