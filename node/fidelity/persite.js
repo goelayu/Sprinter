@@ -93,7 +93,8 @@ var CompareSites = function () {
       urls: {},
       nets: {},
     },
-    t = (m = 0);
+    t = 0,
+    m = {};
   var pages = fs.readFileSync(program.pages, "utf8").split("\n");
   var procpages = [];
   var engineSet = false;
@@ -112,15 +113,18 @@ var CompareSites = function () {
     try {
       var ppath = `${program.basedir}/${p}/network.json`;
       var bnet = getNet(ppath);
+      bnet = bnet.filter(filternet);
       var [missing, admissing] = compareFidelity(bnet, store.urls);
       console.log(`${p}: total: ${bnet.length} missing: ${missing.length}`);
       t += bnet.length;
-      m += missing.length;
+      missing.forEach((e) => {
+        m[e.url] = 1;
+      });
     } catch (e) {
       program.verbose && console.log(`error in ${p}: ${e}`);
     }
   }
-  console.log(`total: ${t} missing: ${m}`);
+  console.log(`total: ${t} missing: ${Object.keys(m).length}`);
 };
 
 CompareSites();
