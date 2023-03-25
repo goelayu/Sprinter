@@ -97,13 +97,14 @@ type ReplayingProxy struct {
 	caching      bool
 }
 
-func requestIsJSHTML(resp *http.Response) bool {
+func requestIsJSHTML(resp *http.Response, req *http.Request) bool {
 	// return false
 	log.Printf("checking length and code and type: %v %d %s", resp.Header, resp.StatusCode, resp.Header.Get("Content-Type"))
 	return (resp.ContentLength == -1 || resp.ContentLength > 500) &&
 		resp.StatusCode == 200 &&
 		(strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "html") ||
-			strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "javascript"))
+			strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "javascript")) &&
+		!strings.Contains(req.URL.Path, ".json")
 }
 
 func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -136,7 +137,7 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	}
 
 	// query the analyzer server if request is JavaScript or HTML
-	if requestIsJSHTML(storedResp) {
+	if requestIsJSHTML(storedResp, req) {
 		// requestURI := req.URL.String()
 		// URI without query string
 		requestURI := req.URL.Scheme + "://" + req.URL.Host + req.URL.Path
