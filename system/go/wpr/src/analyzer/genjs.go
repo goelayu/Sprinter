@@ -70,28 +70,31 @@ var jsTemplate = `
 					try {
 						applyWrites(writes);
 					} catch (e) {
-						console.log("Error in applyWrites: " + e);
+						window.__customLog__("Error in applyWrites: " + e);
 					}
 			} else {
-				console.log("Reads not satisfied");
-				__tracer__.updateCacheStats('misses');
+				window.__customLog__("Reads not satisfied");
+				__tracer__.updateCacheStats('misses','{{.Filename}}');
 			}
 		} catch (e) {
-			console.log("Error in evalReads: " + e);
-			__tracer__.updateCacheStats('errors');
+			__tracer__.updateCacheStats('errors', '{{.Filename}}');
+
 		}
 	}
 	)();
 	if (typeof __skipExec{{.SkipID}}__ !== "undefined"){
-		__tracer__.updateCacheStats('hits');
-		throw "[SUCCESS] all reads satisfied, skipped execution"
-		
+		window.__customLog__(__tracer__.cacheStats)
+		__tracer__.updateCacheStats('hits', '{{.Filename}}');
+		window.__customLog__(__tracer__.cacheStats)
+		window.__customLog__(window.__tracer__ == __tracer__)
+		window.__customLog__(window.top == window)
+		throw "[SUCCESS] all reads satisfied, skipped execution"		
 	}
 	/**INJECTED CODE END*/
 	{{.InstBody}}
 `
 
-func JSGen(sig types.Signature, instBody string) (string, error) {
+func JSGen(sig types.Signature, instBody string, filename string) (string, error) {
 
 	globalreads := make([]pb.Lineaccess, 0)
 	globalwrites := make([]pb.Lineaccess, 0)
@@ -184,12 +187,14 @@ func JSGen(sig types.Signature, instBody string) (string, error) {
 		URLs     [][2]string
 		InstBody string
 		SkipID   int64
+		Filename string
 	}{
 		Reads:    jsfmtReads,
 		Writes:   jsfmtWrites,
 		URLs:     fetches,
 		InstBody: instBody,
 		SkipID:   rand.Int63n(10000000),
+		Filename: filename,
 	})
 	if err != nil {
 		log.Printf("Error executing template: %v", err)

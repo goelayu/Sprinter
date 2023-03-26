@@ -63,7 +63,7 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 			var err error
 			var newbody string
 			if strings.Contains(strings.ToLower(arg.Type), "javascript") {
-				newbody, err = JSGen(file.Sig, file.Body)
+				newbody, err = JSGen(file.Sig, file.Body, file.Name)
 			} else {
 				log.Printf("Error: sig exists but file not js %s", arg.Name)
 				return &pb.AzResponse{Body: file.Body}, nil

@@ -1,6 +1,4 @@
-/**
- * Tracer code that is executed at runtime.
- */
+// Tracer code that is executed at runtime.
 
 // do not create any global property,
 // unless explicitly specified using the window object

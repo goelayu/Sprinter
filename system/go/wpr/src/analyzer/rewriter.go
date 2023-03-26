@@ -45,7 +45,13 @@ func rewriteHTML(body string, caching bool, tracerstr string) []byte {
 		return []byte(body)
 	}
 	if caching {
-		return []byte("<script>" + tracerstr + "</script>" + h)
+		tracewtags := fmt.Sprintf("<script>%s</script>", tracerstr)
+		headind := strings.Index(h, "<head>")
+		if headind != -1 {
+			h = h[:headind+6] + tracewtags + h[headind+6:]
+		} else {
+			h = tracewtags + h
+		}
 	}
 	return []byte(h)
 

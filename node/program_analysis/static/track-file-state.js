@@ -186,7 +186,19 @@ var specialArrowFuncRewrite = function (path, clStr, bodyStr) {
   path.node.body = newBlock;
 };
 
+var unsupportedSyntax = function (input) {
+  var s = "self.addEventListener(";
+  var idx = input.indexOf(s);
+  if (idx != -1) {
+    return true;
+  }
+  return false;
+};
+
 var extractRelevantState = function (input, opts) {
+  if (unsupportedSyntax(input)) {
+    return input;
+  }
   var ast = parser.parse(input, {
     sourceType: "module",
     plugins: ["jsx"],
@@ -225,11 +237,13 @@ var extractRelevantState = function (input, opts) {
         __tracer__.setFileClosure(__stackHead__, [${[
           ...new Set(closureList),
         ].join(",")}]);
-        __tracer__.updateCacheStats('firsts');
+        __tracer__.updateCacheStats('firsts','${sn}');
         } else {
           __tracer__ = {
             removeProxy: function (e) {return e;},
-            createLogger: function (e,f) {return e;}
+            createLogger: function (e,f) {return e;},
+            setFileClosure: function (e,f) {},
+            updateCacheStats: function (e,f) {}
           }
         }
       })();
