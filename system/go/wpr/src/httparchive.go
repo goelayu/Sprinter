@@ -17,7 +17,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/catapult-project/catapult/web_page_replay_go/src/webpagereplay"
+	"wpr/src/webpagereplay"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -114,7 +115,7 @@ func trim(cfg *Config, a *webpagereplay.Archive, outfile string) error {
 		} else {
 			fmt.Printf("Trimming request: host=%s uri=%s\n", req.Host, req.URL.String())
 			return true, nil
-	  }
+		}
 	})
 	if err != nil {
 		return fmt.Errorf("error editing archive:\n%v", err)
@@ -348,7 +349,7 @@ func main() {
 			ArgsUsage: "archive",
 			Flags:     cfg.DefaultFlags(),
 			Before:    checkArgs("ls", 1),
-			Action:    func(c *cli.Context) error {
+			Action: func(c *cli.Context) error {
 				return list(cfg, loadArchiveOrDie(c, 0), false)
 			},
 		},
@@ -358,7 +359,7 @@ func main() {
 			ArgsUsage: "archive",
 			Flags:     cfg.DefaultFlags(),
 			Before:    checkArgs("cat", 1),
-			Action:    func(c *cli.Context) error {
+			Action: func(c *cli.Context) error {
 				return list(cfg, loadArchiveOrDie(c, 0), true)
 			},
 		},
@@ -368,7 +369,7 @@ func main() {
 			ArgsUsage: "input_archive output_archive",
 			Flags:     cfg.DefaultFlags(),
 			Before:    checkArgs("edit", 2),
-			Action:    func(c *cli.Context) error {
+			Action: func(c *cli.Context) error {
 				return edit(cfg, loadArchiveOrDie(c, 0), c.Args().Get(1))
 			},
 		},
@@ -377,7 +378,7 @@ func main() {
 			Usage:     "Merge the requests/responses of two archives",
 			ArgsUsage: "base_archive input_archive output_archive",
 			Before:    checkArgs("merge", 3),
-			Action:    func(c *cli.Context) error {
+			Action: func(c *cli.Context) error {
 				return merge(cfg, loadArchiveOrDie(c, 0), loadArchiveOrDie(c, 1), c.Args().Get(2))
 			},
 		},
@@ -386,13 +387,13 @@ func main() {
 			Usage:     "Add a simple GET request from the network to the archive",
 			ArgsUsage: "input_archive output_archive [urls...]",
 			Flags:     cfg.AddFlags(),
-			Before:    func(c *cli.Context) error {
+			Before: func(c *cli.Context) error {
 				if c.Args().Len() < 3 {
 					return fmt.Errorf("Expected at least 3 arguments but got %d", c.Args().Len())
 				}
 				return nil
 			},
-			Action:    func(c *cli.Context) error {
+			Action: func(c *cli.Context) error {
 				return add(cfg, loadArchiveOrDie(c, 0), c.Args().Get(1), c.Args().Tail())
 			},
 		},
@@ -402,7 +403,7 @@ func main() {
 			ArgsUsage: "input_archive output_archive urls_file",
 			Flags:     cfg.AddFlags(),
 			Before:    checkArgs("add", 3),
-			Action:    func(c *cli.Context) error {
+			Action: func(c *cli.Context) error {
 				return addAll(cfg, loadArchiveOrDie(c, 0), c.Args().Get(1), c.Args().Get(2))
 			},
 		},
@@ -412,7 +413,7 @@ func main() {
 			ArgsUsage: "input_archive output_archive",
 			Flags:     cfg.DefaultFlags(),
 			Before:    checkArgs("trim", 2),
-			Action:    func(c *cli.Context) error {
+			Action: func(c *cli.Context) error {
 				return trim(cfg, loadArchiveOrDie(c, 0), c.Args().Get(1))
 			},
 		},

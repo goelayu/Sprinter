@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"go.uber.org/ratelimit"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 type LCM struct {
@@ -35,9 +37,9 @@ type LCM struct {
 type Proxy struct {
 	port     int
 	dataFile string
-	cmd      *exec.Cmd
 	wprData  string
-	outFile  *os.File
+	sshC     *ssh.Client
+	remote   bool
 }
 
 func buildUrl2Scheme(logPath string) (map[string]string, error) {
@@ -88,31 +90,89 @@ func makeLogger(p string) func(msg string, args ...interface{}) {
 	}
 }
 
-func initProxies(n int, proxyData string, wprData string, azPort int, sleep int) []*Proxy {
+func setupSSH() *ssh.Client {
+	key, err := os.ReadFile("/vault-home/goelayu/.ssh/id_rsa")
+	if err != nil {
+		log.Fatalf("unable to read private key: %v", err)
+	}
+
+	// Create the Signer for this private key.
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		log.Fatalf("unable to parse private key: %v", err)
+	}
+
+	var hostkeyCallback ssh.HostKeyCallback
+	hostkeyCallback, err = knownhosts.New("/vault-home/goelayu/.ssh/known_hosts")
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
+	config := &ssh.ClientConfig{
+		User: "goelayu",
+		Auth: []ssh.AuthMethod{
+			// Use the PublicKeys method for remote authentication.
+			// ssh.Password("ayuizagem.123"),
+			ssh.PublicKeys(signer),
+		},
+		HostKeyCallback: hostkeyCallback,
+	}
+
+	// Connect to the remote server and perform the SSH handshake.
+	client, err := ssh.Dial("tcp", "lions.eecs.umich.edu:22", config)
+	if err != nil {
+		log.Fatalf("unable to connect: %v", err)
+	}
+
+	return client
+}
+
+func initProxies(n int, proxyData string, wprData string, azPort int,
+	sleep int, remote bool) []*Proxy {
 	GOROOT := "/w/goelayu/uluyol-sigcomm/go"
 	WPRDIR := "/vault-swift/goelayu/balanced-crawler/system/go/wpr"
-	DUMMYDATA := "/run/user/99542426/goelayu/dummy.wprgo"
+	DUMMYDATA := "/w/goelayu/bcrawling/wprdata/dummy.wprgo"
 
 	startHTTPPORT := 8080
 	startHTTPSPORT := 9080
 
 	proxies := make([]*Proxy, n)
 
+	var sshC *ssh.Client
+	if remote {
+		sshC = setupSSH()
+	}
+
 	for i := 0; i < n; i++ {
 		httpport := startHTTPPORT + i
 		httpsport := startHTTPSPORT + i
 		dataFile := fmt.Sprintf("%s/%s", proxyData, strconv.Itoa(httpsport))
 		outFilePath := fmt.Sprintf("%s/%s.replay.log", proxyData, strconv.Itoa(httpsport))
-		outFile, _ := os.Create(outFilePath)
-		os.WriteFile(dataFile, []byte(DUMMYDATA), 0644)
-		cmdstr := fmt.Sprintf("GOROOT=%s go run src/wpr.go replay --http_port %d --https_port %d --az_port %d %s",
-			GOROOT, httpport, httpsport, azPort, dataFile)
-		cmd := exec.Command("bash", "-c", cmdstr)
-		cmd.Dir = WPRDIR
-		cmd.Stdout = outFile
-		cmd.Stderr = outFile
-		go cmd.Run()
-		proxies[i] = &Proxy{httpsport, dataFile, cmd, wprData, outFile}
+		cmdstr := fmt.Sprintf("GOROOT=%s go run src/wpr.go replay -host 0.0.0.0 --http_port %d --https_port %d --az_port %d %s &> %s",
+			GOROOT, httpport, httpsport, azPort, dataFile, outFilePath)
+
+		if remote {
+			sshS, err := sshC.NewSession()
+			if err != nil {
+				log.Fatalf("unable to create session: %v", err)
+			}
+			dummyfilecmd := fmt.Sprintf("mkdir -p %s;echo %s > %s", proxyData, DUMMYDATA, dataFile)
+			log.Printf("dummy file command: %s", dummyfilecmd)
+			_, err = sshS.Output(dummyfilecmd)
+			if err != nil {
+				sshS.Close()
+				log.Fatalf("unable to create dummy file: %v", err)
+			}
+			sshS, _ = sshC.NewSession()
+			go sshS.Run(fmt.Sprintf("cd %s; %s", WPRDIR, cmdstr))
+			proxies[i] = &Proxy{httpsport, dataFile, wprData, sshC, remote}
+		} else {
+			os.WriteFile(dataFile, []byte(DUMMYDATA), 0644)
+			cmd := exec.Command("bash", "-c", cmdstr)
+			cmd.Dir = WPRDIR
+			go cmd.Run()
+			proxies[i] = &Proxy{httpsport, dataFile, wprData, nil, remote}
+		}
 		log.Printf("Started proxy on port %d", httpsport)
 	}
 
@@ -124,17 +184,37 @@ func initProxies(n int, proxyData string, wprData string, azPort int, sleep int)
 func (p *Proxy) Stop() {
 	log.Printf("Stopping proxy on port %d", p.port)
 	killcmd := fmt.Sprintf("ps aux | grep https_port | grep %d | awk '{print $2}' | xargs kill -SIGINT", p.port)
-	exec.Command("bash", "-c", killcmd).Run()
-	// p.cmd.Process.Signal(os.Interrupt)
-	os.Remove(p.dataFile)
-	p.outFile.Close()
+	if p.remote {
+		sshS, _ := p.sshC.NewSession()
+		err := sshS.Run(killcmd)
+		if err != nil {
+			log.Fatalf("unable to kill proxy: %v", err)
+		}
+		sshS, _ = p.sshC.NewSession()
+		err = sshS.Run(fmt.Sprintf("rm %s", p.dataFile))
+		if err != nil {
+			log.Fatalf("unable to remove data file: %v", err)
+		}
+	} else {
+		exec.Command("bash", "-c", killcmd).Run()
+		// p.cmd.Process.Signal(os.Interrupt)
+		os.Remove(p.dataFile)
+	}
 }
 
 func (p *Proxy) UpdateDataFile(page string) {
 	sanitizecmd := fmt.Sprintf("echo '%s' | sanitize", page)
 	sanpage, _ := exec.Command("bash", "-c", sanitizecmd).Output()
 	wprData := fmt.Sprintf("%s/%s.wprgo", p.wprData, string(sanpage))
-	os.WriteFile(p.dataFile, []byte(wprData), 0644)
+	if p.remote {
+		sshS, _ := p.sshC.NewSession()
+		err := sshS.Run(fmt.Sprintf("echo %s > %s", wprData, p.dataFile))
+		if err != nil {
+			log.Fatalf("unable to update data file: %v", err)
+		}
+	} else {
+		os.WriteFile(p.dataFile, []byte(wprData), 0644)
+	}
 }
 
 func (lcm *LCM) Start() {
@@ -173,7 +253,7 @@ func (lcm *LCM) Start() {
 }
 
 func initLCM(n int, pagePath string, proxyData string, wprData string,
-	azPort int, azLogPath string, sleep int) *LCM {
+	azPort int, azLogPath string, sleep int, remote bool) *LCM {
 	// read pages
 	pages, _ := readLines(pagePath)
 	log.Printf("Read %d pages", len(pages))
@@ -182,7 +262,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 	url2scheme, _ := buildUrl2Scheme(azLogPath)
 
 	// initialize proxies
-	proxies := initProxies(n, proxyData, wprData, azPort, sleep)
+	proxies := initProxies(n, proxyData, wprData, azPort, sleep, remote)
 
 	// initialize crawlers
 	crawlers := make([]*Crawler, n)
@@ -191,10 +271,14 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 	}
 	for i := 0; i < n; i++ {
 		client := &http.Client{Transport: tr}
+		hostaddr := "127.0.0.1"
+		if remote {
+			hostaddr = "lions.eecs.umich.edu"
+		}
 		crawlers[i] = &Crawler{
 			Client:      client,
-			HttpServer:  fmt.Sprintf("http://127.0.0.1:%d", proxies[i].port-1000),
-			HttpsServer: fmt.Sprintf("https://127.0.0.1:%d", proxies[i].port),
+			HttpServer:  fmt.Sprintf("http://%s:%d", hostaddr, proxies[i].port-1000),
+			HttpsServer: fmt.Sprintf("https://%s:%d", hostaddr, proxies[i].port),
 			url2scheme:  url2scheme,
 		}
 		log.Printf("Initialized crawler %d with proxy port %d", i, proxies[i].port)
@@ -215,6 +299,7 @@ func main() {
 	var azPort int
 	var azLogPath string
 	var sleep int
+	var remote bool
 
 	flag.StringVar(&pagePath, "pages", "", "path to pages file")
 	flag.IntVar(&nCrawlers, "n", 1, "number of crawlers")
@@ -224,6 +309,7 @@ func main() {
 	flag.StringVar(&azLogPath, "azlog", "", "path to az server log")
 	flag.IntVar(&sleep, "sleep", 5, "sleep time")
 	flag.BoolVar(&verbose, "v", false, "verbose")
+	flag.BoolVar(&remote, "remote", false, "remote")
 	flag.Parse()
 
 	if verbose {
@@ -233,6 +319,6 @@ func main() {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort, azLogPath, sleep)
+	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort, azLogPath, sleep, remote)
 	lcm.Start()
 }
