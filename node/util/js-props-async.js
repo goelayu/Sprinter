@@ -65,7 +65,7 @@ var traversePages = async function () {
     pages.map(async (p) => {
       if (p.length == 0) return;
       try {
-        var net = getNet(`${p}`);
+        var net = getNet(`${program.basedir}/${p}/network.json`);
         var fnet = net.filter(filternet);
         var js = fnet.filter((n) => n.type.indexOf("script") != -1);
         store.all.total += fnet.length;
