@@ -32,6 +32,7 @@ type Crawler struct {
 	logf        logprintf
 	forceExit   bool
 	net         *NWLog
+	dupMap      map[string]bool
 }
 
 type NWRequest struct {
@@ -60,7 +61,7 @@ func HTMLREParser(body string, logf logprintf) ([]string, error) {
 	return urls, nil
 }
 
-func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
+func HTMLParser(body io.ReadCloser, logf logprintf) ([]string, error) {
 	doc, err := goquery.NewDocumentFromReader(body)
 	if err != nil {
 		return nil, err
@@ -71,33 +72,23 @@ func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
 	doc.Find("script, img, link").Each(func(i int, s *goquery.Selection) {
 		src, exists := s.Attr("src")
 		if exists {
+			logf("Found url using jquery from HTML: %s", src)
 			urls = append(urls, src)
 		}
 		href, exists := s.Attr("href")
 		if exists {
+			rel, re := s.Attr("rel")
+			if re && (rel == "canonical" || rel == "shortlink" || rel == "alternate") {
+				logf("Skipping link %s with rel %s", href, rel)
+				return
+			}
+			logf("Found url using jquery from HTML: %s", href)
 			urls = append(urls, href)
 		}
 	})
 
 	dhtml, _ := doc.Html()
 	reurls, _ := HTMLREParser(dhtml, logf)
-
-	var urls2 [][2]string
-
-	for _, u := range urls {
-		pu, _ := url.Parse(u)
-		switch filepath.Ext(pu.Path) {
-		case ".js":
-			urls2 = append(urls2, [2]string{u, "js"})
-		case ".css":
-			urls2 = append(urls2, [2]string{u, "css"})
-		case ".png", ".jpg", ".jpeg", ".gif", ".svg":
-			urls2 = append(urls2, [2]string{u, "image"})
-		}
-		if strings.Contains(u, "css") {
-			urls2 = append(urls2, [2]string{u, "css"})
-		}
-	}
 
 	for _, u := range reurls {
 		inurls := false
@@ -108,38 +99,38 @@ func HTMLParser(body io.ReadCloser, logf logprintf) ([][2]string, error) {
 			}
 		}
 		if !inurls {
-			if strings.Contains(u, ".js") {
-				urls2 = append(urls2, [2]string{u, "js"})
-			} else {
-				urls2 = append(urls2, [2]string{u, "image"})
-			}
+			urls = append(urls, u)
 		}
 	}
 
 	logf("Htmlbody: %s", dhtml)
-	logf("Urls: %v", urls2)
-	return urls2, nil
+	logf("Urls: %v", urls)
+	return urls, nil
 }
 
-func constURL(target string, main string) (host string, path string, err error) {
+func constURL(target string, main string, useHttps bool) (host string, path string, s bool, err error) {
 
 	if !strings.HasPrefix(main, "http") {
 		main = "http://" + main
 	}
 	mainP, err := url.Parse(main)
 	if err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 	targetP, err := url.Parse(target)
 	if err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 
 	res := mainP.ResolveReference(targetP)
 	if res.Host == "" && res.Path == "" {
-		return "", "", errors.New("Could not resolve url")
+		return "", "", false, errors.New("Could not resolve url")
 	}
-	return res.Host, res.Path, nil
+
+	if res.Scheme == "https" {
+		useHttps = true
+	}
+	return res.Host, res.Path, useHttps, nil
 }
 
 func xtractJSURLS(body io.ReadCloser) []string {
@@ -162,29 +153,66 @@ func xtractJSURLS(body io.ReadCloser) []string {
 	return jsurls
 }
 
-func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, error) {
-	if c.forceExit {
-		c.logf("Force exiting Crawl")
-		return nil, errors.New("Force exiting Crawl")
+func (c *Crawler) HandleResp(resp *http.Response, referrer string, useHttps bool) error {
+	if resp == nil {
+		return nil
 	}
 
-	h := *host
-	c.logf("Crawling %s from host %s", u, h)
+	if resp.StatusCode != 200 {
+		c.logf("Non 200 status for code for %s: %d", resp.Request.URL, resp.StatusCode)
+		return nil
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if strings.Contains(ct, "html") {
+		return c.HandleHTML(resp, referrer, useHttps)
+	} else if strings.Contains(ct, "javascript") {
+		return c.HandleJS(resp, referrer, useHttps)
+	} else if strings.Contains(ct, "image") {
+		return nil
+	} else if strings.Contains(ct, "css") {
+		return c.HandleCSS(resp, referrer, useHttps)
+	} else {
+		c.logf("Unknown content type: %s", ct)
+	}
+
+	return nil
+}
+
+func (c *Crawler) Crawl(target string, referrer string, useHttps bool, caller string) error {
+	if c.forceExit {
+		c.logf("Force exiting Crawl")
+		return errors.New("Force exiting Crawl")
+	}
+
+	c.logf("Initiating crawl for %s (referrer: %s): %s", target, referrer, caller)
+
+	h, p, s, err := constURL(target, referrer, useHttps)
+	if err != nil {
+		return err
+	}
+
+	c.net.mu.Lock()
+	_, ok := c.dupMap[h+p]
+	c.net.mu.Unlock()
+	if ok {
+		c.logf("Already crawled %s", h+p)
+		return nil
+	}
 
 	var portaddr string
-	if useHttps {
+	if s {
 		portaddr = c.HttpsServer
 	} else {
 		portaddr = c.HttpServer
 	}
 
-	reqURL, err := url.Parse(portaddr + u)
+	reqURL, err := url.Parse(portaddr + p)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	c.logf("Requesting %s", reqURL)
-	c.logf("Host is %s", h)
+	c.logf("Requesting %s from host %s", reqURL, h)
 
 	req := &http.Request{
 		Method: "GET",
@@ -202,23 +230,28 @@ func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, 
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if location != "" {
 		c.logf("Updating host to %s", location)
 		lParsed, err := url.Parse(location)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		*host = lParsed.Host
+		h = lParsed.Host
 	}
 	c.logf("Received response from %s with status code %d", reqURL, resp.StatusCode)
-	nr := NWRequest{Url: *host + u, Status: resp.StatusCode}
+	nr := NWRequest{Url: h + p, Status: resp.StatusCode}
 	c.net.mu.Lock()
 	c.net.Reqs = append(c.net.Reqs, nr)
+	if resp.StatusCode == 200 {
+		c.dupMap[h+p] = true
+	}
 	c.net.mu.Unlock()
-	return &resp.Body, nil
+
+	c.HandleResp(resp, h+p, s)
+	return nil
 }
 
 func (c *Crawler) DumpNetLog(outPath string, u string) {
@@ -246,59 +279,58 @@ func (c *Crawler) DumpNetLog(outPath string, u string) {
 	f.Close()
 }
 
-func (c *Crawler) HandleCSS(path string, host string, useHttps bool) error {
+func (c *Crawler) HandleCSS(resp *http.Response, referrer string, useHttps bool) error {
 	if c.forceExit {
 		c.logf("Force exiting Crawl")
 		return nil
 	}
 
-	cssbody, err := c.Crawl(path, &host, useHttps)
+	cssu := resp.Request.URL.String()
+
+	c.logf("Handling CSS response from %s", cssu)
+
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	b, err := io.ReadAll(*cssbody)
-	if err != nil {
-		return err
-	}
+	c.logf("Extracting CSS URLs from %s with body %s", cssu, string(b))
 
-	rgx, _ := regexp.Compile(`url\((\S*)\)`)
+	rgx, _ := regexp.Compile(`url\(['"]?([^\s"']*)['"]?\)`)
 	m := rgx.FindAllStringSubmatch(string(b), -1)
 
+	var wg sync.WaitGroup
+	wg.Add(len(m))
+
 	for _, v := range m {
-		h, p, err := constURL(v[1], host+path)
-		if err != nil {
-			continue
-		}
-		c.Crawl(p, &h, useHttps)
+		go func(u string) {
+			defer wg.Done()
+			c.Crawl(u, referrer, useHttps, "HandleCSS")
+		}(v[1])
 	}
+
+	wg.Wait()
 
 	return nil
 }
 
-func (c *Crawler) HandleJS(path string, host string) error {
+func (c *Crawler) HandleJS(resp *http.Response, referrer string, useHttps bool) error {
 	if c.forceExit {
 		c.logf("Force exiting Crawl")
 		return nil
 	}
 
-	useHttps := false
-	c.logf("Url %s, has scheme %s", host+path, c.url2scheme[host+path])
-	if c.url2scheme[host+path] == "https" {
-		useHttps = true
-	}
-	jsbody, err := c.Crawl(path, &host, useHttps)
-	if err != nil {
-		return err
-	}
+	c.logf("Handling JS response from %s", resp.Request.URL)
 
-	jsurls := xtractJSURLS(*jsbody)
+	jsurls := xtractJSURLS(resp.Body)
+
+	u := resp.Request.URL.String()
 
 	if len(jsurls) == 0 {
-		c.logf("No template OR no embedded URLS found in %s", host+path)
+		c.logf("No template OR no embedded URLS found in %s", u)
 		return nil
 	} else {
-		c.logf("Found %d embedded URLS in %s", len(jsurls), host+path)
+		c.logf("Found %d embedded URLS in %s", len(jsurls), u)
 	}
 
 	var wg sync.WaitGroup
@@ -308,13 +340,7 @@ func (c *Crawler) HandleJS(path string, host string) error {
 		go func(jsurl string) {
 			c.logf("Crawling %s using signature", jsurl)
 			defer wg.Done()
-
-			jsHost, jsPath, err := constURL(jsurl, host+path)
-			if err != nil {
-				c.logf("Error while parsing URL %s: %v", jsurl, err)
-				return
-			}
-			c.HandleJS(jsPath, jsHost)
+			c.Crawl(jsurl, referrer, useHttps, "HandleJS")
 		}(jsurl)
 	}
 	wg.Wait()
@@ -322,18 +348,17 @@ func (c *Crawler) HandleJS(path string, host string) error {
 	return nil
 }
 
-func (c *Crawler) HandleHTML(path string, host string, useHttps bool) error {
+func (c *Crawler) HandleHTML(resp *http.Response, referrer string, useHttps bool) error {
 	if c.forceExit {
 		c.logf("Force exiting Crawl")
 		return nil
 	}
 
-	htmlbody, err := c.Crawl(path, &host, useHttps)
-	if err != nil {
-		return err
-	}
+	htmlu := resp.Request.URL.String()
 
-	urls, err := HTMLParser(*htmlbody, c.logf)
+	c.logf("Handling HTML response from %s", htmlu)
+
+	urls, err := HTMLParser(resp.Body, c.logf)
 	if err != nil {
 		return err
 	}
@@ -344,7 +369,7 @@ func (c *Crawler) HandleHTML(path string, host string, useHttps bool) error {
 	for _, u := range urls {
 		go func(u string) {
 			defer wg.Done()
-			c.Visit(u)
+			c.Crawl(u, referrer, useHttps, "HandleHTML")
 		}(u)
 	}
 	wg.Wait()
@@ -354,7 +379,7 @@ func (c *Crawler) HandleHTML(path string, host string, useHttps bool) error {
 
 func (c *Crawler) Visit(u string) error {
 
-	mainParsed, err := url.Parse(u)
+	parsed, err := url.Parse(u)
 	if err != nil {
 		c.logf("[Visiting page] Error while parsing URL %s: %v", u, err)
 		return nil
@@ -362,54 +387,17 @@ func (c *Crawler) Visit(u string) error {
 
 	useHttps := false
 
-	if mainParsed.Scheme == "https" {
+	if parsed.Scheme == "https" {
 		useHttps = true
 	}
 
-	htmlBody, err := c.Crawl(mainParsed.Path, &mainParsed.Host, useHttps)
-	c.logf("value of mainParsed.Host is %s", mainParsed.Host)
+	err = c.Crawl(u, parsed.Host, useHttps, "Visit")
+	c.logf("value of parsed.Host is %s", parsed.Host)
 	if err != nil {
 		c.logf("[Visiting page] Error while crawling %s: %v", u, err)
 		return err
 	}
-	urls, err := HTMLParser(*htmlBody, c.logf)
-	if err != nil {
-		c.logf("[Visiting page] Error while parsing HTML %s: %v", u, err)
-		return err
-	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(urls))
-
-	for _, tup := range urls {
-		go func(tup [2]string) {
-			url := tup[0]
-			t := tup[1]
-			// c.logf("Crawling %s from %s", jsurl, u)
-			defer wg.Done()
-			host, path, err := constURL(url, u)
-			if err != nil {
-				c.logf("Error while parsing URL %s: %v", url, err)
-				return
-			}
-			switch t {
-			case "js":
-				err = c.HandleJS(path, host)
-				if err != nil {
-					c.logf("Error while crawling %s: %v", host+path, err)
-				}
-			case "image":
-				c.Crawl(path, &host, useHttps)
-			case "css":
-				err = c.HandleCSS(path, host, useHttps)
-				if err != nil {
-					c.logf("Error while crawling %s: %v", host+path, err)
-				}
-			}
-		}(tup)
-	}
-
-	wg.Wait()
 	c.logf("Finished crawling Page %s", u)
 
 	return nil
@@ -420,6 +408,10 @@ func (c *Crawler) VisitWithTimeout(u string, timeout time.Duration, outPath stri
 
 	c.net = &NWLog{}
 	c.net.Reqs = make([]NWRequest, 0)
+
+	c.dupMap = make(map[string]bool)
+
+	c.forceExit = false
 
 	defer c.DumpNetLog(outPath, u)
 
