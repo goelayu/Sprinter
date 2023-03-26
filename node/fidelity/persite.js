@@ -71,8 +71,8 @@ var compareFidelity = function (bnet, ourls, engine) {
   var missing = [],
     admissing = [];
   bnet.forEach((bn) => {
-    if (!ourls[bn.url]) {
-      missing.push(bn);
+    if (!ourls[bn.url] && !missing.includes(bn.url)) {
+      missing.push(bn.url);
       program.verbose && console.log(`missing: ${bn.url}`);
       // if (!checkBlockUrl(bn, engine)) admissing.push(bn);
     }
@@ -81,7 +81,7 @@ var compareFidelity = function (bnet, ourls, engine) {
 };
 
 var saveUrls = function (path, store) {
-  var net = getNet(path);
+  var net = getNet(path).filter(filternet);
   net.forEach((n) => {
     var url = n.url.replace(/https?:\/\//, "").split("?")[0];
     if (!store.urls[url]) store.urls[url] = n;
@@ -118,13 +118,15 @@ var CompareSites = function () {
       console.log(`${p}: total: ${bnet.length} missing: ${missing.length}`);
       t += bnet.length;
       missing.forEach((e) => {
-        m[e.url] = 1;
+        m[e] = 1;
       });
     } catch (e) {
       program.verbose && console.log(`error in ${p}: ${e}`);
     }
   }
-  console.log(`total: ${t} missing: ${Object.keys(m).length}`);
+  console.log(
+    `total: ${Object.keys(store.urls).length} missing: ${Object.keys(m).length}`
+  );
 };
 
 CompareSites();
