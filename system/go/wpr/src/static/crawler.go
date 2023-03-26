@@ -45,7 +45,7 @@ type NWLog struct {
 }
 
 func HTMLREParser(body string, logf logprintf) ([]string, error) {
-	re := regexp.MustCompile(`(http| src="\/\/|\/\/)s?:?[^\s"&')]+\.(svg|png|jpg|jpeg|js)[^\s>)'"&]*`)
+	re := regexp.MustCompile(`(http| src="\/\/|\/\/)s?:?[^\s"&')]+\.(svg|png|jpg|jpeg|js|css)[^\s>)'"&]*`)
 	matches := re.FindAllString(body, -1)
 
 	urls := []string{}
@@ -224,7 +224,12 @@ func (c *Crawler) Crawl(u string, host *string, useHttps bool) (*io.ReadCloser, 
 func (c *Crawler) DumpNetLog(outPath string, u string) {
 	sanitizecmd := fmt.Sprintf("echo '%s' | sanitize", u)
 	sanpage, _ := exec.Command("bash", "-c", sanitizecmd).Output()
-	fullpath := fmt.Sprintf("%s/%s.net", outPath, string(sanpage))
+	fullpath := fmt.Sprintf("%s/%s/net.log", outPath, string(sanpage))
+	err := os.MkdirAll(filepath.Dir(fullpath), 0755)
+	if err != nil {
+		c.logf("Error creating netlog directory: %s", err)
+		return
+	}
 	f, err := os.Create(fullpath)
 	if err != nil {
 		c.logf("Error creating netlog file: %s", err)
@@ -301,7 +306,7 @@ func (c *Crawler) HandleJS(path string, host string) error {
 
 	for _, jsurl := range jsurls {
 		go func(jsurl string) {
-			c.logf("Crawling %s", jsurl)
+			c.logf("Crawling %s using signature", jsurl)
 			defer wg.Done()
 
 			jsHost, jsPath, err := constURL(jsurl, host+path)
@@ -311,6 +316,36 @@ func (c *Crawler) HandleJS(path string, host string) error {
 			}
 			c.HandleJS(jsPath, jsHost)
 		}(jsurl)
+	}
+	wg.Wait()
+
+	return nil
+}
+
+func (c *Crawler) HandleHTML(path string, host string, useHttps bool) error {
+	if c.forceExit {
+		c.logf("Force exiting Crawl")
+		return nil
+	}
+
+	htmlbody, err := c.Crawl(path, &host, useHttps)
+	if err != nil {
+		return err
+	}
+
+	urls, err := HTMLParser(*htmlbody, c.logf)
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(urls))
+
+	for _, u := range urls {
+		go func(u string) {
+			defer wg.Done()
+			c.Visit(u)
+		}(u)
 	}
 	wg.Wait()
 
