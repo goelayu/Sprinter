@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -32,6 +33,7 @@ type LCM struct {
 	mu         sync.Mutex
 	url2scheme map[string]string
 	outDir     string
+	bCount     *int32
 }
 
 type Proxy struct {
@@ -238,11 +240,27 @@ func (p *Proxy) UpdateDataFile(page string) {
 	}
 }
 
+func printLoad(bCount *int32, ch <-chan bool) {
+	for {
+		select {
+		case <-ch:
+			log.Printf("Final bCount: %d", atomic.LoadInt32(bCount))
+			return
+		default:
+			log.Printf("Current bCount: %d", atomic.LoadInt32(bCount))
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+}
+
 func (lcm *LCM) Start() {
 
 	pages := lcm.pages
 	var wg sync.WaitGroup
 	wg.Add(len(lcm.crawlers))
+
+	done := make(chan bool)
+	go printLoad(lcm.bCount, done)
 
 	for i := 0; i < len(lcm.crawlers); i++ {
 		go func(index int) {
@@ -271,6 +289,7 @@ func (lcm *LCM) Start() {
 	}
 
 	wg.Wait()
+	done <- true
 }
 
 func initLCM(n int, pagePath string, proxyData string, wprData string,
@@ -290,6 +309,8 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
+
+	var bCount int32 = 0
 	for i := 0; i < n; i++ {
 		client := &http.Client{Transport: tr}
 		hostaddr := "127.0.0.1"
@@ -301,11 +322,12 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 			HttpServer:  fmt.Sprintf("http://%s:%d", hostaddr, proxies[i].port-1000),
 			HttpsServer: fmt.Sprintf("https://%s:%d", hostaddr, proxies[i].port),
 			url2scheme:  url2scheme,
+			bCount:      &bCount,
 		}
 		log.Printf("Initialized crawler %d with proxy port %d", i, proxies[i].port)
 	}
 
-	return &LCM{crawlers, proxies, pages, sync.Mutex{}, url2scheme, proxyData}
+	return &LCM{crawlers, proxies, pages, sync.Mutex{}, url2scheme, proxyData, &bCount}
 }
 
 func main() {

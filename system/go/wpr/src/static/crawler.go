@@ -15,8 +15,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -33,6 +35,7 @@ type Crawler struct {
 	forceExit   bool
 	net         *NWLog
 	dupMap      map[string]bool
+	bCount      *int32
 }
 
 type NWRequest struct {
@@ -249,6 +252,21 @@ func (c *Crawler) Crawl(target string, referrer string, useHttps bool, caller st
 		c.dupMap[h+p] = true
 	}
 	c.net.mu.Unlock()
+
+	size := resp.Header.Get("Content-Length")
+	c.logf("Content-Length: %v", resp.Header)
+	if size != "" {
+		sz, err := int32(strconv.Atoi(size))
+		if err != nil {
+			c.logf("Error converting size to int: %s", err)
+		} else {
+			if sz == 0 {
+				sz = len(resp.Body)
+			}
+			atomic.AddInt32(c.bCount, int32(sz))
+			// c.logf("Incrementing byte count by %d and now at %d", sz, atomic.LoadInt32(c.bCount))
+		}
+	}
 
 	c.HandleResp(resp, h+p, s)
 	return nil
