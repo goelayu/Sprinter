@@ -15,7 +15,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -32,10 +31,10 @@ type Crawler struct {
 	Client      *http.Client
 	url2scheme  map[string]string
 	logf        logprintf
-	forceExit   bool
-	net         *NWLog
-	dupMap      map[string]bool
-	bCount      *int32
+
+	net    *NWLog
+	dupMap map[string]bool
+	tBytes *int64
 }
 
 type NWRequest struct {
@@ -64,7 +63,7 @@ func HTMLREParser(body string, logf logprintf) ([]string, error) {
 	return urls, nil
 }
 
-func HTMLParser(body io.ReadCloser, logf logprintf) ([]string, error) {
+func HTMLParser(body io.ReadCloser, logf logprintf, tBytes *int64) ([]string, error) {
 	doc, err := goquery.NewDocumentFromReader(body)
 	if err != nil {
 		return nil, err
@@ -91,6 +90,7 @@ func HTMLParser(body io.ReadCloser, logf logprintf) ([]string, error) {
 	})
 
 	dhtml, _ := doc.Html()
+	atomic.AddInt64(tBytes, int64(len(dhtml)))
 	reurls, _ := HTMLREParser(dhtml, logf)
 
 	for _, u := range reurls {
@@ -136,9 +136,10 @@ func constURL(target string, main string, useHttps bool) (host string, path stri
 	return res.Host, res.Path, useHttps, nil
 }
 
-func xtractJSURLS(body io.ReadCloser) []string {
+func xtractJSURLS(body io.ReadCloser, tBytes *int64) []string {
 	buf := new(bytes.Buffer)
 	io.Copy(buf, body)
+	atomic.AddInt64(tBytes, int64(len(buf.String())))
 	tregex, _ := regexp.Compile(`CODE BEGIN[\s\S]*CODE END`)
 	tmplt := tregex.FindString(buf.String())
 
@@ -172,6 +173,10 @@ func (c *Crawler) HandleResp(resp *http.Response, referrer string, useHttps bool
 	} else if strings.Contains(ct, "javascript") {
 		return c.HandleJS(resp, referrer, useHttps)
 	} else if strings.Contains(ct, "image") {
+		imBody, err := io.ReadAll(resp.Body)
+		if err == nil {
+			atomic.AddInt64(c.tBytes, int64(len(imBody)))
+		}
 		return nil
 	} else if strings.Contains(ct, "css") {
 		return c.HandleCSS(resp, referrer, useHttps)
@@ -183,10 +188,6 @@ func (c *Crawler) HandleResp(resp *http.Response, referrer string, useHttps bool
 }
 
 func (c *Crawler) Crawl(target string, referrer string, useHttps bool, caller string) error {
-	if c.forceExit {
-		c.logf("Force exiting Crawl")
-		return errors.New("Force exiting Crawl")
-	}
 
 	c.logf("Initiating crawl for %s (referrer: %s): %s", target, referrer, caller)
 
@@ -195,13 +196,13 @@ func (c *Crawler) Crawl(target string, referrer string, useHttps bool, caller st
 		return err
 	}
 
-	c.net.mu.Lock()
-	_, ok := c.dupMap[h+p]
-	c.net.mu.Unlock()
-	if ok {
-		c.logf("Already crawled %s", h+p)
-		return nil
-	}
+	// c.net.mu.Lock()
+	// _, ok := c.dupMap[h+p]
+	// c.net.mu.Unlock()
+	// if ok {
+	// 	c.logf("Already crawled %s", h+p)
+	// 	return nil
+	// }
 
 	var portaddr string
 	if s {
@@ -248,25 +249,25 @@ func (c *Crawler) Crawl(target string, referrer string, useHttps bool, caller st
 	nr := NWRequest{Url: h + p, Status: resp.StatusCode}
 	c.net.mu.Lock()
 	c.net.Reqs = append(c.net.Reqs, nr)
-	if resp.StatusCode == 200 {
-		c.dupMap[h+p] = true
-	}
+	// if resp.StatusCode == 200 {
+	// 	c.dupMap[h+p] = true
+	// }
 	c.net.mu.Unlock()
 
-	size := resp.Header.Get("Content-Length")
-	c.logf("Content-Length: %v", resp.Header)
-	if size != "" {
-		sz, err := int32(strconv.Atoi(size))
-		if err != nil {
-			c.logf("Error converting size to int: %s", err)
-		} else {
-			if sz == 0 {
-				sz = len(resp.Body)
-			}
-			atomic.AddInt32(c.bCount, int32(sz))
-			// c.logf("Incrementing byte count by %d and now at %d", sz, atomic.LoadInt32(c.bCount))
-		}
-	}
+	// size := resp.Header.Get("Content-Length")
+	// c.logf("Content-Length: %v", resp.Header)
+	// if size != "" {
+	// 	sz, err := int32(strconv.Atoi(size))
+	// 	if err != nil {
+	// 		c.logf("Error converting size to int: %s", err)
+	// 	} else {
+	// 		if sz == 0 {
+	// 			sz = len(resp.Body)
+	// 		}
+	// 		atomic.AddInt32(c.bCount, int32(sz))
+	// 		// c.logf("Incrementing byte count by %d and now at %d", sz, atomic.LoadInt32(c.bCount))
+	// 	}
+	// }
 
 	c.HandleResp(resp, h+p, s)
 	return nil
@@ -298,10 +299,6 @@ func (c *Crawler) DumpNetLog(outPath string, u string) {
 }
 
 func (c *Crawler) HandleCSS(resp *http.Response, referrer string, useHttps bool) error {
-	if c.forceExit {
-		c.logf("Force exiting Crawl")
-		return nil
-	}
 
 	cssu := resp.Request.URL.String()
 
@@ -311,6 +308,8 @@ func (c *Crawler) HandleCSS(resp *http.Response, referrer string, useHttps bool)
 	if err != nil {
 		return err
 	}
+
+	atomic.AddInt64(c.tBytes, int64(len(b)))
 
 	// c.logf("Extracting CSS URLs from %s with body %s", cssu, string(b))
 
@@ -333,14 +332,10 @@ func (c *Crawler) HandleCSS(resp *http.Response, referrer string, useHttps bool)
 }
 
 func (c *Crawler) HandleJS(resp *http.Response, referrer string, useHttps bool) error {
-	if c.forceExit {
-		c.logf("Force exiting Crawl")
-		return nil
-	}
 
 	c.logf("Handling JS response from %s", resp.Request.URL)
 
-	jsurls := xtractJSURLS(resp.Body)
+	jsurls := xtractJSURLS(resp.Body, c.tBytes)
 
 	u := resp.Request.URL.String()
 
@@ -367,16 +362,11 @@ func (c *Crawler) HandleJS(resp *http.Response, referrer string, useHttps bool) 
 }
 
 func (c *Crawler) HandleHTML(resp *http.Response, referrer string, useHttps bool) error {
-	if c.forceExit {
-		c.logf("Force exiting Crawl")
-		return nil
-	}
-
 	htmlu := resp.Request.URL.String()
 
 	c.logf("Handling HTML response from %s", htmlu)
 
-	urls, err := HTMLParser(resp.Body, c.logf)
+	urls, err := HTMLParser(resp.Body, c.logf, c.tBytes)
 	if err != nil {
 		return err
 	}
@@ -426,10 +416,7 @@ func (c *Crawler) VisitWithTimeout(u string, timeout time.Duration, outPath stri
 
 	c.net = &NWLog{}
 	c.net.Reqs = make([]NWRequest, 0)
-
 	c.dupMap = make(map[string]bool)
-
-	c.forceExit = false
 
 	defer c.DumpNetLog(outPath, u)
 
@@ -444,7 +431,6 @@ func (c *Crawler) VisitWithTimeout(u string, timeout time.Duration, outPath stri
 	case <-time.After(timeout):
 		c.logf("Timeout while visiting %s", u)
 		c.logf("Finished crawling Page %s", u)
-		c.forceExit = true
 		return nil
 	}
 
