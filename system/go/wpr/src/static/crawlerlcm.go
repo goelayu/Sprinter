@@ -7,6 +7,7 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -20,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/ratelimit"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
@@ -127,6 +127,19 @@ func setupSSH() *ssh.Client {
 	return client
 }
 
+func retrySSHCon(sshC *ssh.Client, retries int) (*ssh.Session, error) {
+	for i := 0; i < retries; i++ {
+		sshS, err := sshC.NewSession()
+		if err != nil {
+			log.Printf("unable to create session: [try %d/%d] %v", i, retries, err)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		return sshS, nil
+	}
+	return nil, errors.New("unable to create session")
+}
+
 func initProxies(n int, proxyData string, wprData string, azPort int,
 	sleep int, remote bool) []*Proxy {
 	GOROOT := "/w/goelayu/uluyol-sigcomm/go"
@@ -138,10 +151,10 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 
 	proxies := make([]*Proxy, n)
 
-	var sshC *ssh.Client
-	if remote {
-		sshC = setupSSH()
-	}
+	// var sshC *ssh.Client
+	// if remote {
+	// 	sshC = setupSSH()
+	// }
 
 	for i := 0; i < n; i++ {
 		httpport := startHTTPPORT + i
@@ -152,7 +165,8 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 			GOROOT, httpport, httpsport, azPort, dataFile, outFilePath)
 
 		if remote {
-			sshS, err := sshC.NewSession()
+			sshC := setupSSH()
+			sshS, err := retrySSHCon(sshC, 3)
 			if err != nil {
 				log.Fatalf("unable to create session: %v", err)
 			}
@@ -163,7 +177,11 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 				sshS.Close()
 				log.Fatalf("unable to create dummy file: %v", err)
 			}
-			sshS, _ = sshC.NewSession()
+			sshS.Close()
+			sshS, err = retrySSHCon(sshC, 3)
+			if err != nil {
+				log.Fatalf("unable to create session: %v", err)
+			}
 			go sshS.Run(fmt.Sprintf("cd %s; %s", WPRDIR, cmdstr))
 			proxies[i] = &Proxy{httpsport, dataFile, wprData, sshC, remote}
 		} else {
@@ -185,16 +203,18 @@ func (p *Proxy) Stop() {
 	log.Printf("Stopping proxy on port %d", p.port)
 	killcmd := fmt.Sprintf("ps aux | grep https_port | grep %d | awk '{print $2}' | xargs kill -SIGINT", p.port)
 	if p.remote {
-		sshS, _ := p.sshC.NewSession()
+		sshS, _ := retrySSHCon(p.sshC, 3)
 		err := sshS.Run(killcmd)
 		if err != nil {
 			log.Fatalf("unable to kill proxy: %v", err)
 		}
-		sshS, _ = p.sshC.NewSession()
+		sshS.Close()
+		sshS, _ = retrySSHCon(p.sshC, 3)
 		err = sshS.Run(fmt.Sprintf("rm %s", p.dataFile))
 		if err != nil {
 			log.Fatalf("unable to remove data file: %v", err)
 		}
+		sshS.Close()
 	} else {
 		exec.Command("bash", "-c", killcmd).Run()
 		// p.cmd.Process.Signal(os.Interrupt)
@@ -207,11 +227,12 @@ func (p *Proxy) UpdateDataFile(page string) {
 	sanpage, _ := exec.Command("bash", "-c", sanitizecmd).Output()
 	wprData := fmt.Sprintf("%s/%s.wprgo", p.wprData, string(sanpage))
 	if p.remote {
-		sshS, _ := p.sshC.NewSession()
+		sshS, _ := retrySSHCon(p.sshC, 3)
 		err := sshS.Run(fmt.Sprintf("echo %s > %s", wprData, p.dataFile))
 		if err != nil {
 			log.Fatalf("unable to update data file: %v", err)
 		}
+		sshS.Close()
 	} else {
 		os.WriteFile(p.dataFile, []byte(wprData), 0644)
 	}
@@ -227,10 +248,10 @@ func (lcm *LCM) Start() {
 		go func(index int) {
 			cproxy := lcm.proxies[index]
 			c := lcm.crawlers[index]
-			rl := ratelimit.New(3)
+			// rl := ratelimit.New(3)
 			defer wg.Done()
 			for {
-				rl.Take()
+				// rl.Take()
 				lcm.mu.Lock()
 				if len(pages) == 0 {
 					lcm.mu.Unlock()

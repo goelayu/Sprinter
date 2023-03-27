@@ -103,7 +103,7 @@ func HTMLParser(body io.ReadCloser, logf logprintf) ([]string, error) {
 		}
 	}
 
-	logf("Htmlbody: %s", dhtml)
+	// logf("Htmlbody: %s", dhtml)
 	logf("Urls: %v", urls)
 	return urls, nil
 }
@@ -294,7 +294,7 @@ func (c *Crawler) HandleCSS(resp *http.Response, referrer string, useHttps bool)
 		return err
 	}
 
-	c.logf("Extracting CSS URLs from %s with body %s", cssu, string(b))
+	// c.logf("Extracting CSS URLs from %s with body %s", cssu, string(b))
 
 	rgx, _ := regexp.Compile(`url\(['"]?([^\s"']*)['"]?\)`)
 	m := rgx.FindAllStringSubmatch(string(b), -1)
