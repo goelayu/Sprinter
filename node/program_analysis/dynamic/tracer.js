@@ -39,10 +39,7 @@
       this.loggers = [];
       this.objToHeaps = new Map();
       this.fileClosures = {};
-      this.provenanceData = {
-        o: new WeakMap(),
-        s: {},
-      };
+      this.provenanceData = {};
       this.cacheStats = {
         hits: 0,
         misses: 0,
@@ -91,7 +88,14 @@
         var t = l.resolveLogData();
         for (var file in t) {
           if (!res[file]) res[file] = [];
-          res[file] = res[file].concat(t[file]);
+          for (var e of t[file]) {
+            var obj = e[3];
+            var dp = this.provenanceData[file];
+            if (dp && dp.reads.has(obj)) {
+              res[file].push(e);
+            }
+          }
+          // res[file] = res[file].concat(t[file]);
         }
       }
       this.finalTraceData = res;
@@ -127,10 +131,18 @@
     dataProv(ret, ids) {
       if (ret == undefined) return ret;
       if (ids && ids.length == 0) return ret;
-      if (typeof ret === "string") this.provenanceData.s[ret] = ids;
+      var stackhead = window.__stackHead__;
+      if (!stackhead) return ret;
+      if (!this.provenanceData[stackhead])
+        this.provenanceData[stackhead] = {
+          s: {},
+          o: new Map(),
+          reads: new Set(),
+        };
+      if (typeof ret === "string") this.provenanceData[stackhead].s[ret] = ids;
       else if (typeof ret == "object" || typeof ret == "function")
-        this.provenanceData.o.set(ret, ids);
-
+        this.provenanceData[stackhead].o.set(ret, ids);
+      ids.forEach((id) => this.provenanceData[stackhead].reads.add(id));
       return ret;
     }
   }
@@ -213,7 +225,7 @@
       // );
       return (
         (type == "write" && typeof method == "function") ||
-        typeof method == "object" ||
+        // typeof method == "object" ||
         (type == "read" && typeof method == "function")
       );
       // return typeof method == "function" || typeof method == "object";

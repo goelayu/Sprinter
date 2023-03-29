@@ -10,7 +10,7 @@
  */
 var provenanceInject = function (path, ids, generate) {
   var left = path.get("left");
-  ids = ids.filter((id) => id.toString() != left.toString());
+  // ids = ids.filter((id) => id.toString() != left.toString());
 
   var newCode = `${generate(path.node.left).code} ${
     path.node.operator

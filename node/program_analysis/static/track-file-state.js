@@ -275,25 +275,6 @@ var extractRelevantState = function (input, opts) {
         closureScopes[fnScope.uid][clScope.uid][path.node.name] = true;
         rewriteClosure(path, `__closureProxy${clScope.uid}`);
       }
-      if (provenance) {
-        var ae = false;
-        var parent = path.parentPath;
-        while (parent && !parent.isFunction()) {
-          if (parent.isAssignmentExpression()) {
-            ae = parent;
-            break;
-          }
-          parent = parent.parentPath;
-        }
-        // var ae = path.findParent((p) => p.isAssignmentExpression());
-        // var fn = path.findParent((p) => p.isFunction());
-        if (ae) {
-          var ids = AEToId.get(ae);
-          if (!ids) ids = [];
-          ids.push(path);
-          AEToId.set(ae, ids);
-        }
-      }
     },
     BinaryExpression: {
       exit(path) {
@@ -331,13 +312,19 @@ var extractRelevantState = function (input, opts) {
             );
             path.replaceWith(newCode);
             path.skip();
-          } else if (
-            provenance &&
-            right.node.type != "FunctionExpression" &&
-            AEToId.get(path)
-          ) {
+          } else if (provenance && right.node.type != "FunctionExpression") {
+            var ids = [];
+            if (right.isIdentifier()) {
+              ids.push(right);
+            } else {
+              right.traverse({
+                Identifier(path) {
+                  if (isTrackableIdentifier(path)) ids.push(path);
+                },
+              });
+            }
             var newCode = parser.parseExpression(
-              provenanceInject(path, AEToId.get(path), generate)
+              provenanceInject(path, ids, generate)
             );
             path.replaceWith(newCode);
             path.skip();
@@ -378,6 +365,12 @@ var extractRelevantState = function (input, opts) {
     WithStatement: {
       exit(path) {
         deprecatedSyntax = true;
+      },
+    },
+    IfStatement: {
+      exit(path) {
+        var t = path.get("test");
+        console.log(t.toString());
       },
     },
   });
