@@ -303,7 +303,7 @@ var extractRelevantState = function (input, opts) {
           if (
             (left.toString().indexOf("prototype") != -1 ||
               left.toString().indexOf("__proto__") != -1) &&
-            right.node.type != "FunctionExpression"
+            !right.isFunction()
           ) {
             var newCode = parser.parseExpression(
               `${generate(path.node.left).code} = __tracer__.removeProxy(${
@@ -312,12 +312,28 @@ var extractRelevantState = function (input, opts) {
             );
             path.replaceWith(newCode);
             path.skip();
-          } else if (provenance && right.node.type != "FunctionExpression") {
+          } else if (
+            provenance &&
+            !right.isFunction() &&
+            !right.isCallExpression() &&
+            !right.isNewExpression() &&
+            !right.isMemberExpression() &&
+            !right.isObjectExpression()
+          ) {
             var ids = [];
             if (right.isIdentifier()) {
               ids.push(right);
             } else {
               right.traverse({
+                Function(path) {
+                  path.skip();
+                },
+                CallExpression(path) {
+                  path.skip();
+                },
+                ObjectExpression(path) {
+                  path.skip();
+                },
                 Identifier(path) {
                   if (isTrackableIdentifier(path)) ids.push(path);
                 },
@@ -370,7 +386,41 @@ var extractRelevantState = function (input, opts) {
     IfStatement: {
       exit(path) {
         var t = path.get("test");
-        console.log(t.toString());
+        if (
+          provenance &&
+          !t.isFunction() &&
+          !t.isCallExpression() &&
+          !t.isNewExpression() &&
+          !t.isMemberExpression() &&
+          !t.isObjectExpression()
+        ) {
+          var ids = [];
+          if (t.isIdentifier()) {
+            ids.push(t);
+          } else {
+            t.traverse({
+              Function(path) {
+                path.skip();
+              },
+              CallExpression(path) {
+                path.skip();
+              },
+              ObjectExpression(path) {
+                path.skip();
+              },
+              Identifier(path) {
+                if (isTrackableIdentifier(path)) ids.push(path);
+              },
+            });
+          }
+          var newCodeStr = `__tracer__.dataProvSinks((${
+            generate(t.node).code
+          }), [${ids.map((id) => id.node.name).join(",")}])`;
+          console.log(`new code string: ${newCodeStr}`);
+          var newCode = parser.parseExpression(newCodeStr);
+          path.node.test = newCode;
+          path.skip();
+        }
       },
     },
   });

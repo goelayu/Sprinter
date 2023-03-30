@@ -40,6 +40,8 @@
       this.objToHeaps = new Map();
       this.fileClosures = {};
       this.provenanceData = {};
+      this.provSinks = {};
+      this.taintReads = {};
       this.cacheStats = {
         hits: 0,
         misses: 0,
@@ -81,6 +83,41 @@
       this.fileClosures[file] = closure;
     }
 
+    taintTrack(file) {
+      var pd = this.provenanceData[file];
+      var sinks = this.provSinks[file];
+      if (!pd || !sinks) return new Set();
+      var res = (this.taintReads[file] = new Set());
+      try {
+        var reads = [],
+          seen = new Set();
+        for (var s of sinks) {
+          reads.push(s);
+        }
+        while (reads.length > 0) {
+          var r = reads.pop();
+          if (seen.has(r)) continue;
+          res.add(r);
+          seen.add(r);
+          var provReads;
+          if (typeof r == "string") {
+            provReads = pd.s[r];
+          } else {
+            provReads = pd.o.get(r);
+          }
+          if (provReads) {
+            for (var pr of provReads) {
+              if (seen.has(pr)) continue;
+              reads.push(pr);
+            }
+          }
+        }
+      } catch (e) {
+        return new Set();
+      }
+      return res;
+    }
+
     resolveLogData() {
       var res = {};
       for (var i = 0; i < this.loggers.length; i++) {
@@ -89,11 +126,14 @@
         for (var file in t) {
           if (!res[file]) res[file] = [];
           for (var e of t[file]) {
-            var obj = e[3];
-            var dp = this.provenanceData[file];
-            if (dp && dp.reads.has(obj)) {
-              res[file].push(e);
-            }
+            res[file].push(e);
+            // var obj = e[3];
+            // var dp = this.taintTrack(file);
+            // if (dp && dp.has(obj)) {
+            //   res[file].push(e);
+            // } else {
+            //   // console.log(`trimming read state: ${e}`);
+            // }
           }
           // res[file] = res[file].concat(t[file]);
         }
@@ -143,6 +183,16 @@
       else if (typeof ret == "object" || typeof ret == "function")
         this.provenanceData[stackhead].o.set(ret, ids);
       ids.forEach((id) => this.provenanceData[stackhead].reads.add(id));
+      return ret;
+    }
+
+    dataProvSinks(ret, ids) {
+      if (ret == undefined) return ret;
+      if (ids && ids.length == 0) return ret;
+      var stackhead = window.__stackHead__;
+      if (!stackhead) return ret;
+      if (!this.provSinks[stackhead]) this.provSinks[stackhead] = new Set();
+      ids.forEach((id) => this.provSinks[stackhead].add(id));
       return ret;
     }
   }
@@ -225,7 +275,7 @@
       // );
       return (
         (type == "write" && typeof method == "function") ||
-        // typeof method == "object" ||
+        typeof method == "object" ||
         (type == "read" && typeof method == "function")
       );
       // return typeof method == "function" || typeof method == "object";
