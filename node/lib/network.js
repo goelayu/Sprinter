@@ -104,6 +104,10 @@ function parseNetworkLogs(netLog) {
           (netObject.size = Number.parseInt(
             payLoad.response.headers["Content-Length"]
           ));
+        payLoad.response.headers["content-length"] &&
+          (netObject.size = Number.parseInt(
+            payLoad.response.headers["content-length"]
+          ));
         break;
       case "Network.dataReceived":
         if (!(requestId in requestIdToObject)) continue;
