@@ -37,12 +37,20 @@ var getExecutionTimingsByGroup = function (tasks) {
 };
 
 var getJSURLs = function () {
-  const networkRecords = netParser.parseNetworkLogs(JSON.parse(fs.readFileSync(program.network, "utf8")));
-  return new Set(networkRecords.filter((record) => {
-    return (
-      record.type && record.type.indexOf("script") !== -1 && record.status == 200
-    );
-  }).map((record) => record.url));
+  const networkRecords = netParser.parseNetworkLogs(
+    JSON.parse(fs.readFileSync(program.network, "utf8"))
+  );
+  return new Set(
+    networkRecords
+      .filter((record) => {
+        return (
+          record.type &&
+          record.type.indexOf("script") !== -1 &&
+          record.status == 200
+        );
+      })
+      .map((record) => record.url)
+  );
 };
 
 function getExecutionTimingsByURL(tasks, jsURLs) {
@@ -84,11 +92,10 @@ if (program.type == "category") {
   }
   const jsURLs = getJSURLs();
   const timingsByURL = getExecutionTimingsByURL(tasks, jsURLs);
-  timingsByURL.forEach((value, key) => {
-    console.log(key, value);
-  });
+  // timingsByURL.forEach((value, key) => {
+  //   console.log(value);
+  // });
+  console.log(JSON.stringify([...timingsByURL]));
 }
 
-
 // Print the timings
-
