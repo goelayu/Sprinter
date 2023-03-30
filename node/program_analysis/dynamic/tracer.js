@@ -125,17 +125,17 @@
         var t = l.resolveLogData();
         for (var file in t) {
           if (!res[file]) res[file] = [];
-          for (var e of t[file]) {
-            res[file].push(e);
-            // var obj = e[3];
-            // var dp = this.taintTrack(file);
-            // if (dp && dp.has(obj)) {
-            //   res[file].push(e);
-            // } else {
-            //   // console.log(`trimming read state: ${e}`);
-            // }
-          }
-          // res[file] = res[file].concat(t[file]);
+          // for (var e of t[file]) {
+          //   res[file].push(e);
+          //   // var obj = e[3];
+          //   // var dp = this.taintTrack(file);
+          //   // if (dp && dp.has(obj)) {
+          //   //   res[file].push(e);
+          //   // } else {
+          //   //   // console.log(`trimming read state: ${e}`);
+          //   // }
+          // }
+          res[file] = res[file].concat(t[file]);
         }
       }
       this.finalTraceData = res;
