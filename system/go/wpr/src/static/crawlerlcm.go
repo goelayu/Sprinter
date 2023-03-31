@@ -285,7 +285,7 @@ func (lcm *LCM) Start() {
 				log.Printf("Crawler %s crawling %s", c.HttpServer, page)
 				cproxy.UpdateDataFile(page)
 				c.logf = makeLogger(fmt.Sprintf("%s:%s", c.HttpsServer, page))
-				c.VisitWithTimeout(page, 10*time.Second, lcm.outDir)
+				c.Visit(page, time.Duration(5*time.Millisecond), lcm.outDir)
 			}
 		}(i)
 	}
@@ -327,6 +327,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 			HttpsServer: fmt.Sprintf("https://%s:%d", hostaddr, proxies[i].port),
 			url2scheme:  url2scheme,
 			tBytes:      &tBytes,
+			concurrency: 5,
 		}
 		log.Printf("Initialized crawler %d with proxy port %d", i, proxies[i].port)
 	}

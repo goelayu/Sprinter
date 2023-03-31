@@ -6,6 +6,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -31,15 +32,25 @@ type Crawler struct {
 	Client      *http.Client
 	url2scheme  map[string]string
 	logf        logprintf
+	net         *NWLog
+	dupMap      map[string]bool
+	tBytes      *int64
+	pending     sync.WaitGroup
+	reqs        chan Req
+	concurrency int
+}
 
-	net    *NWLog
-	dupMap map[string]bool
-	tBytes *int64
+type Req struct {
+	target   string
+	referrer string
+	useHttps bool
+	caller   string
 }
 
 type NWRequest struct {
 	Url    string
 	Status int
+	Err    error
 }
 
 type NWLog struct {
@@ -187,90 +198,109 @@ func (c *Crawler) HandleResp(resp *http.Response, referrer string, useHttps bool
 	return nil
 }
 
-func (c *Crawler) Crawl(target string, referrer string, useHttps bool, caller string) error {
-
-	c.logf("Initiating crawl for %s (referrer: %s): %s", target, referrer, caller)
-
-	h, p, s, err := constURL(target, referrer, useHttps)
-	if err != nil {
-		return err
-	}
-
-	// c.net.mu.Lock()
-	// _, ok := c.dupMap[h+p]
-	// c.net.mu.Unlock()
-	// if ok {
-	// 	c.logf("Already crawled %s", h+p)
-	// 	return nil
-	// }
-
-	var portaddr string
-	if s {
-		portaddr = c.HttpsServer
-	} else {
-		portaddr = c.HttpServer
-	}
-
-	reqURL, err := url.Parse(portaddr + p)
-	if err != nil {
-		return err
-	}
-
-	c.logf("Requesting %s from host %s", reqURL, h)
-
-	req := &http.Request{
-		Method: "GET",
-		URL:    reqURL,
-		Host:   h,
-	}
-
-	var location string
-
-	c.Client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		location = req.URL.String()
-		c.logf("Redirecting to %s", location)
-		return nil
-	}
-
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	if location != "" {
-		c.logf("Updating host to %s", location)
-		lParsed, err := url.Parse(location)
-		if err != nil {
-			return err
-		}
-		h = lParsed.Host
-	}
-	c.logf("Received response from %s with status code %d", reqURL, resp.StatusCode)
-	nr := NWRequest{Url: h + p, Status: resp.StatusCode}
+func (c *Crawler) logRR(u string, s int, e error) {
+	c.logf("Logging request for %s: %d %v", u, s, e)
+	nr := NWRequest{Url: u, Status: s, Err: e}
 	c.net.mu.Lock()
 	c.net.Reqs = append(c.net.Reqs, nr)
-	// if resp.StatusCode == 200 {
-	// 	c.dupMap[h+p] = true
-	// }
 	c.net.mu.Unlock()
+	c.pending.Done()
+}
 
-	// size := resp.Header.Get("Content-Length")
-	// c.logf("Content-Length: %v", resp.Header)
-	// if size != "" {
-	// 	sz, err := int32(strconv.Atoi(size))
-	// 	if err != nil {
-	// 		c.logf("Error converting size to int: %s", err)
-	// 	} else {
-	// 		if sz == 0 {
-	// 			sz = len(resp.Body)
-	// 		}
-	// 		atomic.AddInt32(c.bCount, int32(sz))
-	// 		// c.logf("Incrementing byte count by %d and now at %d", sz, atomic.LoadInt32(c.bCount))
-	// 	}
-	// }
+func (c *Crawler) Crawl(ctx context.Context) {
 
-	c.HandleResp(resp, h+p, s)
-	return nil
+	for {
+		c.logf("Waiting for request")
+		select {
+		case <-ctx.Done():
+			c.logf("Context done")
+			return
+		case r := <-c.reqs:
+			target := r.target
+			referrer := r.referrer
+			useHttps := r.useHttps
+			caller := r.caller
+			c.logf("Initiating crawl for %s (referrer: %s): %s", target, referrer, caller)
+
+			h, p, s, err := constURL(target, referrer, useHttps)
+			if err != nil {
+				c.logRR(target, 0, err)
+				continue
+			}
+
+			// c.net.mu.Lock()
+			// _, ok := c.dupMap[h+p]
+			// c.net.mu.Unlock()
+			// if ok {
+			// 	c.logf("Already crawled %s", h+p)
+			// 	return nil
+			// }
+
+			var portaddr string
+			if s {
+				portaddr = c.HttpsServer
+			} else {
+				portaddr = c.HttpServer
+			}
+
+			reqURL, err := url.Parse(portaddr + p)
+			if err != nil {
+				c.logRR(h+p, 0, err)
+				continue
+			}
+
+			c.logf("Requesting %s from host %s", reqURL, h)
+
+			req := &http.Request{
+				Method: "GET",
+				URL:    reqURL,
+				Host:   h,
+			}
+
+			var location string
+
+			c.Client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				location = req.URL.String()
+				c.logf("Redirecting to %s", location)
+				return nil
+			}
+
+			resp, err := c.Client.Do(req)
+			if err != nil {
+				c.logRR(h+p, 0, err)
+				continue
+			}
+
+			if location != "" {
+				c.logf("Updating host to %s", location)
+				lParsed, err := url.Parse(location)
+				if err != nil {
+					c.logRR(h+p, 0, err)
+					continue
+				}
+				h = lParsed.Host
+			}
+			c.logf("Received response from %s with status code %d", reqURL, resp.StatusCode)
+			// nr := NWRequest{Url: h + p, Status: resp.StatusCode}
+			// c.net.mu.Lock()
+			// c.net.Reqs = append(c.net.Reqs, nr)
+			// // if resp.StatusCode == 200 {
+			// // 	c.dupMap[h+p] = true
+			// // }
+			// c.net.mu.Unlock()
+
+			c.HandleResp(resp, h+p, s)
+			c.logRR(h+p, resp.StatusCode, nil)
+		}
+	}
+}
+
+func (c *Crawler) queue(urls []Req) {
+	c.logf("Received new url with value %v", urls)
+	for _, u := range urls {
+		c.logf("Queueing %v", u)
+		c.reqs <- u
+	}
 }
 
 func (c *Crawler) DumpNetLog(outPath string, u string) {
@@ -316,17 +346,17 @@ func (c *Crawler) HandleCSS(resp *http.Response, referrer string, useHttps bool)
 	rgx, _ := regexp.Compile(`url\(['"]?([^\s"']*)['"]?\)`)
 	m := rgx.FindAllStringSubmatch(string(b), -1)
 
-	var wg sync.WaitGroup
-	wg.Add(len(m))
-
-	for _, v := range m {
-		go func(u string) {
-			defer wg.Done()
-			c.Crawl(u, referrer, useHttps, "HandleCSS")
-		}(v[1])
+	if len(m) == 0 {
+		c.logf("No URLS found in %s", referrer)
+		return nil
+	}
+	c.pending.Add(len(m))
+	reqs := make([]Req, len(m))
+	for i, v := range m {
+		reqs[i] = Req{target: v[1], referrer: referrer, useHttps: useHttps, caller: "HandleCSS"}
 	}
 
-	wg.Wait()
+	go c.queue(reqs)
 
 	return nil
 }
@@ -346,17 +376,14 @@ func (c *Crawler) HandleJS(resp *http.Response, referrer string, useHttps bool) 
 		c.logf("Found %d embedded URLS in %s", len(jsurls), u)
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(jsurls))
+	c.pending.Add(len(jsurls))
+	reqs := make([]Req, len(jsurls))
 
-	for _, jsurl := range jsurls {
-		go func(jsurl string) {
-			c.logf("Crawling %s using signature", jsurl)
-			defer wg.Done()
-			c.Crawl(jsurl, referrer, useHttps, "HandleJS")
-		}(jsurl)
+	for i, jsurl := range jsurls {
+		reqs[i] = Req{target: jsurl, referrer: referrer, useHttps: useHttps, caller: "HandleJS"}
 	}
-	wg.Wait()
+
+	go c.queue(reqs)
 
 	return nil
 }
@@ -371,21 +398,35 @@ func (c *Crawler) HandleHTML(resp *http.Response, referrer string, useHttps bool
 		return err
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(urls))
-
-	for _, u := range urls {
-		go func(u string) {
-			defer wg.Done()
-			c.Crawl(u, referrer, useHttps, "HandleHTML")
-		}(u)
+	if len(urls) == 0 {
+		c.logf("No URLs found in %s", referrer)
+		return nil
 	}
-	wg.Wait()
+
+	c.pending.Add(len(urls))
+	reqs := make([]Req, len(urls))
+
+	for i, u := range urls {
+		r := Req{target: u, referrer: referrer, useHttps: useHttps, caller: "HandleHTML"}
+		reqs[i] = r
+	}
+	go c.queue(reqs)
 
 	return nil
 }
 
-func (c *Crawler) Visit(u string) error {
+func (c *Crawler) Visit(u string, timeout time.Duration, outPath string) error {
+	c.logf("Visiting %s with timeout %d", u, timeout)
+
+	c.net = &NWLog{}
+	c.net.Reqs = make([]NWRequest, 0)
+	c.dupMap = make(map[string]bool)
+
+	waitCh := make(chan struct{})
+	c.reqs = make(chan Req)
+	defer c.DumpNetLog(outPath, u)
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	parsed, err := url.Parse(u)
 	if err != nil {
@@ -394,43 +435,34 @@ func (c *Crawler) Visit(u string) error {
 	}
 
 	useHttps := false
-
 	if parsed.Scheme == "https" {
 		useHttps = true
 	}
 
-	err = c.Crawl(u, parsed.Host, useHttps, "Visit")
-	c.logf("value of parsed.Host is %s", parsed.Host)
-	if err != nil {
-		c.logf("[Visiting page] Error while crawling %s: %v", u, err)
-		return err
+	c.pending.Add(1)
+	req := Req{target: u, referrer: "", useHttps: useHttps, caller: "Visit"}
+
+	go c.queue([]Req{req})
+
+	for i := 0; i < c.concurrency; i++ {
+		go c.Crawl(ctx)
 	}
 
-	c.logf("Finished crawling Page %s", u)
-
-	return nil
-}
-
-func (c *Crawler) VisitWithTimeout(u string, timeout time.Duration, outPath string) error {
-	c.logf("Visiting %s with timeout %d", u, timeout)
-
-	c.net = &NWLog{}
-	c.net.Reqs = make([]NWRequest, 0)
-	c.dupMap = make(map[string]bool)
-
-	defer c.DumpNetLog(outPath, u)
-
-	res := make(chan error)
 	go func() {
-		res <- c.Visit(u)
+		c.pending.Wait()
+		c.logf("Done waiting for pending requests")
+		cancel()
+		close(waitCh)
 	}()
 
 	select {
-	case err := <-res:
-		return err
+	case <-waitCh:
+		c.logf("Finished crawling page %s", u)
+		return nil
 	case <-time.After(timeout):
-		c.logf("Timeout while visiting %s", u)
-		c.logf("Finished crawling Page %s", u)
+		c.logf("Timeout while crawling Page %s", u)
+		cancel()
+		// close(c.reqs)
 		return nil
 	}
 
