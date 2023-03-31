@@ -16,6 +16,8 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -86,6 +88,7 @@ func readLines(path string) ([]string, error) {
 }
 
 func makeLogger(p string) func(msg string, args ...interface{}) {
+	return func(string, ...interface{}) {}
 	prefix := fmt.Sprintf("[Crawler:%s]: ", p)
 	return func(msg string, args ...interface{}) {
 		log.Print(prefix + fmt.Sprintf(msg, args...))
@@ -285,7 +288,7 @@ func (lcm *LCM) Start() {
 				log.Printf("Crawler %s crawling %s", c.HttpServer, page)
 				cproxy.UpdateDataFile(page)
 				c.logf = makeLogger(fmt.Sprintf("%s:%s", c.HttpsServer, page))
-				c.Visit(page, time.Duration(5*time.Millisecond), lcm.outDir)
+				c.Visit(page, time.Duration(3*time.Second), lcm.outDir)
 			}
 		}(i)
 	}
@@ -327,7 +330,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 			HttpsServer: fmt.Sprintf("https://%s:%d", hostaddr, proxies[i].port),
 			url2scheme:  url2scheme,
 			tBytes:      &tBytes,
-			concurrency: 5,
+			concurrency: 10,
 		}
 		log.Printf("Initialized crawler %d with proxy port %d", i, proxies[i].port)
 	}
@@ -360,6 +363,16 @@ func main() {
 	flag.BoolVar(&remote, "remote", false, "remote")
 	flag.Parse()
 
+	cpuprofile := "cpu.prof"
+	f, err := os.Create(cpuprofile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	runtime.SetBlockProfileRate(1)
+	// pprof.StartCPUProfile(f)
+	// defer pprof.StopCPUProfile()
+	defer pprof.Lookup("block").WriteTo(f, 0)
 	if verbose {
 		log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 	} else {

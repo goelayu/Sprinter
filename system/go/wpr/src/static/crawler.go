@@ -5,9 +5,7 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,12 +14,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/PuerkitoBio/goquery"
 )
 
 type logprintf func(msg string, args ...interface{})
@@ -58,116 +55,6 @@ type NWLog struct {
 	mu   sync.Mutex
 }
 
-func HTMLREParser(body string, logf logprintf) ([]string, error) {
-	re := regexp.MustCompile(`(http| src="\/\/|\/\/)s?:?[^\s"&')]+\.(svg|png|jpg|jpeg|js|css)[^\s>)'"&]*`)
-	matches := re.FindAllString(body, -1)
-
-	urls := []string{}
-	for _, m := range matches {
-		u := strings.ReplaceAll(m, "\\", "")
-		u = strings.ReplaceAll(u, "\"", "")
-		u = strings.ReplaceAll(u, "'", "")
-		u = strings.ReplaceAll(u, "src=", "")
-		logf("Found url using regex from HTML: %s", u)
-		urls = append(urls, u)
-	}
-	return urls, nil
-}
-
-func HTMLParser(body io.ReadCloser, logf logprintf, tBytes *int64) ([]string, error) {
-	doc, err := goquery.NewDocumentFromReader(body)
-	if err != nil {
-		return nil, err
-	}
-
-	var urls []string
-
-	doc.Find("script, img, link").Each(func(i int, s *goquery.Selection) {
-		src, exists := s.Attr("src")
-		if exists {
-			logf("Found url using jquery from HTML: %s", src)
-			urls = append(urls, src)
-		}
-		href, exists := s.Attr("href")
-		if exists {
-			rel, re := s.Attr("rel")
-			if re && (rel == "canonical" || rel == "shortlink" || rel == "alternate") {
-				logf("Skipping link %s with rel %s", href, rel)
-				return
-			}
-			logf("Found url using jquery from HTML: %s", href)
-			urls = append(urls, href)
-		}
-	})
-
-	dhtml, _ := doc.Html()
-	atomic.AddInt64(tBytes, int64(len(dhtml)))
-	reurls, _ := HTMLREParser(dhtml, logf)
-
-	for _, u := range reurls {
-		inurls := false
-		for _, u2 := range urls {
-			if u == u2 {
-				inurls = true
-				break
-			}
-		}
-		if !inurls {
-			urls = append(urls, u)
-		}
-	}
-
-	// logf("Htmlbody: %s", dhtml)
-	logf("Urls: %v", urls)
-	return urls, nil
-}
-
-func constURL(target string, main string, useHttps bool) (host string, path string, s bool, err error) {
-
-	if !strings.HasPrefix(main, "http") {
-		main = "http://" + main
-	}
-	mainP, err := url.Parse(main)
-	if err != nil {
-		return "", "", false, err
-	}
-	targetP, err := url.Parse(target)
-	if err != nil {
-		return "", "", false, err
-	}
-
-	res := mainP.ResolveReference(targetP)
-	if res.Host == "" && res.Path == "" {
-		return "", "", false, errors.New("Could not resolve url")
-	}
-
-	if res.Scheme == "https" {
-		useHttps = true
-	}
-	return res.Host, res.Path, useHttps, nil
-}
-
-func xtractJSURLS(body io.ReadCloser, tBytes *int64) []string {
-	buf := new(bytes.Buffer)
-	io.Copy(buf, body)
-	atomic.AddInt64(tBytes, int64(len(buf.String())))
-	tregex, _ := regexp.Compile(`CODE BEGIN[\s\S]*CODE END`)
-	tmplt := tregex.FindString(buf.String())
-
-	if tmplt == "" {
-		return []string{}
-	}
-
-	var jsurls []string
-	urlrgx, _ := regexp.Compile(`fetchVia(DOM|XHR)\("(\S*)"\)`)
-	m := urlrgx.FindAllStringSubmatch(tmplt, -1)
-	for _, v := range m {
-		jsurls = append(jsurls, v[2])
-	}
-
-	return jsurls
-}
-
 func (c *Crawler) HandleResp(resp *http.Response, referrer string, useHttps bool) error {
 	if resp == nil {
 		return nil
@@ -186,6 +73,8 @@ func (c *Crawler) HandleResp(resp *http.Response, referrer string, useHttps bool
 	} else if strings.Contains(ct, "image") {
 		imBody, err := io.ReadAll(resp.Body)
 		if err == nil {
+			s, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
+			c.logf("CMP: %d %d", len(imBody), s)
 			atomic.AddInt64(c.tBytes, int64(len(imBody)))
 		}
 		return nil
@@ -228,13 +117,14 @@ func (c *Crawler) Crawl(ctx context.Context) {
 				continue
 			}
 
-			// c.net.mu.Lock()
-			// _, ok := c.dupMap[h+p]
-			// c.net.mu.Unlock()
-			// if ok {
-			// 	c.logf("Already crawled %s", h+p)
-			// 	return nil
-			// }
+			c.net.mu.Lock()
+			_, ok := c.dupMap[h+p]
+			c.net.mu.Unlock()
+			if ok {
+				c.logf("Already crawled %s", h+p)
+				c.logRR(h+p, 200, err)
+				continue
+			}
 
 			var portaddr string
 			if s {
@@ -245,7 +135,7 @@ func (c *Crawler) Crawl(ctx context.Context) {
 
 			reqURL, err := url.Parse(portaddr + p)
 			if err != nil {
-				c.logRR(h+p, 0, err)
+				c.logRR(h+p, 0, nil)
 				continue
 			}
 
@@ -282,12 +172,12 @@ func (c *Crawler) Crawl(ctx context.Context) {
 			}
 			c.logf("Received response from %s with status code %d", reqURL, resp.StatusCode)
 			// nr := NWRequest{Url: h + p, Status: resp.StatusCode}
-			// c.net.mu.Lock()
+			c.net.mu.Lock()
 			// c.net.Reqs = append(c.net.Reqs, nr)
-			// // if resp.StatusCode == 200 {
-			// // 	c.dupMap[h+p] = true
-			// // }
-			// c.net.mu.Unlock()
+			if resp.StatusCode == 200 {
+				c.dupMap[h+p] = true
+			}
+			c.net.mu.Unlock()
 
 			c.HandleResp(resp, h+p, s)
 			c.logRR(h+p, resp.StatusCode, nil)
@@ -296,9 +186,8 @@ func (c *Crawler) Crawl(ctx context.Context) {
 }
 
 func (c *Crawler) queue(urls []Req) {
-	c.logf("Received new url with value %v", urls)
+	// c.logf("Received new url with value %v", urls)
 	for _, u := range urls {
-		c.logf("Queueing %v", u)
 		c.reqs <- u
 	}
 }
@@ -339,6 +228,8 @@ func (c *Crawler) HandleCSS(resp *http.Response, referrer string, useHttps bool)
 		return err
 	}
 
+	s, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
+	c.logf("CMP: %s %d %d", resp.Request.URL.String(), len(b), s)
 	atomic.AddInt64(c.tBytes, int64(len(b)))
 
 	// c.logf("Extracting CSS URLs from %s with body %s", cssu, string(b))
