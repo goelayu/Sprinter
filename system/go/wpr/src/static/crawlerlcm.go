@@ -166,7 +166,7 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 		httpsport := startHTTPSPORT + i
 		dataFile := fmt.Sprintf("%s/%s", proxyData, strconv.Itoa(httpsport))
 		outFilePath := fmt.Sprintf("%s/%s.replay.log", proxyData, strconv.Itoa(httpsport))
-		cmdstr := fmt.Sprintf("GOROOT=%s go run src/wpr.go replay -host 0.0.0.0 --http_port %d --https_port %d --az_port %d %s &> %s",
+		cmdstr := fmt.Sprintf("GOROOT=%s time  go run src/wpr.go replay -host 0.0.0.0 --quiet_mode --http_port %d --https_port %d --az_port %d %s &> %s",
 			GOROOT, httpport, httpsport, azPort, dataFile, outFilePath)
 
 		if remote {
@@ -193,7 +193,12 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 			os.WriteFile(dataFile, []byte(DUMMYDATA), 0644)
 			cmd := exec.Command("bash", "-c", cmdstr)
 			cmd.Dir = WPRDIR
-			go cmd.Run()
+			go func() {
+				err := cmd.Run()
+				if err != nil {
+					log.Fatalf("unable to run proxy: %v", err)
+				}
+			}()
 			proxies[i] = &Proxy{httpsport, dataFile, wprData, nil, remote}
 		}
 		log.Printf("Started proxy on port %d", httpsport)

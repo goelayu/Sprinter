@@ -99,7 +99,7 @@ type ReplayingProxy struct {
 
 func requestIsJSHTML(resp *http.Response, req *http.Request) bool {
 	// return false
-	log.Printf("checking length and code and type: %v %d %s", resp.Header, resp.StatusCode, resp.Header.Get("Content-Type"))
+	// log.Printf("checking length and code and type: %v %d %s", resp.Header, resp.StatusCode, resp.Header.Get("Content-Type"))
 	return (resp.ContentLength == -1 || resp.ContentLength > 500) &&
 		resp.StatusCode == 200 &&
 		(strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "html") ||
