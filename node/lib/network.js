@@ -100,11 +100,18 @@ function parseNetworkLogs(netLog) {
         netObject.response = payLoad.response;
         payLoad.response.mimeType &&
           (netObject.type = payLoad.response.mimeType);
-        payLoad.response.headers["Content-Length"] &&
+        payLoad.response.headers["X-Cl"] &&
+          (netObject.size = Number.parseInt(payLoad.response.headers["X-Cl"]));
+        payLoad.response.headers["x-cl"] &&
+          (netObject.size = Number.parseInt(payLoad.response.headers["x-cl"]));
+
+        !netObject.size &&
+          payLoad.response.headers["Content-Length"] &&
           (netObject.size = Number.parseInt(
             payLoad.response.headers["Content-Length"]
           ));
-        payLoad.response.headers["content-length"] &&
+        !netObject.size &&
+          payLoad.response.headers["content-length"] &&
           (netObject.size = Number.parseInt(
             payLoad.response.headers["content-length"]
           ));
