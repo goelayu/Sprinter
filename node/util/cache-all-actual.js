@@ -77,7 +77,7 @@ var traversePages = function () {
       }
     }
   }
-  console.log(summary);
+  console.log(JSON.stringify(summary));
 };
 
 traversePages();

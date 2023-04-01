@@ -7,6 +7,7 @@ const fs = require("fs");
 const program = require("commander");
 const netParser = require("../lib/network.js");
 const dag = require("../lib/nw-dag.js");
+const traceParser = require("../lib/trace-parser.js");
 
 program
   .option("-b, --base <dir>", "dir containing network.json files")
@@ -49,12 +50,16 @@ var filternet = function (n) {
     n.request &&
     n.request.method == "GET" &&
     n.url.indexOf("data") != 0 &&
-    !DYNDOMAINS.some((d) => n.url.includes(d)) &&
+    // !DYNDOMAINS.some((d) => n.url.includes(d)) &&
     n.type &&
     n.size &&
     n.size > 100 &&
     n.response.status == 200
   );
+};
+
+var addTimings = function (t) {
+  return Object.values(t).reduce((a, b) => a + b, 0);
 };
 
 var traversePages = function () {
@@ -85,7 +90,11 @@ var traversePages = function () {
       var net = JSON.parse(
         fs.readFileSync(`${program.base}/${p}/network.json`, "utf8")
       );
+      var trace = JSON.parse(
+        fs.readFileSync(`${program.base}/${p}/trace.json`, "utf8")
+      );
       var netObj = netParser.parseNetworkLogs(net);
+      var execTimings = traceParser.getExecutionTimingsByURL(trace, net);
       var graph = new dag.Graph(netObj);
       graph.createTransitiveEdges();
       var fetches = graph.transitiveEdges;
@@ -98,6 +107,7 @@ var traversePages = function () {
           fetches[n.url].length &&
           summary.fetches.scriptsThatFetch++;
         var unseenFile = false;
+        var timings = execTimings.get(n.url);
 
         if (fileMem[key]) {
           var fPrev = fileMem[key]["fetches"];
@@ -125,12 +135,14 @@ var traversePages = function () {
                   )}`
                 );
             }
+
+            timings && (fileMem[key]["timings"] += addTimings(timings));
           }
         } else {
           summary.all.uniqueScripts++;
           unseenFile = true;
           fileMem[key] = {};
-
+          fileMem[key]["timings"] = timings ? addTimings(timings) : 0;
           var f = (fileMem[key]["fetches"] = []),
             _f = fetches[n.url];
           _f && _f.length && f.push(_f);
@@ -149,7 +161,10 @@ var traversePages = function () {
       program.verbose && console.log(e);
     }
   }
-  console.log(JSON.stringify(summary, null, 2));
+  for (var f in fileMem) {
+    console.log(`${f},${fileMem[f]["timings"]}`);
+  }
+  // console.log(JSON.stringify(summary, null, 2));
 };
 
 traversePages();

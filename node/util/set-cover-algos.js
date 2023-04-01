@@ -59,7 +59,7 @@ var filternet = function (n) {
     !DYNDOMAINS.some((d) => n.url.includes(d)) &&
     n.type &&
     n.size &&
-    n.size > 100 &&
+    // n.size > 100 &&
     n.response.status == 200
   );
 };
@@ -83,6 +83,7 @@ var traversePages = function () {
 var unionJS = function (nets) {
   var js = [];
   for (var n of nets) {
+    n = n.filter(filternet);
     js = js.concat(
       n
         .filter((n) => n.type.indexOf("script") != -1)
@@ -263,7 +264,6 @@ var greedyApproxSched = function (nets, union) {
     return [largest, largestUrl, largestNet];
   };
 
-  var iter = 0;
   var unioncp = unionstatic.slice();
   while (js.length < unioncp.length) {
     var [net, u, jsnet] = largestUncovered(nets, unionstatic);
