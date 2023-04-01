@@ -30,7 +30,7 @@ import (
 
 type DupMap struct {
 	sync.RWMutex
-	m map[string]map[string]http.Response
+	m map[string]map[string]StoredResp
 }
 
 type Netstat struct {
@@ -57,6 +57,12 @@ type Proxy struct {
 	remote   bool
 }
 
+type StoredResp struct {
+	resp *http.Response
+	body []byte
+	size int64
+}
+
 func (ns *Netstat) UpdateWire(delta int64) {
 	atomic.AddInt64(ns.wire, delta)
 }
@@ -65,25 +71,25 @@ func (ns *Netstat) UpdateTotal(delta int64) {
 	atomic.AddInt64(ns.total, delta)
 }
 
-func (d *DupMap) Add(host string, path string, value http.Response) {
+func (d *DupMap) Add(host string, path string, value StoredResp) {
 	d.Lock()
 	defer d.Unlock()
 	if _, ok := d.m[host]; !ok {
-		d.m[host] = make(map[string]http.Response)
+		d.m[host] = make(map[string]StoredResp)
 	}
 	if _, ok := d.m[host][path]; !ok {
 		d.m[host][path] = value
 	}
 }
 
-func (d *DupMap) Get(host string, path string) (http.Response, bool) {
+func (d *DupMap) Get(host string, path string) (StoredResp, bool) {
 	d.RLock()
 	defer d.RUnlock()
 	if _, ok := d.m[host]; !ok {
-		return http.Response{}, false
+		return StoredResp{}, false
 	}
 	if _, ok := d.m[host][path]; !ok {
-		return http.Response{}, false
+		return StoredResp{}, false
 	}
 	return d.m[host][path], true
 }
@@ -364,7 +370,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
-	dupMap := DupMap{sync.RWMutex{}, make(map[string]map[string]http.Response)}
+	dupMap := DupMap{sync.RWMutex{}, make(map[string]map[string]StoredResp)}
 
 	ns := Netstat{new(int64), new(int64)}
 

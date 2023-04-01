@@ -55,6 +55,7 @@ type Req struct {
 type NWRequest struct {
 	Url    string
 	Status int
+	Size   int64
 	Err    error
 }
 
@@ -84,50 +85,43 @@ func decompressBody(ce string, compressed []byte) ([]byte, error) {
 	return ioutil.ReadAll(r)
 }
 
-func (c *Crawler) HandleResp(resp http.Response, referrer string, useHttps bool, fromCache bool) error {
+func (c *Crawler) HandleResp(sresp StoredResp, referrer string, useHttps bool, fromCache bool) error {
 
-	if resp.StatusCode != 200 {
-		c.logf("Non 200 status for code for %s: %d", resp.Request.URL, resp.StatusCode)
+	if sresp.resp.StatusCode != 200 {
+		c.logf("Non 200 status for code for %s: %d", sresp.resp.Request.URL, sresp.resp.StatusCode)
 		return nil
 	}
 
-	cl := resp.Header.Get("Content-Length")
-	c.logf("Headers from server: %v", resp.Header)
-	body, _ := io.ReadAll(resp.Body)
-	var l int64
-	if cl != "" {
-		i, _ := strconv.Atoi(cl)
-		l = int64(i)
-	} else {
-		l = int64(len(body))
-	}
+	cl := sresp.resp.Header.Get("Content-Length")
+	body := sresp.body
+	l := sresp.size
 	if fromCache {
 		c.ns.UpdateTotal(l)
 	} else {
 		c.ns.UpdateWire(l)
 		c.ns.UpdateTotal(l)
 	}
-
-	ce := resp.Header.Get("Content-Encoding")
+	c.logf("Bytes: %s %s %d %v", sresp.resp.Request.URL, cl, l, fromCache)
+	ce := sresp.resp.Header.Get("Content-Encoding")
 	if ce != "" {
-		c.logf("Decompressing body")
+		c.logf("Decompressing body for %s: %s", sresp.resp.Request.URL, ce)
 		var err error
 		body, err = decompressBody(ce, body)
 		if err != nil {
-			c.logf("Error decompressing body: %s %s %v", resp.Request.URL, ce, err)
+			c.logf("Error decompressing body: %s %s %v", sresp.resp.Request.URL, ce, err)
 			return err
 		}
 	}
 
-	ct := resp.Header.Get("Content-Type")
+	ct := sresp.resp.Header.Get("Content-Type")
 	if strings.Contains(ct, "html") {
-		return c.HandleHTML(&resp, string(body), referrer, useHttps)
+		return c.HandleHTML(sresp.resp, string(body), referrer, useHttps)
 	} else if strings.Contains(ct, "javascript") {
-		return c.HandleJS(&resp, string(body), referrer, useHttps)
+		return c.HandleJS(sresp.resp, string(body), referrer, useHttps)
 	} else if strings.Contains(ct, "image") {
 		return nil
 	} else if strings.Contains(ct, "css") {
-		return c.HandleCSS(&resp, string(body), referrer, useHttps)
+		return c.HandleCSS(sresp.resp, string(body), referrer, useHttps)
 	} else {
 		c.logf("Unknown content type: %s", ct)
 	}
@@ -135,9 +129,9 @@ func (c *Crawler) HandleResp(resp http.Response, referrer string, useHttps bool,
 	return nil
 }
 
-func (c *Crawler) logRR(u string, s int, e error) {
+func (c *Crawler) logRR(u string, s int, size int64, e error) {
 	c.logf("Logging request for %s: %d %v", u, s, e)
-	nr := NWRequest{Url: u, Status: s, Err: e}
+	nr := NWRequest{Url: u, Status: s, Size: size, Err: e}
 	c.net.mu.Lock()
 	c.net.Reqs = append(c.net.Reqs, nr)
 	c.net.mu.Unlock()
@@ -161,7 +155,7 @@ func (c *Crawler) Crawl(ctx context.Context) {
 
 			h, p, s, err := constURL(target, referrer, useHttps)
 			if err != nil {
-				c.logRR(target, 0, err)
+				c.logRR(target, 0, 0, err)
 				continue
 			}
 
@@ -169,7 +163,7 @@ func (c *Crawler) Crawl(ctx context.Context) {
 			if exists {
 				c.logf("Found cached response for %s", h+p)
 				c.HandleResp(cresp, h+p, s, true)
-				c.logRR(h+p, 200, err)
+				c.logRR(h+p, 200, cresp.size, err)
 				continue
 			}
 
@@ -182,7 +176,7 @@ func (c *Crawler) Crawl(ctx context.Context) {
 
 			reqURL, err := url.Parse(portaddr + p)
 			if err != nil {
-				c.logRR(h+p, 0, nil)
+				c.logRR(h+p, 0, 0, err)
 				continue
 			}
 
@@ -207,7 +201,7 @@ func (c *Crawler) Crawl(ctx context.Context) {
 
 			resp, err := c.Client.Do(req)
 			if err != nil {
-				c.logRR(h+p, 0, err)
+				c.logRR(h+p, 0, 0, err)
 				continue
 			}
 
@@ -215,22 +209,32 @@ func (c *Crawler) Crawl(ctx context.Context) {
 				c.logf("Updating host to %s", location)
 				lParsed, err := url.Parse(location)
 				if err != nil {
-					c.logRR(h+p, 0, err)
+					c.logRR(h+p, 0, 0, err)
 					continue
 				}
 				h = lParsed.Host
 			}
 			c.logf("Received response from %s with status code %d", reqURL, resp.StatusCode)
+			sbody, _ := io.ReadAll(resp.Body)
+			cl := resp.Header.Get("Content-Length")
+			var l int64
+			if cl != "" {
+				i, _ := strconv.Atoi(cl)
+				l = int64(i)
+			} else {
+				l = int64(len(sbody))
+			}
 			if resp.StatusCode == 200 {
 				c.lmu.Lock()
 				c.localDMap[h+p] = true
 				c.lmu.Unlock()
 
-				c.dMap.Add(h, target, *resp)
+				sresp := StoredResp{resp, sbody, l}
+				c.dMap.Add(h, target, sresp)
+				c.HandleResp(sresp, h+p, s, false)
 			}
 
-			c.HandleResp(*resp, h+p, s, false)
-			c.logRR(h+p, resp.StatusCode, nil)
+			c.logRR(h+p, resp.StatusCode, l, nil)
 		}
 	}
 }
@@ -272,7 +276,7 @@ func (c *Crawler) DumpNetLog(outPath string, u string) {
 
 	c.net.mu.Lock()
 	for _, v := range c.net.Reqs {
-		writer.WriteString(fmt.Sprintf("%s %d\n", v.Url, v.Status))
+		writer.WriteString(fmt.Sprintf("%s %d %d\n", v.Url, v.Status, v.Size))
 	}
 	c.net.mu.Unlock()
 	writer.Flush()

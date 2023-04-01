@@ -20,6 +20,7 @@ func HTMLREParser(body string, logf logprintf) ([]string, error) {
 		u = strings.ReplaceAll(u, "\"", "")
 		u = strings.ReplaceAll(u, "'", "")
 		u = strings.ReplaceAll(u, "src=", "")
+		u = strings.TrimLeft(u, " ")
 		logf("Found url using regex from HTML: %s", u)
 		urls = append(urls, u)
 	}
