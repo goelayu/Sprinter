@@ -433,7 +433,7 @@ class PageClient {
           endTime[0] + endTime[1] / 1e9
         );
       }
-      // await this._page.waitForTimeout(3000);
+      await this._page.waitForTimeout(1000);
 
       this._options.verbose && console.log("Page loaded");
 
@@ -442,6 +442,7 @@ class PageClient {
           this._options.outputDir + "/network.json",
           JSON.stringify(nLogs, null, 2)
         );
+        this._options.verbose && console.log("network log taken");
       }
 
       if (this._options.enableScreenshot) {

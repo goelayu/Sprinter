@@ -36,8 +36,8 @@ if [ $# -ne 6 ]; then
     exit 1
 fi
 
-PAGESPERSITE=50
-PERSCRIPTCRAWLERS=1
+PAGESPERSITE=100
+PERSCRIPTCRAWLERS=5
 CHROMESCRIPT=../node/chrome-distributed.js
 WPRDATA=/w/goelayu/bcrawling/wprdata
 
@@ -49,7 +49,9 @@ logdir=$rundir/logs
 wprpath=$4
 args=$5
 
-mkdir -p $rundir $urldir $logdir
+rm -rf $rundir
+mkdir -p $rundir $urldir $logdir $rundir/sys
+echo "Created dirs: $rundir $urldir $logdir $rundir/sys"
 
 urlfile=$urldir/urls.txt
 infile=$urldir/infile.txt
@@ -64,7 +66,7 @@ create_url_file(){
     for i in $(seq 1 $PAGESPERSITE); do
         while read site; do
             p=`sed -n ${i}p $pages_dst/${site}.txt`;
-            [ ! -z "$p" ] && echo $p >> $urlfile
+            [ ! -z "$p" ] && echo $p  >> $urlfile
         done < $infile
     done
     rm -f tmp
@@ -98,6 +100,7 @@ create_url_dist(){
 
 crawl_rate(){
     t=0;
+    sleep 1; # wait for the first crawl to start
     while true; do
         t=$((t + 1));
         echo -n $t " "; cat $logdir/*-*.log  | grep "Page load time" | wc -l ; sleep 1;
@@ -119,13 +122,10 @@ fi
 
 # sys usage tracking
 sysscript=../../bash/profiling/sys-usage-track.sh
-mkdir -p $rundir/sys
-rm -rf $rundir/sys/*
+
 $sysscript $rundir/sys &
 sysupid=$!;
 
-mkdir -p $rundir/output
-rm -rf $rundir/output/*
 
 # copy the static analysis tool to tmpfs
 cp -r /vault-swift/goelayu/balanced-crawler/node/program_analysis/ /run/user/99542426/goelayu/panode/
