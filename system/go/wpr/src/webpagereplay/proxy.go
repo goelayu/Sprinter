@@ -135,10 +135,10 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	logf("responsedata: %v %s %d", storedResp.StatusCode, storedResp.Header.Get("Content-Length"), storedResp.ContentLength)
+	logf("checking length and code and type for %s: %v %d %s", storedResp.Request.URL.String(), storedResp.Header, storedResp.StatusCode, storedResp.Header.Get("Content-Type"))
 	storedResp.Header.Set("X-CL", storedResp.Header.Get("Content-Length"))
 	// query the analyzer server if request is JavaScript or HTML
-	if requestIsJSHTML(storedResp, req) {
+	if proxy.caching && requestIsJSHTML(storedResp, req) {
 		// requestURI := req.URL.String()
 		// URI without query string
 		requestURI := req.URL.Scheme + "://" + req.URL.Host + req.URL.Path
