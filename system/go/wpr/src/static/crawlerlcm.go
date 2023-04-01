@@ -28,6 +28,16 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 )
 
+type DupMap struct {
+	sync.RWMutex
+	m map[string]map[string]http.Response
+}
+
+type Netstat struct {
+	wire  *int64
+	total *int64
+}
+
 type LCM struct {
 	crawlers   []*Crawler
 	proxies    []*Proxy
@@ -35,7 +45,8 @@ type LCM struct {
 	mu         sync.Mutex
 	url2scheme map[string]string
 	outDir     string
-	tBytes     *int64
+	ns         *Netstat
+	dMap       *DupMap
 }
 
 type Proxy struct {
@@ -44,6 +55,37 @@ type Proxy struct {
 	wprData  string
 	sshC     *ssh.Client
 	remote   bool
+}
+
+func (ns *Netstat) UpdateWire(delta int64) {
+	atomic.AddInt64(ns.wire, delta)
+}
+
+func (ns *Netstat) UpdateTotal(delta int64) {
+	atomic.AddInt64(ns.total, delta)
+}
+
+func (d *DupMap) Add(host string, path string, value http.Response) {
+	d.Lock()
+	defer d.Unlock()
+	if _, ok := d.m[host]; !ok {
+		d.m[host] = make(map[string]http.Response)
+	}
+	if _, ok := d.m[host][path]; !ok {
+		d.m[host][path] = value
+	}
+}
+
+func (d *DupMap) Get(host string, path string) (http.Response, bool) {
+	d.RLock()
+	defer d.RUnlock()
+	if _, ok := d.m[host]; !ok {
+		return http.Response{}, false
+	}
+	if _, ok := d.m[host][path]; !ok {
+		return http.Response{}, false
+	}
+	return d.m[host][path], true
 }
 
 func buildUrl2Scheme(logPath string) (map[string]string, error) {
@@ -88,7 +130,7 @@ func readLines(path string) ([]string, error) {
 }
 
 func makeLogger(p string) func(msg string, args ...interface{}) {
-	return func(string, ...interface{}) {}
+	// return func(string, ...interface{}) {}
 	prefix := fmt.Sprintf("[Crawler:%s]: ", p)
 	return func(msg string, args ...interface{}) {
 		log.Print(prefix + fmt.Sprintf(msg, args...))
@@ -151,8 +193,8 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 	WPRDIR := "/vault-swift/goelayu/balanced-crawler/system/go/wpr"
 	DUMMYDATA := "/w/goelayu/bcrawling/wprdata/dummy.wprgo"
 
-	startHTTPPORT := 8080
-	startHTTPSPORT := 9080
+	startHTTPPORT := 6080
+	startHTTPSPORT := 7080
 
 	proxies := make([]*Proxy, n)
 
@@ -166,7 +208,7 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 		httpsport := startHTTPSPORT + i
 		dataFile := fmt.Sprintf("%s/%s", proxyData, strconv.Itoa(httpsport))
 		outFilePath := fmt.Sprintf("%s/%s.replay.log", proxyData, strconv.Itoa(httpsport))
-		cmdstr := fmt.Sprintf("GOROOT=%s time  go run src/wpr.go replay -host 0.0.0.0 --quiet_mode --http_port %d --https_port %d --az_port %d %s &> %s",
+		cmdstr := fmt.Sprintf("GOROOT=%s time  go run src/wpr.go replay -host 0.0.0.0 --http_port %d --https_port %d --az_port %d %s &> %s",
 			GOROOT, httpport, httpsport, azPort, dataFile, outFilePath)
 
 		if remote {
@@ -196,7 +238,7 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 			go func() {
 				err := cmd.Run()
 				if err != nil {
-					log.Fatalf("unable to run proxy: %v", err)
+					log.Printf("unable to run proxy: %v", err)
 				}
 			}()
 			proxies[i] = &Proxy{httpsport, dataFile, wprData, nil, remote}
@@ -248,14 +290,14 @@ func (p *Proxy) UpdateDataFile(page string) {
 	}
 }
 
-func printLoad(tBytes *int64, ch <-chan bool) {
+func printLoad(ns *Netstat, ch <-chan bool) {
 	for {
 		select {
 		case <-ch:
-			log.Printf("Final tBytes: %d", atomic.LoadInt64(tBytes))
+			log.Printf("Final: Total %d Wire %d", atomic.LoadInt64(ns.total)/(1000), atomic.LoadInt64(ns.wire)/(1000))
 			return
 		default:
-			log.Printf("Current tBytes: %d", atomic.LoadInt64(tBytes))
+			log.Printf("Cur: Total %d Wire %d", atomic.LoadInt64(ns.total)/(1000), atomic.LoadInt64(ns.wire)/(1000))
 			time.Sleep(200 * time.Millisecond)
 		}
 	}
@@ -267,8 +309,7 @@ func (lcm *LCM) Start() {
 	var wg sync.WaitGroup
 	wg.Add(len(lcm.crawlers))
 
-	done := make(chan bool)
-	go printLoad(lcm.tBytes, done)
+	// go printLoad(lcm.ns, done)
 
 	startTime := time.Now()
 
@@ -294,12 +335,13 @@ func (lcm *LCM) Start() {
 				cproxy.UpdateDataFile(page)
 				c.logf = makeLogger(fmt.Sprintf("%s:%s", c.HttpsServer, page))
 				c.Visit(page, time.Duration(3*time.Second), lcm.outDir)
+				log.Printf("Cur: Total %d Wire %d", atomic.LoadInt64(lcm.ns.total)/(1000), atomic.LoadInt64(lcm.ns.wire)/(1000))
 			}
 		}(i)
 	}
 
 	wg.Wait()
-	done <- true
+	log.Printf("Final: Total %d Wire %d", atomic.LoadInt64(lcm.ns.total)/(1000), atomic.LoadInt64(lcm.ns.wire)/(1000))
 
 	log.Printf("Total time: %s", time.Since(startTime))
 }
@@ -322,7 +364,10 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
-	var tBytes int64 = 0
+	dupMap := DupMap{sync.RWMutex{}, make(map[string]map[string]http.Response)}
+
+	ns := Netstat{new(int64), new(int64)}
+
 	for i := 0; i < n; i++ {
 		client := &http.Client{Transport: tr}
 		hostaddr := "127.0.0.1"
@@ -334,13 +379,15 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 			HttpServer:  fmt.Sprintf("http://%s:%d", hostaddr, proxies[i].port-1000),
 			HttpsServer: fmt.Sprintf("https://%s:%d", hostaddr, proxies[i].port),
 			url2scheme:  url2scheme,
-			tBytes:      &tBytes,
+			ns:          &ns,
 			concurrency: 10,
+			dMap:        &dupMap,
+			lmu:         sync.Mutex{},
 		}
 		log.Printf("Initialized crawler %d with proxy port %d", i, proxies[i].port)
 	}
 
-	return &LCM{crawlers, proxies, pages, sync.Mutex{}, url2scheme, proxyData, &tBytes}
+	return &LCM{crawlers, proxies, pages, sync.Mutex{}, url2scheme, proxyData, &ns, &dupMap}
 }
 
 func main() {

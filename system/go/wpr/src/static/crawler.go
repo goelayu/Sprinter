@@ -5,9 +5,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,8 +22,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"github.com/andybalholm/brotli"
 )
 
 type logprintf func(msg string, args ...interface{})
@@ -30,11 +36,13 @@ type Crawler struct {
 	url2scheme  map[string]string
 	logf        logprintf
 	net         *NWLog
-	dupMap      map[string]bool
-	tBytes      *int64
+	lmu         sync.Mutex
+	ns          *Netstat
 	pending     sync.WaitGroup
 	reqs        chan Req
 	concurrency int
+	dMap        *DupMap
+	localDMap   map[string]bool
 }
 
 type Req struct {
@@ -55,31 +63,71 @@ type NWLog struct {
 	mu   sync.Mutex
 }
 
-func (c *Crawler) HandleResp(resp *http.Response, referrer string, useHttps bool) error {
-	if resp == nil {
-		return nil
+func decompressBody(ce string, compressed []byte) ([]byte, error) {
+	var r io.Reader
+	switch strings.ToLower(ce) {
+	case "gzip":
+		var err error
+		r, err = gzip.NewReader(bytes.NewReader(compressed))
+		if err != nil {
+			return nil, err
+		}
+	case "deflate":
+		r = flate.NewReader(bytes.NewReader(compressed))
+	case "brotli":
+		r = brotli.NewReader(bytes.NewReader(compressed))
+	default:
+		// Unknown compression type or uncompressed.
+		return compressed, errors.New("unknown compression: " + ce)
 	}
+	// defer r.Close()
+	return ioutil.ReadAll(r)
+}
+
+func (c *Crawler) HandleResp(resp http.Response, referrer string, useHttps bool, fromCache bool) error {
 
 	if resp.StatusCode != 200 {
 		c.logf("Non 200 status for code for %s: %d", resp.Request.URL, resp.StatusCode)
 		return nil
 	}
 
+	cl := resp.Header.Get("Content-Length")
+	c.logf("Headers from server: %v", resp.Header)
+	body, _ := io.ReadAll(resp.Body)
+	var l int64
+	if cl != "" {
+		i, _ := strconv.Atoi(cl)
+		l = int64(i)
+	} else {
+		l = int64(len(body))
+	}
+	if fromCache {
+		c.ns.UpdateTotal(l)
+	} else {
+		c.ns.UpdateWire(l)
+		c.ns.UpdateTotal(l)
+	}
+
+	ce := resp.Header.Get("Content-Encoding")
+	if ce != "" {
+		c.logf("Decompressing body")
+		var err error
+		body, err = decompressBody(ce, body)
+		if err != nil {
+			c.logf("Error decompressing body: %s %s %v", resp.Request.URL, ce, err)
+			return err
+		}
+	}
+
 	ct := resp.Header.Get("Content-Type")
 	if strings.Contains(ct, "html") {
-		return c.HandleHTML(resp, referrer, useHttps)
+		return c.HandleHTML(&resp, string(body), referrer, useHttps)
 	} else if strings.Contains(ct, "javascript") {
-		return c.HandleJS(resp, referrer, useHttps)
+		return c.HandleJS(&resp, string(body), referrer, useHttps)
 	} else if strings.Contains(ct, "image") {
-		imBody, err := io.ReadAll(resp.Body)
-		if err == nil {
-			s, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
-			c.logf("CMP: %d %d", len(imBody), s)
-			atomic.AddInt64(c.tBytes, int64(len(imBody)))
-		}
 		return nil
 	} else if strings.Contains(ct, "css") {
-		return c.HandleCSS(resp, referrer, useHttps)
+		return c.HandleCSS(&resp, string(body), referrer, useHttps)
 	} else {
 		c.logf("Unknown content type: %s", ct)
 	}
@@ -117,11 +165,10 @@ func (c *Crawler) Crawl(ctx context.Context) {
 				continue
 			}
 
-			c.net.mu.Lock()
-			_, ok := c.dupMap[h+p]
-			c.net.mu.Unlock()
-			if ok {
-				c.logf("Already crawled %s", h+p)
+			cresp, exists := c.dMap.Get(h, target)
+			if exists {
+				c.logf("Found cached response for %s", h+p)
+				c.HandleResp(cresp, h+p, s, true)
 				c.logRR(h+p, 200, err)
 				continue
 			}
@@ -145,6 +192,9 @@ func (c *Crawler) Crawl(ctx context.Context) {
 				Method: "GET",
 				URL:    reqURL,
 				Host:   h,
+				Header: http.Header{
+					"Accept-Encoding": []string{"gzip, deflate, br"},
+				},
 			}
 
 			var location string
@@ -171,24 +221,36 @@ func (c *Crawler) Crawl(ctx context.Context) {
 				h = lParsed.Host
 			}
 			c.logf("Received response from %s with status code %d", reqURL, resp.StatusCode)
-			// nr := NWRequest{Url: h + p, Status: resp.StatusCode}
-			c.net.mu.Lock()
-			// c.net.Reqs = append(c.net.Reqs, nr)
 			if resp.StatusCode == 200 {
-				c.dupMap[h+p] = true
-			}
-			c.net.mu.Unlock()
+				c.lmu.Lock()
+				c.localDMap[h+p] = true
+				c.lmu.Unlock()
 
-			c.HandleResp(resp, h+p, s)
+				c.dMap.Add(h, target, *resp)
+			}
+
+			c.HandleResp(*resp, h+p, s, false)
 			c.logRR(h+p, resp.StatusCode, nil)
 		}
 	}
 }
 
 func (c *Crawler) queue(urls []Req) {
-	// c.logf("Received new url with value %v", urls)
 	for _, u := range urls {
+		t := u.target
+		c.lmu.Lock()
+		_, ok := c.localDMap[t]
+		c.lmu.Unlock()
+		if ok {
+			c.logf("Already crawled for this page %s", t)
+			c.pending.Done()
+			continue
+		}
+		c.logf("Queuing %s", t)
 		c.reqs <- u
+		c.lmu.Lock()
+		c.localDMap[t] = true
+		c.lmu.Unlock()
 	}
 }
 
@@ -217,29 +279,25 @@ func (c *Crawler) DumpNetLog(outPath string, u string) {
 	f.Close()
 }
 
-func (c *Crawler) HandleCSS(resp *http.Response, referrer string, useHttps bool) error {
+func (c *Crawler) HandleCSS(resp *http.Response, body string, referrer string, useHttps bool) error {
 
 	cssu := resp.Request.URL.String()
 
 	c.logf("Handling CSS response from %s", cssu)
 
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	s, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
-	c.logf("CMP: %s %d %d", resp.Request.URL.String(), len(b), s)
-	atomic.AddInt64(c.tBytes, int64(len(b)))
+	// s, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
+	// c.logf("CMP: %s %d %d", resp.Request.URL.String(), len(b), s)
 
 	// c.logf("Extracting CSS URLs from %s with body %s", cssu, string(b))
 
 	rgx, _ := regexp.Compile(`url\(['"]?([^\s"']*)['"]?\)`)
-	m := rgx.FindAllStringSubmatch(string(b), -1)
+	m := rgx.FindAllStringSubmatch(string(body), -1)
 
 	if len(m) == 0 {
 		c.logf("No URLS found in %s", referrer)
 		return nil
+	} else {
+		c.logf("Found CSS %d URLS in %s", len(m), referrer)
 	}
 	c.pending.Add(len(m))
 	reqs := make([]Req, len(m))
@@ -252,11 +310,11 @@ func (c *Crawler) HandleCSS(resp *http.Response, referrer string, useHttps bool)
 	return nil
 }
 
-func (c *Crawler) HandleJS(resp *http.Response, referrer string, useHttps bool) error {
+func (c *Crawler) HandleJS(resp *http.Response, body string, referrer string, useHttps bool) error {
 
 	c.logf("Handling JS response from %s", resp.Request.URL)
 
-	jsurls := xtractJSURLS(resp.Body, c.tBytes)
+	jsurls := xtractJSURLS(body)
 
 	u := resp.Request.URL.String()
 
@@ -279,12 +337,12 @@ func (c *Crawler) HandleJS(resp *http.Response, referrer string, useHttps bool) 
 	return nil
 }
 
-func (c *Crawler) HandleHTML(resp *http.Response, referrer string, useHttps bool) error {
+func (c *Crawler) HandleHTML(resp *http.Response, body string, referrer string, useHttps bool) error {
 	htmlu := resp.Request.URL.String()
 
 	c.logf("Handling HTML response from %s", htmlu)
 
-	urls, err := HTMLParser(resp.Body, c.logf, c.tBytes)
+	urls, err := HTMLParser(body, c.logf)
 	if err != nil {
 		return err
 	}
@@ -311,7 +369,7 @@ func (c *Crawler) Visit(u string, timeout time.Duration, outPath string) error {
 
 	c.net = &NWLog{}
 	c.net.Reqs = make([]NWRequest, 0)
-	c.dupMap = make(map[string]bool)
+	c.localDMap = make(map[string]bool)
 
 	waitCh := make(chan struct{})
 	c.reqs = make(chan Req)

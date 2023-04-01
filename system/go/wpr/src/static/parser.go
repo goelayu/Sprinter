@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"io"
 	"net/url"
 	"regexp"
 	"strings"
-	"sync/atomic"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -28,8 +26,9 @@ func HTMLREParser(body string, logf logprintf) ([]string, error) {
 	return urls, nil
 }
 
-func HTMLParser(body io.ReadCloser, logf logprintf, tBytes *int64) ([]string, error) {
-	doc, err := goquery.NewDocumentFromReader(body)
+func HTMLParser(body string, logf logprintf) ([]string, error) {
+	r := io.NopCloser(strings.NewReader(body))
+	doc, err := goquery.NewDocumentFromReader(r)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +54,6 @@ func HTMLParser(body io.ReadCloser, logf logprintf, tBytes *int64) ([]string, er
 	})
 
 	dhtml, _ := doc.Html()
-	atomic.AddInt64(tBytes, int64(len(dhtml)))
 	reurls, _ := HTMLREParser(dhtml, logf)
 
 	for _, u := range reurls {
@@ -101,12 +99,10 @@ func constURL(target string, main string, useHttps bool) (host string, path stri
 	return res.Host, res.Path, useHttps, nil
 }
 
-func xtractJSURLS(body io.ReadCloser, tBytes *int64) []string {
-	buf := new(bytes.Buffer)
-	io.Copy(buf, body)
-	atomic.AddInt64(tBytes, int64(len(buf.String())))
+func xtractJSURLS(body string) []string {
+	// atomic.AddInt64(tBytes, int64(len(buf.String())))
 	tregex, _ := regexp.Compile(`CODE BEGIN[\s\S]*CODE END`)
-	tmplt := tregex.FindString(buf.String())
+	tmplt := tregex.FindString(body)
 
 	if tmplt == "" {
 		return []string{}
