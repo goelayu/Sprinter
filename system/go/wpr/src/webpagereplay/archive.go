@@ -197,6 +197,12 @@ func assertCompleteURL(url *url.URL) {
 	}
 }
 
+// func (a *Archive) findRequestApproximate(req *http.Request) (*http.Request, *http.Response, error) {
+// 	hostMap := a.Requests[req.Host]
+// 	if len(hostMap) == 0 {
+// 		return nil, nil, ErrNotFound
+// 	}
+
 // FindRequest searches for the given request in the archive.
 // Returns ErrNotFound if the request could not be found.
 //

@@ -16,7 +16,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"runtime"
 	"runtime/pprof"
 	"strconv"
 	"strings"
@@ -194,7 +193,7 @@ func retrySSHCon(sshC *ssh.Client, retries int) (*ssh.Session, error) {
 }
 
 func initProxies(n int, proxyData string, wprData string, azPort int,
-	sleep int, remote bool) []*Proxy {
+	sleep int, remote bool, live bool) []*Proxy {
 	GOROOT := "/w/goelayu/uluyol-sigcomm/go"
 	WPRDIR := "/vault-swift/goelayu/balanced-crawler/system/go/wpr"
 	DUMMYDATA := "/w/goelayu/bcrawling/wprdata/dummy.wprgo"
@@ -241,12 +240,14 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 			os.WriteFile(dataFile, []byte(DUMMYDATA), 0644)
 			cmd := exec.Command("bash", "-c", cmdstr)
 			cmd.Dir = WPRDIR
-			go func() {
-				err := cmd.Run()
-				if err != nil {
-					log.Printf("unable to run proxy: %v", err)
-				}
-			}()
+			if !live {
+				go func() {
+					err := cmd.Run()
+					if err != nil {
+						log.Printf("unable to run proxy: %v", err)
+					}
+				}()
+			}
 			proxies[i] = &Proxy{httpsport, dataFile, wprData, nil, remote}
 		}
 		log.Printf("Started proxy on port %d", httpsport)
@@ -340,7 +341,7 @@ func (lcm *LCM) Start() {
 				log.Printf("Crawler %s crawling %s", c.HttpServer, page)
 				cproxy.UpdateDataFile(page)
 				c.logf = makeLogger(fmt.Sprintf("%s:%s", c.HttpsServer, page))
-				c.Visit(page, time.Duration(3*time.Second), lcm.outDir)
+				c.Visit(page, time.Duration(30*time.Second), lcm.outDir)
 				log.Printf("Cur: Total %d Wire %d", atomic.LoadInt64(lcm.ns.total)/(1000), atomic.LoadInt64(lcm.ns.wire)/(1000))
 			}
 		}(i)
@@ -353,7 +354,7 @@ func (lcm *LCM) Start() {
 }
 
 func initLCM(n int, pagePath string, proxyData string, wprData string,
-	azPort int, azLogPath string, sleep int, remote bool) *LCM {
+	azPort int, azLogPath string, sleep int, remote bool, live bool) *LCM {
 	// read pages
 	pages, _ := readLines(pagePath)
 	log.Printf("Read %d pages", len(pages))
@@ -362,7 +363,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 	url2scheme, _ := buildUrl2Scheme(azLogPath)
 
 	// initialize proxies
-	proxies := initProxies(n, proxyData, wprData, azPort, sleep, remote)
+	proxies := initProxies(n, proxyData, wprData, azPort, sleep, remote, live)
 
 	// initialize crawlers
 	crawlers := make([]*Crawler, n)
@@ -375,7 +376,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 	ns := Netstat{new(int64), new(int64)}
 
 	for i := 0; i < n; i++ {
-		client := &http.Client{Transport: tr}
+		client := &http.Client{Transport: tr, Timeout: 3 * time.Second}
 		hostaddr := "127.0.0.1"
 		if remote {
 			hostaddr = "lions.eecs.umich.edu"
@@ -386,9 +387,10 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 			HttpsServer: fmt.Sprintf("https://%s:%d", hostaddr, proxies[i].port),
 			url2scheme:  url2scheme,
 			ns:          &ns,
-			concurrency: 10,
+			concurrency: 5,
 			dMap:        &dupMap,
 			lmu:         sync.Mutex{},
+			live:        live,
 		}
 		log.Printf("Initialized crawler %d with proxy port %d", i, proxies[i].port)
 	}
@@ -409,6 +411,7 @@ func main() {
 	var azLogPath string
 	var sleep int
 	var remote bool
+	var live bool
 
 	flag.StringVar(&pagePath, "pages", "", "path to pages file")
 	flag.IntVar(&nCrawlers, "n", 1, "number of crawlers")
@@ -419,6 +422,7 @@ func main() {
 	flag.IntVar(&sleep, "sleep", 5, "sleep time")
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.BoolVar(&remote, "remote", false, "remote")
+	flag.BoolVar(&live, "live", false, "live")
 	flag.Parse()
 
 	cpuprofile := "cpu.prof"
@@ -427,10 +431,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	runtime.SetBlockProfileRate(1)
-	// pprof.StartCPUProfile(f)
-	// defer pprof.StopCPUProfile()
-	defer pprof.Lookup("block").WriteTo(f, 0)
+	// runtime.SetBlockProfileRate(1)
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
+	// defer pprof.Lookup("block").WriteTo(f, 0)
 	if verbose {
 		log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 	} else {
@@ -438,6 +442,6 @@ func main() {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort, azLogPath, sleep, remote)
+	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort, azLogPath, sleep, remote, live)
 	lcm.Start()
 }

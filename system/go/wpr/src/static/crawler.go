@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -43,6 +44,7 @@ type Crawler struct {
 	concurrency int
 	dMap        *DupMap
 	localDMap   map[string]bool
+	live        bool
 }
 
 type Req struct {
@@ -162,7 +164,7 @@ func (c *Crawler) Crawl(ctx context.Context) {
 			cresp, exists := c.dMap.Get(h, target)
 			if exists {
 				c.logf("Found cached response for %s", h+p)
-				c.HandleResp(cresp, h+p, s, true)
+				// c.HandleResp(cresp, h+p, s, true)
 				c.logRR(h+p, 200, cresp.size, err)
 				continue
 			}
@@ -178,6 +180,15 @@ func (c *Crawler) Crawl(ctx context.Context) {
 			if err != nil {
 				c.logRR(h+p, 0, 0, err)
 				continue
+			}
+
+			if c.live {
+				reqURL, err = url.Parse("http://" + h + p)
+				if err != nil {
+					c.logf("LIVE: Error parsing url: %s %s", h+p, err)
+					c.logRR(h+p, 0, 0, err)
+					continue
+				}
 			}
 
 			c.logf("Requesting %s from host %s", reqURL, h)
@@ -201,6 +212,7 @@ func (c *Crawler) Crawl(ctx context.Context) {
 
 			resp, err := c.Client.Do(req)
 			if err != nil {
+				c.logf("Error requesting %s: %v", reqURL, err)
 				c.logRR(h+p, 0, 0, err)
 				continue
 			}
@@ -209,6 +221,7 @@ func (c *Crawler) Crawl(ctx context.Context) {
 				c.logf("Updating host to %s", location)
 				lParsed, err := url.Parse(location)
 				if err != nil {
+					c.logf("Error updating host url: %s %s", location, err)
 					c.logRR(h+p, 0, 0, err)
 					continue
 				}
@@ -413,7 +426,7 @@ func (c *Crawler) Visit(u string, timeout time.Duration, outPath string) error {
 		c.logf("Finished crawling page %s", u)
 		return nil
 	case <-time.After(timeout):
-		c.logf("Timeout while crawling Page %s", u)
+		log.Printf("Timeout while crawling Page %s", u)
 		cancel()
 		// close(c.reqs)
 		return nil
