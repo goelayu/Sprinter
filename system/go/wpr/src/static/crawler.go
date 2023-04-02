@@ -77,7 +77,7 @@ func decompressBody(ce string, compressed []byte) ([]byte, error) {
 		}
 	case "deflate":
 		r = flate.NewReader(bytes.NewReader(compressed))
-	case "brotli":
+	case "br":
 		r = brotli.NewReader(bytes.NewReader(compressed))
 	default:
 		// Unknown compression type or uncompressed.
