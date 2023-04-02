@@ -2,6 +2,7 @@ import argparse
 
 def print_rate(args):
   file = args.source
+  intr = args.interval
   with open(file) as f:
     content = f.readlines()
     
@@ -9,10 +10,10 @@ def print_rate(args):
   prev = 0
   for c in content:
     counter += 1
-    if counter % 5 == 0:
+    if counter % intr == 0:
       time, pages = c.split()
       pages = int(pages) - prev
-      print(time,pages/5)
+      print(time,pages/intr)
       prev = int(c.split()[1])
       
 
@@ -20,6 +21,7 @@ def print_rate(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--source', type=str, required=True)
+    parser.add_argument('--interval', type=int, default=10')
     args = parser.parse_args()
 
     print_rate(args)
