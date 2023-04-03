@@ -213,8 +213,8 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 		httpsport := startHTTPSPORT + i
 		dataFile := fmt.Sprintf("%s/%s", proxyData, strconv.Itoa(httpsport))
 		outFilePath := fmt.Sprintf("%s/%s.replay.log", proxyData, strconv.Itoa(httpsport))
-		cmdstr := fmt.Sprintf("GOROOT=%s time  go run src/wpr.go replay -host 0.0.0.0 --quiet_mode --http_port %d --https_port %d --az_port %d %s &> %s",
-			GOROOT, httpport, httpsport, azPort, dataFile, outFilePath)
+		cmdstr := fmt.Sprintf("GOROOT=%s time  go run src/wpr.go replay --quiet_mode -host 0.0.0.0 --http_port %d --https_port %d --az_port %d &> %s",
+			GOROOT, httpport, httpsport, azPort, outFilePath)
 
 		if remote {
 			sshC := setupSSH()
@@ -237,7 +237,6 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 			go sshS.Run(fmt.Sprintf("cd %s; %s", WPRDIR, cmdstr))
 			proxies[i] = &Proxy{httpsport, dataFile, wprData, sshC, remote}
 		} else {
-			os.WriteFile(dataFile, []byte(DUMMYDATA), 0644)
 			cmd := exec.Command("bash", "-c", cmdstr)
 			cmd.Dir = WPRDIR
 			if !live {
@@ -341,7 +340,6 @@ func (lcm *LCM) Start() {
 				pages = pages[1:]
 				lcm.mu.Unlock()
 				log.Printf("Crawler %s crawling %s", c.HttpsServer, page)
-				cproxy.UpdateDataFile(page)
 				c.logf = makeLogger(fmt.Sprintf("%s:%s", c.HttpsServer, page))
 				c.Visit(page, time.Duration(15*time.Second), lcm.outDir)
 				// log.Printf("Cur: Total %d Wire %d", atomic.LoadInt64(lcm.ns.total)/(1000), atomic.LoadInt64(lcm.ns.wire)/(1000))
@@ -379,7 +377,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 	ns := Netstat{new(int64), new(int64)}
 
 	for i := 0; i < n; i++ {
-		client := &http.Client{Transport: tr, Timeout: 3 * time.Second}
+		client := &http.Client{Transport: tr, Timeout: 6 * time.Second}
 		hostaddr := "127.0.0.1"
 		if remote {
 			hostaddr = "lions.eecs.umich.edu"
@@ -394,6 +392,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 			dMap:        &dupMap,
 			lmu:         sync.Mutex{},
 			live:        live,
+			wprData:     wprData,
 		}
 		log.Printf("Initialized crawler %d with proxy port %d", i, proxies[i].port)
 	}

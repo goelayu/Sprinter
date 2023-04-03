@@ -45,6 +45,7 @@ type Crawler struct {
 	dMap        *DupMap
 	localDMap   map[string]bool
 	live        bool
+	wprData     string
 }
 
 type Req struct {
@@ -389,8 +390,35 @@ func (c *Crawler) HandleHTML(resp *http.Response, body string, referrer string, 
 	return nil
 }
 
+func (c *Crawler) UpdateArchive(page string) error {
+	sanitizecmd := fmt.Sprintf("echo '%s' | sanitize", page)
+	sanpage, err := exec.Command("bash", "-c", sanitizecmd).Output()
+	if err != nil {
+		c.logf("Error sanitizing page %s: %s", page, err)
+		return err
+	}
+	query := fmt.Sprintf("%s/%s.wprgo", c.wprData, string(sanpage))
+	url := fmt.Sprintf("%s/update-archive-path?%s", c.HttpServer, query)
+	urlS := fmt.Sprintf("%s/update-shared-object", c.HttpsServer)
+	c.logf("Updating archive path for %s to %s", page, query)
+	_, err = c.Client.Get(url)
+	if err != nil {
+		c.logf("Error updating archive path for %s: %s", page, err)
+	}
+	_, err = c.Client.Get(urlS)
+	if err != nil {
+		c.logf("Error updating archive path for %s: %s", page, err)
+	}
+	return nil
+}
+
 func (c *Crawler) Visit(u string, timeout time.Duration, outPath string) error {
 	c.logf("Visiting %s with timeout %d", u, timeout)
+
+	err := c.UpdateArchive(u)
+	if err != nil {
+		c.logf("Error updating archive path for %s: %s", u, err)
+	}
 
 	c.net = &NWLog{}
 	c.net.Reqs = make([]NWRequest, 0)
