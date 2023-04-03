@@ -15,7 +15,7 @@ import (
 )
 
 var jsTemplate = `
-  /**INJECTED CODE BEGIN*/
+  /**custom signature info embedded*/
 	(function() {
 
 		var evalReads = function(readArr){

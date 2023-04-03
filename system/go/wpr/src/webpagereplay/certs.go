@@ -133,6 +133,9 @@ func (tp *tlsProxy) getReplayConfigForClient(clientHello *tls.ClientHelloInfo) (
 			Certificates: []tls.Certificate{*tp.root},
 		}, nil
 	}
+	return &tls.Config{
+		Certificates: []tls.Certificate{*tp.root},
+	}, nil
 
 	log.Printf("Replaying TLS config for %s", h)
 	derBytes, negotiatedProtocol, err := tp.archive.FindHostTlsConfig(h)
