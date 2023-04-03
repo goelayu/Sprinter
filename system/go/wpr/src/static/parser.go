@@ -45,7 +45,8 @@ func HTMLParser(body string, logf logprintf) ([]string, error) {
 		href, exists := s.Attr("href")
 		if exists {
 			rel, re := s.Attr("rel")
-			if re && (rel == "canonical" || rel == "shortlink" || rel == "alternate") {
+			if re && (strings.Contains(rel, "alternate") || strings.Contains(rel,
+				"canonical") || strings.Contains(rel, "shortlink")) {
 				logf("Skipping link %s with rel %s", href, rel)
 				return
 			}

@@ -135,7 +135,7 @@ func readLines(path string) ([]string, error) {
 }
 
 func makeLogger(p string) func(msg string, args ...interface{}) {
-	// return func(string, ...interface{}) {}
+	return func(string, ...interface{}) {}
 	prefix := fmt.Sprintf("[Crawler:%s]: ", p)
 	return func(msg string, args ...interface{}) {
 		log.Print(prefix + fmt.Sprintf(msg, args...))
@@ -213,7 +213,7 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 		httpsport := startHTTPSPORT + i
 		dataFile := fmt.Sprintf("%s/%s", proxyData, strconv.Itoa(httpsport))
 		outFilePath := fmt.Sprintf("%s/%s.replay.log", proxyData, strconv.Itoa(httpsport))
-		cmdstr := fmt.Sprintf("GOROOT=%s time  go run src/wpr.go replay -host 0.0.0.0 --http_port %d --https_port %d --az_port %d %s &> %s",
+		cmdstr := fmt.Sprintf("GOROOT=%s time  go run src/wpr.go replay -host 0.0.0.0 --quiet_mode --http_port %d --https_port %d --az_port %d %s &> %s",
 			GOROOT, httpport, httpsport, azPort, dataFile, outFilePath)
 
 		if remote {
@@ -316,7 +316,9 @@ func (lcm *LCM) Start() {
 	var wg sync.WaitGroup
 	wg.Add(len(lcm.crawlers))
 
-	// go printLoad(lcm.ns, done)
+	done := make(chan bool)
+
+	go printLoad(lcm.ns, done)
 
 	startTime := time.Now()
 
@@ -338,16 +340,17 @@ func (lcm *LCM) Start() {
 				page := pages[0]
 				pages = pages[1:]
 				lcm.mu.Unlock()
-				log.Printf("Crawler %s crawling %s", c.HttpServer, page)
+				log.Printf("Crawler %s crawling %s", c.HttpsServer, page)
 				cproxy.UpdateDataFile(page)
 				c.logf = makeLogger(fmt.Sprintf("%s:%s", c.HttpsServer, page))
-				c.Visit(page, time.Duration(30*time.Second), lcm.outDir)
-				log.Printf("Cur: Total %d Wire %d", atomic.LoadInt64(lcm.ns.total)/(1000), atomic.LoadInt64(lcm.ns.wire)/(1000))
+				c.Visit(page, time.Duration(15*time.Second), lcm.outDir)
+				// log.Printf("Cur: Total %d Wire %d", atomic.LoadInt64(lcm.ns.total)/(1000), atomic.LoadInt64(lcm.ns.wire)/(1000))
 			}
 		}(i)
 	}
 
 	wg.Wait()
+	done <- true
 	log.Printf("Final: Total %d Wire %d", atomic.LoadInt64(lcm.ns.total)/(1000), atomic.LoadInt64(lcm.ns.wire)/(1000))
 
 	log.Printf("Total time: %s", time.Since(startTime))
@@ -387,7 +390,7 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 			HttpsServer: fmt.Sprintf("https://%s:%d", hostaddr, proxies[i].port),
 			url2scheme:  url2scheme,
 			ns:          &ns,
-			concurrency: 5,
+			concurrency: 10,
 			dMap:        &dupMap,
 			lmu:         sync.Mutex{},
 			live:        live,

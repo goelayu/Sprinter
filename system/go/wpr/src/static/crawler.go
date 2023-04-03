@@ -39,7 +39,7 @@ type Crawler struct {
 	net         *NWLog
 	lmu         sync.Mutex
 	ns          *Netstat
-	pending     sync.WaitGroup
+	pending     *sync.WaitGroup
 	reqs        chan Req
 	concurrency int
 	dMap        *DupMap
@@ -237,6 +237,14 @@ func (c *Crawler) Crawl(ctx context.Context) {
 			} else {
 				l = int64(len(sbody))
 			}
+
+			select {
+			case <-ctx.Done():
+				c.logf("Context done")
+				return
+			default:
+
+			}
 			if resp.StatusCode == 200 {
 				c.lmu.Lock()
 				c.localDMap[h+p] = true
@@ -387,6 +395,7 @@ func (c *Crawler) Visit(u string, timeout time.Duration, outPath string) error {
 	c.net = &NWLog{}
 	c.net.Reqs = make([]NWRequest, 0)
 	c.localDMap = make(map[string]bool)
+	c.pending = &sync.WaitGroup{}
 
 	waitCh := make(chan struct{})
 	c.reqs = make(chan Req)
