@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"runtime/pprof"
 	"strconv"
 	"strings"
@@ -46,6 +47,9 @@ type LCM struct {
 	outDir     string
 	ns         *Netstat
 	dMap       *DupMap
+	remote     bool
+	live       bool
+	wprData    string
 }
 
 type Proxy struct {
@@ -196,7 +200,7 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 	sleep int, remote bool, live bool) []*Proxy {
 	GOROOT := "/w/goelayu/uluyol-sigcomm/go"
 	WPRDIR := "/vault-swift/goelayu/balanced-crawler/system/go/wpr"
-	DUMMYDATA := "/w/goelayu/bcrawling/wprdata/dummy.wprgo"
+	// DUMMYDATA := "/w/goelayu/bcrawling/wprdata/dummy.wprgo"
 
 	startHTTPPORT := 6080
 	startHTTPSPORT := 7080
@@ -217,25 +221,20 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 			GOROOT, httpport, httpsport, azPort, outFilePath)
 
 		if remote {
-			sshC := setupSSH()
-			sshS, err := retrySSHCon(sshC, 3)
-			if err != nil {
-				log.Fatalf("unable to create session: %v", err)
-			}
-			dummyfilecmd := fmt.Sprintf("mkdir -p %s;echo %s > %s", proxyData, DUMMYDATA, dataFile)
-			log.Printf("dummy file command: %s", dummyfilecmd)
-			_, err = sshS.Output(dummyfilecmd)
-			if err != nil {
-				sshS.Close()
-				log.Fatalf("unable to create dummy file: %v", err)
-			}
-			sshS.Close()
-			sshS, err = retrySSHCon(sshC, 3)
-			if err != nil {
-				log.Fatalf("unable to create session: %v", err)
-			}
-			go sshS.Run(fmt.Sprintf("cd %s; %s", WPRDIR, cmdstr))
-			proxies[i] = &Proxy{httpsport, dataFile, wprData, sshC, remote}
+			// sshC := setupSSH()
+			// sshS, err := retrySSHCon(sshC, 3)
+			// if err != nil {
+			// 	log.Fatalf("unable to create session: %v", err)
+			// }
+			// fincmd := fmt.Sprintf("mkdir -p %s; cd %s; %s", proxyData, WPRDIR, cmdstr)
+			// log.Printf("running %s", fincmd)
+			// go func() {
+			// 	err := sshS.Run(fincmd)
+			// 	if err != nil {
+			// 		log.Printf("unable to run proxy: %v", err)
+			// 	}
+			// }()
+			proxies[i] = &Proxy{httpsport, dataFile, wprData, nil, remote}
 		} else {
 			cmd := exec.Command("bash", "-c", cmdstr)
 			cmd.Dir = WPRDIR
@@ -252,7 +251,6 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 		log.Printf("Started proxy on port %d", httpsport)
 	}
 
-	//sleep for 3 seconds to make sure all proxies are up
 	time.Sleep(time.Duration(sleep) * time.Second)
 	return proxies
 }
@@ -261,18 +259,18 @@ func (p *Proxy) Stop() {
 	log.Printf("Stopping proxy on port %d", p.port)
 	killcmd := fmt.Sprintf("ps aux | grep https_port | grep %d | awk '{print $2}' | xargs kill -SIGINT", p.port)
 	if p.remote {
-		sshS, _ := retrySSHCon(p.sshC, 3)
-		err := sshS.Run(killcmd)
-		if err != nil {
-			log.Fatalf("unable to kill proxy: %v", err)
-		}
-		sshS.Close()
-		sshS, _ = retrySSHCon(p.sshC, 3)
-		err = sshS.Run(fmt.Sprintf("rm %s", p.dataFile))
-		if err != nil {
-			log.Fatalf("unable to remove data file: %v", err)
-		}
-		sshS.Close()
+		// sshS, _ := retrySSHCon(p.sshC, 3)
+		// err := sshS.Run(killcmd)
+		// if err != nil {
+		// 	log.Fatalf("unable to kill proxy: %v", err)
+		// }
+		// sshS.Close()
+		// sshS, _ = retrySSHCon(p.sshC, 3)
+		// err = sshS.Run(fmt.Sprintf("rm %s", p.dataFile))
+		// if err != nil {
+		// 	log.Fatalf("unable to remove data file: %v", err)
+		// }
+		// sshS.Close()
 	} else {
 		exec.Command("bash", "-c", killcmd).Run()
 		// p.cmd.Process.Signal(os.Interrupt)
@@ -313,7 +311,7 @@ func (lcm *LCM) Start() {
 
 	pages := lcm.pages
 	var wg sync.WaitGroup
-	wg.Add(len(lcm.crawlers))
+	wg.Add(len(lcm.proxies))
 
 	done := make(chan bool)
 
@@ -321,27 +319,45 @@ func (lcm *LCM) Start() {
 
 	startTime := time.Now()
 
-	for i := 0; i < len(lcm.crawlers); i++ {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr, Timeout: 6 * time.Second}
+
+	for i := 0; i < len(lcm.proxies); i++ {
 		go func(index int) {
 			cproxy := lcm.proxies[index]
-			c := lcm.crawlers[index]
-			// rl := ratelimit.New(3)
+			hostaddr := "127.0.0.1"
+			if lcm.remote && index < 100 {
+				hostaddr = "lions.eecs.umich.edu"
+			} else if lcm.remote && index >= 100 {
+				hostaddr = "redwings.eecs.umich.edu"
+			}
 			defer wg.Done()
 			for {
 				// rl.Take()
 				lcm.mu.Lock()
 				if len(pages) == 0 {
 					lcm.mu.Unlock()
-					log.Printf("Crawler %s finished", c.HttpServer)
+					log.Printf("Crawler %s:%d finished", hostaddr, cproxy.port)
 					cproxy.Stop()
 					return
 				}
 				page := pages[0]
 				pages = pages[1:]
 				lcm.mu.Unlock()
-				log.Printf("Crawler %s crawling %s", c.HttpsServer, page)
-				c.logf = makeLogger(fmt.Sprintf("%s:%s", c.HttpsServer, page))
-				c.Visit(page, time.Duration(15*time.Second), lcm.outDir)
+				log.Printf("Crawler %s:%d crawling %s", hostaddr, cproxy.port, page)
+				logf := makeLogger(fmt.Sprintf("%s:%d:%s", hostaddr, cproxy.port, page))
+
+				crawler := NewCrawler(client, lcm.url2scheme, lcm.ns, lcm.dMap,
+					lcm.wprData, cproxy.port, lcm.live, hostaddr)
+				crawler.logf = logf
+				log.Printf("Initialized crawler %d with proxy port %d", index, cproxy.port)
+				err := crawler.Visit(page, time.Duration(15*time.Second), lcm.outDir)
+				if err != nil {
+					log.Printf("Crawler %s:%d failed to crawl %s", hostaddr, cproxy.port, page)
+				}
+				log.Printf("returne from visit")
 				// log.Printf("Cur: Total %d Wire %d", atomic.LoadInt64(lcm.ns.total)/(1000), atomic.LoadInt64(lcm.ns.wire)/(1000))
 			}
 		}(i)
@@ -366,38 +382,11 @@ func initLCM(n int, pagePath string, proxyData string, wprData string,
 	// initialize proxies
 	proxies := initProxies(n, proxyData, wprData, azPort, sleep, remote, live)
 
-	// initialize crawlers
-	crawlers := make([]*Crawler, n)
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-
 	dupMap := DupMap{sync.RWMutex{}, make(map[string]map[string]StoredResp)}
 
 	ns := Netstat{new(int64), new(int64)}
 
-	for i := 0; i < n; i++ {
-		client := &http.Client{Transport: tr, Timeout: 6 * time.Second}
-		hostaddr := "127.0.0.1"
-		if remote {
-			hostaddr = "lions.eecs.umich.edu"
-		}
-		crawlers[i] = &Crawler{
-			Client:      client,
-			HttpServer:  fmt.Sprintf("http://%s:%d", hostaddr, proxies[i].port-1000),
-			HttpsServer: fmt.Sprintf("https://%s:%d", hostaddr, proxies[i].port),
-			url2scheme:  url2scheme,
-			ns:          &ns,
-			concurrency: 10,
-			dMap:        &dupMap,
-			lmu:         sync.Mutex{},
-			live:        live,
-			wprData:     wprData,
-		}
-		log.Printf("Initialized crawler %d with proxy port %d", i, proxies[i].port)
-	}
-
-	return &LCM{crawlers, proxies, pages, sync.Mutex{}, url2scheme, proxyData, &ns, &dupMap}
+	return &LCM{nil, proxies, pages, sync.Mutex{}, url2scheme, proxyData, &ns, &dupMap, remote, live, wprData}
 }
 
 func main() {
@@ -433,10 +422,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// runtime.SetBlockProfileRate(1)
-	pprof.StartCPUProfile(f)
-	defer pprof.StopCPUProfile()
-	// defer pprof.Lookup("block").WriteTo(f, 0)
+	runtime.SetBlockProfileRate(1)
+	// pprof.StartCPUProfile(f)
+	// defer pprof.StopCPUProfile()
+	defer pprof.Lookup("block").WriteTo(f, 0)
 	if verbose {
 		log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 	} else {
@@ -444,6 +433,7 @@ func main() {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort, azLogPath, sleep, remote, live)
+	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort,
+		azLogPath, sleep, remote, live)
 	lcm.Start()
 }

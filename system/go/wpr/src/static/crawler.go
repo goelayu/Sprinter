@@ -38,6 +38,7 @@ type Crawler struct {
 	logf        logprintf
 	net         *NWLog
 	lmu         sync.Mutex
+
 	ns          *Netstat
 	pending     *sync.WaitGroup
 	reqs        chan Req
@@ -46,6 +47,7 @@ type Crawler struct {
 	localDMap   map[string]bool
 	live        bool
 	wprData     string
+	sdynamic    chan struct{}
 }
 
 type Req struct {
@@ -86,6 +88,28 @@ func decompressBody(ce string, compressed []byte) ([]byte, error) {
 	}
 	// defer r.Close()
 	return ioutil.ReadAll(r)
+}
+
+func NewCrawler(client *http.Client, url2scheme map[string]string, ns *Netstat,
+	dMap *DupMap, wprData string, port int, live bool, hostaddr string) *Crawler {
+	c := &Crawler{
+		Client:      client,
+		HttpServer:  fmt.Sprintf("http://%s:%d", hostaddr, port-1000),
+		HttpsServer: fmt.Sprintf("https://%s:%d", hostaddr, port),
+		url2scheme:  url2scheme,
+		ns:          ns,
+		concurrency: 5,
+		dMap:        dMap,
+		lmu:         sync.Mutex{},
+		live:        live,
+		wprData:     wprData,
+		sdynamic:    make(chan struct{}),
+		net:         &NWLog{Reqs: []NWRequest{}},
+		localDMap:   make(map[string]bool),
+		pending:     &sync.WaitGroup{},
+		reqs:        make(chan Req),
+	}
+	return c
 }
 
 func (c *Crawler) HandleResp(sresp StoredResp, referrer string, useHttps bool, fromCache bool) error {
@@ -203,6 +227,8 @@ func (c *Crawler) Crawl(ctx context.Context) {
 				},
 			}
 
+			req = req.WithContext(ctx)
+
 			var location string
 
 			c.Client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -311,11 +337,6 @@ func (c *Crawler) HandleCSS(resp *http.Response, body string, referrer string, u
 
 	c.logf("Handling CSS response from %s", cssu)
 
-	// s, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
-	// c.logf("CMP: %s %d %d", resp.Request.URL.String(), len(b), s)
-
-	// c.logf("Extracting CSS URLs from %s with body %s", cssu, string(b))
-
 	rgx, _ := regexp.Compile(`url\(['"]?([^\s"']*)['"]?\)`)
 	m := rgx.FindAllStringSubmatch(string(body), -1)
 
@@ -340,7 +361,15 @@ func (c *Crawler) HandleJS(resp *http.Response, body string, referrer string, us
 
 	c.logf("Handling JS response from %s", resp.Request.URL)
 
-	jsurls := xtractJSURLS(body)
+	jsurls, err := xtractJSURLS(body)
+	if err != nil {
+		select {
+		case c.sdynamic <- struct{}{}:
+		default:
+			c.logf("Page already offload to dynamic crawler, %s", resp.Request.URL)
+			return nil
+		}
+	}
 
 	u := resp.Request.URL.String()
 
@@ -404,10 +433,12 @@ func (c *Crawler) UpdateArchive(page string) error {
 	_, err = c.Client.Get(url)
 	if err != nil {
 		c.logf("Error updating archive path for %s: %s", page, err)
+		return err
 	}
 	_, err = c.Client.Get(urlS)
 	if err != nil {
 		c.logf("Error updating archive path for %s: %s", page, err)
+		return err
 	}
 	return nil
 }
@@ -418,15 +449,18 @@ func (c *Crawler) Visit(u string, timeout time.Duration, outPath string) error {
 	err := c.UpdateArchive(u)
 	if err != nil {
 		c.logf("Error updating archive path for %s: %s", u, err)
+		return err
 	}
+	c.logf("done updating archive")
 
-	c.net = &NWLog{}
-	c.net.Reqs = make([]NWRequest, 0)
-	c.localDMap = make(map[string]bool)
-	c.pending = &sync.WaitGroup{}
+	// c.net = &NWLog{}
+	// c.net.Reqs = make([]NWRequest, 0)
+	// c.localDMap = make(map[string]bool)
+	// c.pending = &sync.WaitGroup{}
 
 	waitCh := make(chan struct{})
-	c.reqs = make(chan Req)
+	// c.reqs = make(chan Req)
+	// c.sdynamic = make(chan struct{})
 	defer c.DumpNetLog(outPath, u)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -466,6 +500,10 @@ func (c *Crawler) Visit(u string, timeout time.Duration, outPath string) error {
 		log.Printf("Timeout while crawling Page %s", u)
 		cancel()
 		// close(c.reqs)
+		return nil
+	case <-c.sdynamic:
+		c.logf("Offloading page to dynamic crawler %s", u)
+		cancel()
 		return nil
 	}
 

@@ -101,13 +101,18 @@ func constURL(target string, main string, useHttps bool) (host string, path stri
 	return res.Host, res.Path, useHttps, nil
 }
 
-func xtractJSURLS(body string) []string {
-	// atomic.AddInt64(tBytes, int64(len(buf.String())))
+func xtractJSURLS(body string) ([]string, error) {
+
+	// injectstr := "custom signature info embedded"
+	// if !strings.Contains(body, injectstr) {
+	// 	log.Printf("No custom signature info found in body")
+	// 	return []string{}, errors.New("No custom signature info found in body")
+	// }
 	tregex, _ := regexp.Compile(`CODE BEGIN[\s\S]*CODE END`)
 	tmplt := tregex.FindString(body)
 
 	if tmplt == "" {
-		return []string{}
+		return []string{}, nil
 	}
 
 	var jsurls []string
@@ -117,5 +122,5 @@ func xtractJSURLS(body string) []string {
 		jsurls = append(jsurls, v[2])
 	}
 
-	return jsurls
+	return jsurls, nil
 }
