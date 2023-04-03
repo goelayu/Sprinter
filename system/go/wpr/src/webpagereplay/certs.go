@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"sync"
 	"time"
@@ -133,6 +134,7 @@ func (tp *tlsProxy) getReplayConfigForClient(clientHello *tls.ClientHelloInfo) (
 		}, nil
 	}
 
+	log.Printf("Replaying TLS config for %s", h)
 	derBytes, negotiatedProtocol, err := tp.archive.FindHostTlsConfig(h)
 	tp.mu.Lock()
 	defer tp.mu.Unlock()

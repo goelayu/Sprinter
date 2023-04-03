@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -73,7 +74,8 @@ func updateDates(h http.Header, now time.Time) {
 
 // NewReplayingProxy constructs an HTTP proxy that replays responses from an archive.
 // The proxy is listening for requests on a port that uses the given scheme (e.g., http, https).
-func NewReplayingProxy(a *Archive, an string, scheme string, transformers []ResponseTransformer, quietMode bool, caching bool, az_port int) http.Handler {
+func NewReplayingProxy(scheme string, transformers []ResponseTransformer, quietMode bool,
+	caching bool, az_port int, ps *Proxyshare) http.Handler {
 	azaddr := "localhost:" + strconv.Itoa(az_port)
 	conn, err := grpc.Dial(azaddr, grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(1024*1024*10)))
@@ -83,7 +85,12 @@ func NewReplayingProxy(a *Archive, an string, scheme string, transformers []Resp
 		log.Printf("Connected to analyzer server at %s", azaddr)
 	}
 	client := pb.NewAnalyzerClient(conn)
-	return &ReplayingProxy{a, an, scheme, transformers, quietMode, sync.Mutex{}, client, caching}
+	return &ReplayingProxy{ps.A, "", scheme, transformers, quietMode, sync.Mutex{}, client, caching, ps}
+}
+
+type Proxyshare struct {
+	A           *Archive
+	ArchiveName string
 }
 
 type ReplayingProxy struct {
@@ -95,6 +102,22 @@ type ReplayingProxy struct {
 	Mu           sync.Mutex
 	client       pb.AnalyzerClient
 	caching      bool
+	P            *Proxyshare
+}
+
+func (proxy *ReplayingProxy) UpdateArchive(p string) {
+	archive, err := OpenArchive(p)
+	if err != nil {
+		log.Printf("Failed to open archive %s: %v", p, err)
+		return
+	}
+	log.Printf("Updating archive to %s", p)
+
+	archiveName := filepath.Base(p)
+
+	proxy.A = archive
+	proxy.ArchiveName = archiveName
+	proxy.P.A = archive
 }
 
 func requestIsJSHTML(resp *http.Response, req *http.Request) bool {
@@ -109,6 +132,7 @@ func requestIsJSHTML(resp *http.Response, req *http.Request) bool {
 
 func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/web-page-replay-generate-200" {
+		log.Printf("Received /web-page-replay-generate-200 %s", req.URL.String())
 		w.WriteHeader(200)
 		return
 	}
@@ -121,6 +145,21 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		log.Printf("Received /web-page-replay-reset-replay-chronology")
 		log.Printf("Reset replay order to start.")
 		proxy.A.StartNewReplaySession()
+		return
+	}
+	if req.URL.Path == "/update-archive-path" {
+		proxy.Mu.Lock()
+		defer proxy.Mu.Unlock()
+		log.Printf("Received /update-archive-path")
+		proxy.UpdateArchive(req.URL.RawQuery)
+		return
+	}
+	if req.URL.Path == "/update-shared-object" {
+		proxy.Mu.Lock()
+		defer proxy.Mu.Unlock()
+		log.Printf("Received /update-shared-object")
+		proxy.A = proxy.P.A
+		proxy.ArchiveName = proxy.P.ArchiveName
 		return
 	}
 	fixupRequestURL(req, proxy.scheme)

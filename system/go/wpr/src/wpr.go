@@ -15,13 +15,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
 
 	"wpr/src/webpagereplay"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/net/http2"
 )
@@ -158,9 +158,9 @@ func (common *CommonConfig) CheckArgs(c *cli.Context) error {
 	if c.Args().Len() > 1 {
 		return errors.New("too many args")
 	}
-	if c.Args().Len() != 1 {
-		return errors.New("must specify archive_file")
-	}
+	// if c.Args().Len() != 1 {
+	// 	return errors.New("must specify archive_file")
+	// }
 	if common.httpPort == -1 && common.httpsPort == -1 && common.httpSecureProxyPort == -1 {
 		return errors.New("must specify at least one port flag")
 	}
@@ -375,65 +375,6 @@ func logServeStarted(scheme string, ln net.Listener) {
 	log.Printf("Starting server on %s://%s", scheme, ln.Addr().String())
 }
 
-func watchArchivePathChange(archivePath string, archive *webpagereplay.Archive, replayProxy *webpagereplay.ReplayingProxy, replayProxyTLS *webpagereplay.ReplayingProxy, r *ReplayCommand) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatalf("Failed to create watcher: %v", err)
-	}
-	// defer watcher.Close()
-
-	if err := watcher.Add(archivePath); err != nil {
-		log.Fatalf("Failed to add %s to watcher: %v", archivePath, err)
-	}
-
-	go func() {
-		prevFilePath := ""
-		for {
-			select {
-			case event := <-watcher.Events:
-				if event.Op&fsnotify.Write == fsnotify.Write {
-					log.Printf("Archive file %s was modified, reloading", event.Name)
-					replayProxyTLS.Mu.Lock()
-					replayProxy.Mu.Lock()
-					archiveFilePath, _ := os.ReadFile(archivePath)
-					if prevFilePath == string(archiveFilePath) {
-						log.Printf("Archive file path is the same as before, skipping")
-						replayProxyTLS.Mu.Unlock()
-						replayProxy.Mu.Unlock()
-						continue
-					}
-					prevFilePath = string(archiveFilePath)
-
-					log.Printf("Archive file path: %s", archiveFilePath)
-					archive, err = webpagereplay.OpenArchive(strings.TrimSpace(string(archiveFilePath)))
-					if err != nil {
-						log.Printf("Failed to reload archive file %s: %v\nSimply skipping this one", archiveFilePath, err)
-						replayProxyTLS.Mu.Unlock()
-						replayProxy.Mu.Unlock()
-						continue
-					}
-
-					archiveName := filepath.Base(strings.TrimSpace(string(archiveFilePath)))
-
-					archive.ServeResponseInChronologicalSequence = r.serveResponseInChronologicalSequence
-					archive.DisableFuzzyURLMatching = r.disableFuzzyURLMatching
-
-					replayProxyTLS.A = archive
-					replayProxy.A = archive
-					replayProxyTLS.ArchiveName = archiveName
-					replayProxy.ArchiveName = archiveName
-					log.Printf("Reloaded archive file %s", archiveFilePath)
-
-					replayProxyTLS.Mu.Unlock()
-					replayProxy.Mu.Unlock()
-				}
-			case err := <-watcher.Errors:
-				log.Printf("Watcher error: %v", err)
-			}
-		}
-	}()
-}
-
 func (r *RecordCommand) Run(c *cli.Context) error {
 	archiveFilePath := c.Args().First()
 	log.Printf("Loading archive file name first %s\n", archiveFilePath)
@@ -482,35 +423,23 @@ func (r *RecordCommand) Run(c *cli.Context) error {
 }
 
 func (r *ReplayCommand) Run(c *cli.Context) error {
-	archiveFilePath := c.Args().First()
-	log.Printf("Loading archive file name first %s\n", archiveFilePath)
-	archiveFileName, err := os.ReadFile(archiveFilePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading archive file name: %v", err)
-		os.Exit(1)
-	}
-	archive, err := webpagereplay.OpenArchive(strings.TrimSpace(string(archiveFileName)))
+	cpuprofile := fmt.Sprintf("%s/%d-cpu.prof", filepath.Dir(c.Args().First()), r.common.httpsPort)
+	f, err := os.Create(cpuprofile)
 	if err != nil {
 		log.Fatal(err)
-		os.Exit(1)
 	}
-	log.Printf("Opened archive %s", archiveFileName)
-	archiveName := filepath.Base(strings.TrimSpace(string(archiveFileName)))
+	pprof.StartCPUProfile(f)
+	go func() {
+		sigchan := make(chan os.Signal, 1)
+		signal.Notify(sigchan, os.Interrupt)
+		<-sigchan
+		log.Printf("Shutting down")
+		pprof.StopCPUProfile()
+		os.Exit(0)
+	}()
 
-	archive.ServeResponseInChronologicalSequence = r.serveResponseInChronologicalSequence
-	archive.DisableFuzzyURLMatching = r.disableFuzzyURLMatching
-	if archive.DisableFuzzyURLMatching {
-		log.Printf("Disabling fuzzy URL matching.")
-	}
+	timeSeedMs := time.Now().Unix() * 1000
 
-	timeSeedMs := archive.DeterministicTimeSeedMs
-	if timeSeedMs == 0 {
-		// The time seed hasn't been set in the archive. Time seeds used to not be
-		// stored in the archive, so this is expected to happen when loading old
-		// archives. Just revert to the previous behavior: use the current time as
-		// the seed.
-		timeSeedMs = time.Now().Unix() * 1000
-	}
 	if err := r.common.ProcessInjectedScripts(timeSeedMs); err != nil {
 		log.Printf("Error processing injected scripts: %v", err)
 		os.Exit(1)
@@ -526,14 +455,15 @@ func (r *ReplayCommand) Run(c *cli.Context) error {
 		log.Printf("Loaded replay rules from %s", r.rulesFile)
 	}
 
-	httpHandler := webpagereplay.NewReplayingProxy(archive, archiveName, "http", r.common.transformers, r.quietMode, r.caching, r.azPort)
-	httpsHandler := webpagereplay.NewReplayingProxy(archive, archiveName, "https", r.common.transformers, r.quietMode, r.caching, r.azPort)
-	tlsconfig, err := webpagereplay.ReplayTLSConfig(r.common.root_cert, archive)
+	ps := webpagereplay.Proxyshare{}
+
+	httpHandler := webpagereplay.NewReplayingProxy("http", r.common.transformers, r.quietMode, r.caching, r.azPort, &ps)
+	httpsHandler := webpagereplay.NewReplayingProxy("https", r.common.transformers, r.quietMode, r.caching, r.azPort, &ps)
+	tlsconfig, err := webpagereplay.ReplayTLSConfig(r.common.root_cert, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating TLSConfig: %v", err)
 		os.Exit(1)
 	}
-	watchArchivePathChange(archiveFilePath, archive, httpHandler.(*webpagereplay.ReplayingProxy), httpsHandler.(*webpagereplay.ReplayingProxy), r)
 	startServers(tlsconfig, httpHandler, httpsHandler, &r.common)
 	return nil
 }
