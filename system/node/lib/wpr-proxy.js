@@ -6,7 +6,6 @@ const fs = require("fs");
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
 const GOPATH = "/vault-swift/goelayu/balanced-crawler/crawlers/wprgo/go";
 const WPRDIR = "/vault-swift/goelayu/balanced-crawler/system/go/wpr";
-const DUMMYDATA = "/run/user/99542426/goelayu/dummy.wprgo";
 
 function sleep(ms) {
   return new Promise((resolve) => {
@@ -18,7 +17,6 @@ class Proxy {
   constructor(options) {
     this.http_port = options.http_port;
     this.https_port = options.https_port;
-    this.dataOutput = options.dataOutput;
     this.logOutput = options.logOutput;
     this.mode = options.mode;
     this.caching = options.caching;
@@ -31,11 +29,10 @@ class Proxy {
     }\
     --http_port ${this.http_port} --https_port ${this.https_port}\
     --az_port ${this.az_port}\
-    ${this.caching ? "--caching" : ""} ${this.dataOutput}`;
+    ${this.caching ? "--caching" : ""}`;
     (this.stdout = ""), (this.stderr = "");
     console.log(cmd);
     //write dummy data to dataOutput before spawning command
-    fs.writeFileSync(this.dataOutput, DUMMYDATA);
     this.process = child_process.spawn(cmd, { shell: true, cwd: WPRDIR });
 
     var outStream = fs.createWriteStream(this.logOutput);
@@ -62,13 +59,12 @@ class Proxy {
 }
 
 class ProxyManager {
-  constructor(nProxies, proxyDir, logDir, mode, caching, az_port) {
+  constructor(nProxies, logDir, mode, caching, az_port) {
     this.nProxies = nProxies;
     this.proxies = [];
     this.startHttpPort = 6080;
     this.startHttpsPort = 7080;
     this.logDir = logDir;
-    this.outputDir = proxyDir;
     this.mode = mode;
     this.caching = caching;
     this.az_port = az_port;
@@ -78,7 +74,6 @@ class ProxyManager {
     for (var i = 0; i < this.nProxies; i++) {
       var http_port = this.startHttpPort + i;
       var https_port = this.startHttpsPort + i;
-      var dataOutput = `${this.outputDir}/${https_port}`;
       var logOutput = `${this.logDir}/${https_port}.${this.mode}.log`;
       var mode = this.mode;
       var caching = this.caching;
@@ -86,7 +81,6 @@ class ProxyManager {
       var p = new Proxy({
         http_port,
         https_port,
-        dataOutput,
         logOutput,
         mode,
         caching,
