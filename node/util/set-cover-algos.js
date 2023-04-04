@@ -215,6 +215,25 @@ var greedySched = function (nets, union) {
   return nPages;
 };
 
+var _pagesleft = function (nets, union) {
+  var res = 0;
+  for (var net of nets) {
+    var jss = net
+      .filter(filternet)
+      .filter((n) => n.type.indexOf("script") != -1)
+      .map((n) => n.url.split("?")[0]);
+    var uncovered = false;
+    for (var js of jss) {
+      if (!union.includes(js)) {
+        uncovered = true;
+        union.push(js);
+      }
+    }
+    if (uncovered) res++;
+  }
+  return res;
+};
+
 var greedyApproxSched = function (nets, union) {
   var nPages = [];
   var js = [];
@@ -276,7 +295,7 @@ var greedyApproxSched = function (nets, union) {
     program.verbose &&
       console.log(`js: ${js.length}, union: ${unionstatic.length}`);
     // remove net from nets
-    var netindex = nets.indexOf(net);
+    var netindex = nets.indexOf(jsnet);
     netindex != -1 && nets.splice(netindex, 1);
   }
 
@@ -291,8 +310,9 @@ var greedyApproxSched = function (nets, union) {
       if (!jssetcover.includes(js)) jssetcover.push(js);
     }
   }
+  var rempages = _pagesleft(origNets, jssetcover);
   console.log(
-    `npages: ${nPages.length} jssetcover: ${jssetcover.length} union: ${union.length}`
+    `npages: ${nPages.length} jssetcover: ${jssetcover.length} union: ${union.length} rempages: ${rempages}`
   );
 };
 
