@@ -65,8 +65,8 @@ class ProxyManager {
   constructor(nProxies, proxyDir, logDir, mode, caching, az_port) {
     this.nProxies = nProxies;
     this.proxies = [];
-    this.startHttpPort = 8000 + Math.floor(Math.random() * 1000);
-    this.startHttpsPort = 9000 + Math.floor(Math.random() * 1000);
+    this.startHttpPort = 6080;
+    this.startHttpsPort = 7080;
     this.logDir = logDir;
     this.outputDir = proxyDir;
     this.mode = mode;

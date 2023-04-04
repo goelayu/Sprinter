@@ -20,7 +20,8 @@ const AZ = require("./lib/az-server.js");
 const azclient = require("./az-client.js");
 const BrowserPageConcurrency =
   require("./pptr-concurrency/browserpage").default;
-
+const https = require("https");
+const http = require("http");
 require("console-stamp")(console, "[HH:MM:ss.l]");
 
 const GOROOT = "/w/goelayu/uluyol-sigcomm/go";
@@ -192,15 +193,22 @@ var genBrowserArgs = (proxies) => {
         .find((e) => e.includes("resolver-rules"))
         .split(":")[4]
         .split(",")[0];
-      var proxyDataFile = `${program.proxy}/${pa}`;
-      var proxyData = `${program.proxy}/${sanurl}.wprgo`;
-      console.log(
-        `Updating proxy data file ${proxyDataFile} with ${proxyData}`
-      );
-      fs.writeFileSync(proxyDataFile, proxyData);
 
-      // wait for 2ms to make sure the new file is read
-      // await sleep(300);
+      console.log("updating proxy path");
+      process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;
+
+      var hr = await httpPromise(
+        `http://127.0.0.1:${pa - 1000}/update-archive-path?${
+          program.proxy
+        }/${sanurl}.wprgo`
+      );
+      var hsr = await httpsPromise(
+        `https://127.0.0.1:${pa}/update-shared-object`
+      );
+
+      console.log(
+        `Updated proxy data path to ${sanurl}.wprgo: ${hr.statusCode} ${hsr.statusCode}`
+      );
     }
 
     var cdp = await page.target().createCDPSession();
@@ -278,6 +286,30 @@ var genBrowserArgs = (proxies) => {
 
   typeof benchmark != "undefined" && console.log(benchmark);
 })();
+
+function httpPromise(url) {
+  return new Promise((resolve, reject) => {
+    http
+      .get(url, (resp) => {
+        resolve(resp);
+      })
+      .on("error", (err) => {
+        reject(err);
+      });
+  });
+}
+
+function httpsPromise(url) {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (resp) => {
+        resolve(resp);
+      })
+      .on("error", (err) => {
+        reject(err);
+      });
+  });
+}
 
 function interceptData(page, crawlData) {
   var bPid = page.browser()._process.pid;
