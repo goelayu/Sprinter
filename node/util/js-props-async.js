@@ -21,6 +21,7 @@ const DYNDOMAINS = [
 program
   .option("-b, --basedir <dir>", "dir containing network.json files")
   .option("-p, --pages <pages>", " file containing list of pages")
+  .option("-o, --output <output>", "output file")
   .parse(process.argv);
 
 var getNet = function (path) {
@@ -35,10 +36,10 @@ var filternet = function (n) {
     n.request &&
     n.request.method == "GET" &&
     n.url.indexOf("data") != 0 &&
-    !DYNDOMAINS.some((d) => n.url.includes(d)) &&
+    // !DYNDOMAINS.some((d) => n.url.includes(d)) &&
     n.type &&
     n.size &&
-    n.size > 100 &&
+    // n.size > 100 &&
     n.response.status == 200
   );
 };
@@ -50,14 +51,33 @@ var traversePages = async function () {
       script: { total: 0, unique: 0 },
       css: { total: 0, unique: 0 },
       html: { total: 0, unique: 0 },
+      other: { total: 0, unique: 0 },
     },
-    all: { total: 0, unique: 0 },
-    size: { total: 0, unique: 0 },
+    tsize: {
+      script: 0,
+      css: 0,
+      image: 0,
+      html: 0,
+      other: 0,
+      sum: 0,
+      sumstatic: 0,
+    },
+    usize: {
+      script: 0,
+      css: 0,
+      image: 0,
+      html: 0,
+      other: 0,
+      sum: 0,
+      sumstatic: 0,
+    },
     urls: {},
   };
 
   var getType = function (n) {
-    return Object.keys(store.type).find((t) => n.type.indexOf(t) != -1);
+    var t = Object.keys(store.type).find((t) => n.type.indexOf(t) != -1);
+    if (!t) t = "other";
+    return t;
   };
 
   var pages = fs.readFileSync(program.pages, "utf-8").split("\n");
@@ -68,28 +88,36 @@ var traversePages = async function () {
         var net = getNet(`${program.basedir}/${p}/network.json`);
         var fnet = net.filter(filternet);
         var js = fnet.filter((n) => n.type.indexOf("script") != -1);
-        store.all.total += fnet.length;
         console.log(p, js.length);
-        store.size.alltotal += fnet.reduce((a, b) => a + b.size, 0);
         for (var n of fnet) {
           var type = getType(n);
           if (!type) continue;
+          console.log(n.url, n.type, n.size, n.initiator.type);
           store.type[type].total++;
+          store.tsize.sum += n.size;
+          store.tsize[type] += n.size;
+          if (n.initiator.type == "parser") store.tsize.sumstatic += n.size;
           var url = n.url.split("?")[0];
           if (!store.urls[url]) {
             store.urls[url] = 1;
             store.type[type].unique++;
+            store.usize.sum += n.size;
+            if (n.initiator.type == "parser") store.usize.sumstatic += n.size;
+            store.usize[type] += n.size;
           } else store.urls[url]++;
         }
       } catch (e) {
-        console.log(e);
+        // console.log(e);
       }
     })
   );
-  // print n and size
-  // print n and size
-  console.log("n", JSON.stringify(store.type), store.all.total);
-  fs.writeFileSync("js-props.json", JSON.stringify(store.urls, null, 2));
+  console.log(
+    JSON.stringify(store, (k, v) => (k == "urls" ? undefined : v), 2)
+  );
+  // fs.writeFileSync(
+  //   `${program.output}/js-props.json`,
+  //   JSON.stringify(store.urls, null, 2)
+  // );
   // console.log("size", store.size.total, store.size.unique, store.size.alltotal);
 };
 
