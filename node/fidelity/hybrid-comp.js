@@ -14,6 +14,7 @@ program
     "dir containing dynamic network.json files"
   )
   .option("-s, --static <static>", " file containing list of pages")
+  .option("-r, --reverse", "reverse comparison of static and dynamic")
   .parse(process.argv);
 
 const DYNDOMAINS = [
@@ -49,8 +50,8 @@ var parseStaticNet = function (path) {
     .filter((f) => f.length > 0);
   var net = [];
   for (var f of fetches) {
-    var [f, s] = f.split(" ");
-    net.push(f);
+    var [surl, st, sz] = f.split(" ");
+    net.push([surl, st, sz]);
   }
   return net;
 };
@@ -64,8 +65,35 @@ var comparePages = function () {
   for (var d of dynamicNet) {
     var pu = URL.parse(d.url);
     var durl = pu.host + pu.pathname;
-    if (!staticNet.includes(durl)) {
-      console.log(durl);
+    for (var s of staticNet) {
+      var found = false;
+      var [surl, st, sz] = s;
+      if (surl.includes(durl)) {
+        console.log(`match: ${durl} ${d.size} ${surl} ${sz}`);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      console.log(`no match: ${durl}`);
+    }
+  }
+  if (program.reverse) {
+    console.log("-------reverse-------");
+    for (var s of staticNet) {
+      var [surl, st, sz] = s;
+      var found = false;
+      for (var d of dynamicNet) {
+        var pu = URL.parse(d.url);
+        var durl = pu.host + pu.pathname;
+        if (surl.includes(durl)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        console.log(`no match: ${surl}`);
+      }
     }
   }
 };
