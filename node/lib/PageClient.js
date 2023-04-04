@@ -7,6 +7,7 @@ const fs = require("fs");
 const { Tracing } = require("chrome-remote-interface-extra");
 const netParser = require("./network.js");
 const dag = require("../lib/nw-dag.js");
+const URL = require("url");
 
 var initCDP = async function (cdp) {
   await cdp.send("Page.enable");
@@ -167,6 +168,14 @@ class PageClient {
       // always turn CDP on
       await initCDP(this._cdp);
 
+      var parsedUrl = URL.parse(this._options.url);
+
+      var getPrefetchURL = function (url) {
+        if (url.indexOf("http") == 0 || url.indexOf("//") == 0) return url;
+        else if (url.indexOf("/") == 0) return parsedUrl.host + url;
+        else return parsedUrl.host + parsedUrl.pathname + url;
+      };
+
       // create output directory recursively if it doesn't exist already
       if (!fs.existsSync(this._options.outputDir)) {
         fs.mkdirSync(this._options.outputDir, { recursive: true });
@@ -248,6 +257,75 @@ class PageClient {
       }
 
       var pageFailed = false;
+
+      // await this._page.setRequestInterception(true);
+
+      // this._page.on("request", (request) => {
+      //   request.continue();
+      // });
+
+      // this._page.on("response", async (response) => {
+      //   var status = response.status();
+      //   if (
+      //     status && // we actually have a status for the response
+      //     !(status > 299 && status < 400) && // not a redirect
+      //     !(status === 204) // not a no-content response
+      //   ) {
+      //     try {
+      //       var request = response.request();
+      //       if (request.resourceType() === "stylesheet") {
+      //         var url = request.url();
+      //         var css = await response.text();
+      //         var re = /url\(["']([^\s\)]*)["']\)/g;
+      //         var urls = css.matchAll(re);
+      //         for (var u of urls) {
+      //           var url = u[1];
+      //           if (url[url.length - 1] == ",") {
+      //             url = url.substring(0, url.length - 1);
+      //           }
+      //           console.log("fetching url: ", url, " from css file");
+      //           this._page
+      //             .evaluate((url) => {
+      //               var xhr = new XMLHttpRequest();
+      //               xhr.open("GET", url, true);
+      //               xhr.send();
+      //             }, url)
+      //             .catch((err) => {
+      //               console.log(`Handled error: ${err}`);
+      //             });
+      //         }
+      //       } else if (request.resourceType() == "document") {
+      //         var url = request.url(),
+      //           cacheUrl;
+      //         var html = await response.text();
+      //         var re =
+      //           /(https?:|\Ssrc="\/?\/|\/\/)[^\s"&')]+\.(svg|png|jpg|jpeg)[^\s>)'"]*/g;
+      //         var urls = html.matchAll(re);
+      //         for (var u of urls) {
+      //           if (u.length < 2) continue;
+      //           var url;
+      //           if (u[1].includes("src=")) {
+      //             url = u[0].split("src=")[1];
+      //           } else url = u[0];
+      //           url = url.replace(/\\/g, "");
+      //           url = url.replace(/"/g, "");
+      //           console.log("fetching url: ", url, " from html file");
+      //           this._page
+      //             .evaluate((url) => {
+      //               var xhr = new XMLHttpRequest();
+      //               xhr.open("GET", url, true);
+      //               xhr.send();
+      //             }, url)
+      //             .catch((err) => {
+      //               console.log(`handled error: ${err}`);
+      //             });
+      //         }
+      //       }
+      //     } catch (err) {
+      //       console.log("handled error: ", err);
+      //     }
+      //   }
+      // });
 
       // load the page
       await this._page
