@@ -162,6 +162,11 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		proxy.ArchiveName = proxy.P.ArchiveName
 		return
 	}
+	if proxy.A == nil {
+		log.Printf("No archive loaded. Returning 404.")
+		w.WriteHeader(404)
+		return
+	}
 	fixupRequestURL(req, proxy.scheme)
 	logf := makeLogger(req, proxy.quietMode, proxy.ArchiveName)
 
@@ -171,11 +176,13 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	proxy.Mu.Unlock()
 	if err != nil {
 		logf("couldn't find matching request: %v", err)
+		// dummystr := strings.Repeat("a", 50000)
+		// w.Write([]byte(dummystr))
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	logf("checking length and code and type for %s: %v %d %s", storedResp.Request.URL.String(), storedResp.Header, storedResp.StatusCode, storedResp.Header.Get("Content-Type"))
-	storedResp.Header.Set("X-CL", storedResp.Header.Get("Content-Length"))
+	// storedResp.Header.Set("X-CL", storedResp.Header.Get("Content-Length"))
 	// query the analyzer server if request is JavaScript or HTML
 	if proxy.caching && requestIsJSHTML(storedResp, req) {
 		// requestURI := req.URL.String()
