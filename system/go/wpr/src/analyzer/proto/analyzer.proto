@@ -16,6 +16,7 @@ message AzRequest {
   string type = 3;
   string encoding = 4;
   bool caching = 5;
+  bool static = 6;
 }
 
 message AzResponse {

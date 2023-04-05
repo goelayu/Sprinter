@@ -211,7 +211,8 @@ proto.proto.AzRequest.toObject = function(includeInstance, msg) {
     body: jspb.Message.getFieldWithDefault(msg, 2, ""),
     type: jspb.Message.getFieldWithDefault(msg, 3, ""),
     encoding: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    caching: jspb.Message.getBooleanFieldWithDefault(msg, 5, false)
+    caching: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+    pb_static: jspb.Message.getBooleanFieldWithDefault(msg, 6, false)
   };
 
   if (includeInstance) {
@@ -267,6 +268,10 @@ proto.proto.AzRequest.deserializeBinaryFromReader = function(msg, reader) {
     case 5:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setCaching(value);
+      break;
+    case 6:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setStatic(value);
       break;
     default:
       reader.skipField();
@@ -329,6 +334,13 @@ proto.proto.AzRequest.serializeBinaryToWriter = function(message, writer) {
   if (f) {
     writer.writeBool(
       5,
+      f
+    );
+  }
+  f = message.getStatic();
+  if (f) {
+    writer.writeBool(
+      6,
       f
     );
   }
@@ -422,6 +434,24 @@ proto.proto.AzRequest.prototype.getCaching = function() {
  */
 proto.proto.AzRequest.prototype.setCaching = function(value) {
   return jspb.Message.setProto3BooleanField(this, 5, value);
+};
+
+
+/**
+ * optional bool static = 6;
+ * @return {boolean}
+ */
+proto.proto.AzRequest.prototype.getStatic = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 6, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.proto.AzRequest} returns this
+ */
+proto.proto.AzRequest.prototype.setStatic = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 6, value);
 };
 
 

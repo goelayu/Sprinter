@@ -87,6 +87,10 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 		}
 	} else {
 		log.Printf("File %s not found in cache\n", arg.Name)
+		if arg.Static {
+			log.Printf("Requested by static crawler, simply sending empty response")
+			return &pb.AzResponse{Body: ""}, nil
+		}
 		if strings.Contains(arg.Type, "javascript") {
 			atomic.AddInt32(&a.stats.instJS, 1)
 		} else if strings.Contains(arg.Type, "html") {
