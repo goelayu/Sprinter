@@ -34,6 +34,7 @@ function JSONtoPB(json, url) {
 
 class AZClient {
   constructor(address) {
+    console.log(`AZClient created with address ${address}...`);
     this.client = new services.AnalyzerClient(
       address,
       grpc.credentials.createInsecure(),
