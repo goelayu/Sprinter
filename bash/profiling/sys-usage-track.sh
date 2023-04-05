@@ -9,6 +9,7 @@ mkdir -p $1
 
 # trap ctrl-c and call ctrl_c()
 trap ctrl_c USR1
+trap ctrl_c SIGINT
 
 function ctrl_c() {
     echo "** Trapped CTRL-C"
