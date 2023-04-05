@@ -90,7 +90,8 @@ type ReplayCommand struct {
 	quietMode                            bool
 	disableFuzzyURLMatching              bool
 	caching                              bool
-	azPort                               int
+	static                               bool
+	azAddr                               string
 }
 
 type RootCACommand struct {
@@ -232,10 +233,15 @@ func (r *ReplayCommand) Flags() []cli.Flag {
 				" Static + dynamic instrumentation + signature matching",
 			Destination: &r.caching,
 		},
-		&cli.IntFlag{
-			Name:        "az_port",
-			Usage:       "Port number to listen on for AZ requests",
-			Destination: &r.azPort,
+		&cli.BoolFlag{
+			Name:        "static",
+			Usage:       "Runs the az server in static mode. ",
+			Destination: &r.static,
+		},
+		&cli.StringFlag{
+			Name:        "az_addr",
+			Usage:       "Address to listen on for AZ requests",
+			Destination: &r.azAddr,
 		})
 }
 
@@ -457,8 +463,10 @@ func (r *ReplayCommand) Run(c *cli.Context) error {
 
 	ps := webpagereplay.Proxyshare{}
 
-	httpHandler := webpagereplay.NewReplayingProxy("http", r.common.transformers, r.quietMode, r.caching, r.azPort, &ps)
-	httpsHandler := webpagereplay.NewReplayingProxy("https", r.common.transformers, r.quietMode, r.caching, r.azPort, &ps)
+	httpHandler := webpagereplay.NewReplayingProxy("http", r.common.transformers, r.quietMode,
+		r.caching, r.azAddr, &ps, r.static)
+	httpsHandler := webpagereplay.NewReplayingProxy("https", r.common.transformers, r.quietMode,
+		r.caching, r.azAddr, &ps, r.static)
 	tlsconfig, err := webpagereplay.ReplayTLSConfig(r.common.root_cert, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating TLSConfig: %v", err)

@@ -75,8 +75,7 @@ func updateDates(h http.Header, now time.Time) {
 // NewReplayingProxy constructs an HTTP proxy that replays responses from an archive.
 // The proxy is listening for requests on a port that uses the given scheme (e.g., http, https).
 func NewReplayingProxy(scheme string, transformers []ResponseTransformer, quietMode bool,
-	caching bool, az_port int, ps *Proxyshare) http.Handler {
-	azaddr := "localhost:" + strconv.Itoa(az_port)
+	caching bool, azaddr string, ps *Proxyshare, static bool) http.Handler {
 	conn, err := grpc.Dial(azaddr, grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(1024*1024*10)))
 	if err != nil {
@@ -85,7 +84,8 @@ func NewReplayingProxy(scheme string, transformers []ResponseTransformer, quietM
 		log.Printf("Connected to analyzer server at %s", azaddr)
 	}
 	client := pb.NewAnalyzerClient(conn)
-	return &ReplayingProxy{ps.A, "", scheme, transformers, quietMode, sync.Mutex{}, client, caching, ps}
+	return &ReplayingProxy{ps.A, "", scheme, transformers, quietMode,
+		sync.Mutex{}, client, caching, ps, static}
 }
 
 type Proxyshare struct {
@@ -103,6 +103,7 @@ type ReplayingProxy struct {
 	client       pb.AnalyzerClient
 	caching      bool
 	P            *Proxyshare
+	static       bool
 }
 
 func (proxy *ReplayingProxy) UpdateArchive(p string) {
@@ -120,14 +121,14 @@ func (proxy *ReplayingProxy) UpdateArchive(p string) {
 	proxy.P.A = archive
 }
 
-func requestIsJSHTML(resp *http.Response, req *http.Request) bool {
+func requestIsJSHTML(resp *http.Response, req *http.Request, static bool) bool {
 	// return false
 	log.Printf("checking length and code and type for %s: %v %d %s", resp.Request.URL.String(), resp.Header, resp.StatusCode, resp.Header.Get("Content-Type"))
 	return (resp.ContentLength == -1 || resp.ContentLength > 500) &&
 		resp.StatusCode == 200 &&
-		(strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "html") ||
-			strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "javascript")) &&
-		!strings.Contains(req.URL.Path, ".json")
+		(strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "html") && !static) ||
+		strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "javascript") &&
+			!strings.Contains(req.URL.Path, ".json")
 }
 
 func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -150,14 +151,14 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	if req.URL.Path == "/update-archive-path" {
 		proxy.Mu.Lock()
 		defer proxy.Mu.Unlock()
-		log.Printf("Received /update-archive-path")
+		log.Printf("Received /update-archive-path %s", req.URL.RawQuery)
 		proxy.UpdateArchive(req.URL.RawQuery)
 		return
 	}
 	if req.URL.Path == "/update-shared-object" {
 		proxy.Mu.Lock()
 		defer proxy.Mu.Unlock()
-		log.Printf("Received /update-shared-object")
+		log.Printf("Received /update-shared-object %s", req.URL.RawQuery)
 		proxy.A = proxy.P.A
 		proxy.ArchiveName = proxy.P.ArchiveName
 		return
@@ -184,20 +185,21 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	logf("checking length and code and type for %s: %v %d %s", storedResp.Request.URL.String(), storedResp.Header, storedResp.StatusCode, storedResp.Header.Get("Content-Type"))
 	// storedResp.Header.Set("X-CL", storedResp.Header.Get("Content-Length"))
 	// query the analyzer server if request is JavaScript or HTML
-	if proxy.caching && requestIsJSHTML(storedResp, req) {
+	if requestIsJSHTML(storedResp, req, proxy.static) {
 		// requestURI := req.URL.String()
 		// URI without query string
 		requestURI := req.URL.Scheme + "://" + req.URL.Host + req.URL.Path
 		body, _ := io.ReadAll(storedResp.Body)
 
 		ce := strings.ToLower(storedResp.Header.Get("Content-Encoding"))
-		if ce != "" {
+		recompress := true
+		if ce != "identity" && ce != "" {
 			body, err = decompressBody(ce, body)
 			if err != nil {
 				log.Printf("Error decompressing body: %v", err)
+				recompress = false
 			} else {
-				storedResp.Header.Del("Content-Encoding")
-				ce = ""
+				log.Printf("Decompressed body with %s", ce)
 			}
 		}
 
@@ -205,7 +207,9 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 		azargs := pb.AzRequest{Name: requestURI, Body: bodyString,
 			Type:     storedResp.Header.Get("Content-Type"),
 			Encoding: storedResp.Header.Get("Content-Encoding"),
-			Caching:  proxy.caching}
+			Caching:  proxy.caching,
+			Static:   proxy.static,
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		log.Printf("Calling analyzer server for %s with length %d", requestURI, storedResp.ContentLength)
@@ -217,24 +221,25 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 			body = []byte(azreply.Body)
 		}
 
+		if ce != "identity" && ce != "" && recompress {
+			// var rce string
+			body, _, err = CompressBody(ce, body)
+			if err != nil {
+				log.Printf("error recompressing response body: %v", err)
+				storedResp.Header.Del("Content-Encoding")
+			} else {
+				log.Printf("Recompressed body with %s", ce)
+				log.Printf("%v", storedResp.Header)
+			}
+		}
+
 		storedResp.Body = io.NopCloser(bytes.NewReader(body))
 		storedResp.ContentLength = int64(len(body))
 		storedResp.Header.Set("Content-Length", strconv.Itoa(len(body)))
-		if ce != "" && storedResp.Header.Get("Content-Encoding") != "" {
-			storedResp.Header.Del("Content-Encoding")
-		}
-		// csp := storedResp.Header.Get("Content-Security-Policy")
-		// // add unsafe-inline to script-src
-		// if strings.Contains(csp, "script-src") {
-		// 	csp = strings.ReplaceAll(csp, "script-src", "script-src 'unsafe-inline'")
-		// 	// remove all sha256 hashes
-		// 	csp = strings.ReplaceAll(csp, "sha256-", "")
-		// 	storedResp.Header.Set("Content-Security-Policy", csp)
-		// } else if strings.Contains(csp, "default-src") {
-		// 	csp = strings.ReplaceAll(csp, "default-src", "default-src 'unsafe-inline'")
-		// 	csp = strings.ReplaceAll(csp, "sha256-", "")
-		// 	storedResp.Header.Set("Content-Security-Policy", csp)
+		// if ce != "" && storedResp.Header.Get("Content-Encoding") != "" {
+		// 	storedResp.Header.Del("Content-Encoding")
 		// }
+
 	}
 
 	// dummy code to mimic the static wget based implementation
