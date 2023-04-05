@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"io"
+	"log"
 	"net/url"
 	"regexp"
 	"strings"
@@ -103,21 +104,23 @@ func constURL(target string, main string, useHttps bool) (host string, path stri
 
 func xtractJSURLS(body string) ([]string, error) {
 
-	// injectstr := "custom signature info embedded"
-	// if !strings.Contains(body, injectstr) {
-	// 	log.Printf("No custom signature info found in body")
-	// 	return []string{}, errors.New("No custom signature info found in body")
-	// }
-	tregex, _ := regexp.Compile(`CODE BEGIN[\s\S]*CODE END`)
-	tmplt := tregex.FindString(body)
-
-	if tmplt == "" {
-		return []string{}, nil
+	injectstr := "custom signature info"
+	if !strings.Contains(body, injectstr) {
+		log.Printf("No custom signature info found in body")
+		return []string{}, errors.New("No custom signature info found in body")
 	}
+
+	// tregex, _ := regexp.Compile(`CODE BEGIN[\s\S]*CODE END`)
+	// tmplt := tregex.FindString(body)
+
+	// if tmplt == "" {
+	// 	return []string{}, nil
+	// }
+	// log.Printf("Found template code")
 
 	var jsurls []string
 	urlrgx, _ := regexp.Compile(`fetchVia(DOM|XHR)\("(\S*)"\)`)
-	m := urlrgx.FindAllStringSubmatch(tmplt, -1)
+	m := urlrgx.FindAllStringSubmatch(body, -1)
 	for _, v := range m {
 		jsurls = append(jsurls, v[2])
 	}

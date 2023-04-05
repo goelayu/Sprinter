@@ -377,7 +377,7 @@ func (c *Crawler) HandleJS(resp *http.Response, body string, referrer string, us
 		c.logf("No template OR no embedded URLS found in %s", u)
 		return nil
 	} else {
-		c.logf("Found %d embedded URLS in %s", len(jsurls), u)
+		c.logf("%d Found embedded URLS in %s", len(jsurls), u)
 	}
 
 	c.pending.Add(len(jsurls))
@@ -502,7 +502,9 @@ func (c *Crawler) Visit(u string, timeout time.Duration, outPath string) error {
 		// close(c.reqs)
 		return nil
 	case <-c.sdynamic:
-		c.logf("Offloading page to dynamic crawler %s", u)
+		log.Printf("Offloading page to dynamic crawler %s", u)
+		chromeurl := fmt.Sprintf("http://127.0.0.1:3000/%s", u)
+		go c.Client.Get(chromeurl)
 		cancel()
 		return nil
 	}

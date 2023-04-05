@@ -139,7 +139,7 @@ func readLines(path string) ([]string, error) {
 }
 
 func makeLogger(p string) func(msg string, args ...interface{}) {
-	return func(string, ...interface{}) {}
+	// return func(string, ...interface{}) {}
 	prefix := fmt.Sprintf("[Crawler:%s]: ", p)
 	return func(msg string, args ...interface{}) {
 		log.Print(prefix + fmt.Sprintf(msg, args...))
@@ -196,7 +196,7 @@ func retrySSHCon(sshC *ssh.Client, retries int) (*ssh.Session, error) {
 	return nil, errors.New("unable to create session")
 }
 
-func initProxies(n int, proxyData string, wprData string, azPort int,
+func initProxies(n int, proxyData string, wprData string, azAddr string,
 	sleep int, remote bool, live bool) []*Proxy {
 	GOROOT := "/w/goelayu/uluyol-sigcomm/go"
 	WPRDIR := "/vault-swift/goelayu/balanced-crawler/system/go/wpr"
@@ -217,8 +217,8 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 		httpsport := startHTTPSPORT + i
 		dataFile := fmt.Sprintf("%s/%s", proxyData, strconv.Itoa(httpsport))
 		outFilePath := fmt.Sprintf("%s/%s.replay.log", proxyData, strconv.Itoa(httpsport))
-		cmdstr := fmt.Sprintf("GOROOT=%s time  go run src/wpr.go replay --quiet_mode -host 0.0.0.0 --http_port %d --https_port %d --az_port %d &> %s",
-			GOROOT, httpport, httpsport, azPort, outFilePath)
+		cmdstr := fmt.Sprintf("GOROOT=%s time  go run src/wpr.go replay -host 0.0.0.0 --http_port %d --https_port %d --az_addr %s --static &> %s",
+			GOROOT, httpport, httpsport, azAddr, outFilePath)
 
 		if remote {
 			// sshC := setupSSH()
@@ -237,6 +237,7 @@ func initProxies(n int, proxyData string, wprData string, azPort int,
 			proxies[i] = &Proxy{httpsport, dataFile, wprData, nil, remote}
 		} else {
 			cmd := exec.Command("bash", "-c", cmdstr)
+			log.Printf("running %s", cmdstr)
 			cmd.Dir = WPRDIR
 			if !live {
 				go func() {
@@ -311,7 +312,8 @@ func (lcm *LCM) Start() {
 
 	pages := lcm.pages
 	var wg sync.WaitGroup
-	wg.Add(len(lcm.proxies))
+	nProxies := len(lcm.proxies)
+	wg.Add(nProxies)
 
 	done := make(chan bool)
 
@@ -324,14 +326,14 @@ func (lcm *LCM) Start() {
 	}
 	client := &http.Client{Transport: tr, Timeout: 6 * time.Second}
 
-	for i := 0; i < len(lcm.proxies); i++ {
+	for i := 0; i < nProxies; i++ {
 		go func(index int) {
 			cproxy := lcm.proxies[index]
 			hostaddr := "127.0.0.1"
-			if lcm.remote && index < 100 {
+			if lcm.remote {
 				hostaddr = "lions.eecs.umich.edu"
-			} else if lcm.remote && index >= 100 {
-				hostaddr = "redwings.eecs.umich.edu"
+				// } else if lcm.remote && index >= nProxies/2 {
+				// 	hostaddr = "redwings.eecs.umich.edu"
 			}
 			defer wg.Done()
 			for {
@@ -371,16 +373,19 @@ func (lcm *LCM) Start() {
 }
 
 func initLCM(n int, pagePath string, proxyData string, wprData string,
-	azPort int, azLogPath string, sleep int, remote bool, live bool) *LCM {
+	azAddr string, azLogPath string, sleep int, remote bool, live bool) *LCM {
 	// read pages
 	pages, _ := readLines(pagePath)
 	log.Printf("Read %d pages", len(pages))
 
 	// build url2scheme
-	url2scheme, _ := buildUrl2Scheme(azLogPath)
+	url2scheme, err := buildUrl2Scheme(azLogPath)
+	if err != nil {
+		log.Printf("Error building url2scheme: %v", err)
+	}
 
 	// initialize proxies
-	proxies := initProxies(n, proxyData, wprData, azPort, sleep, remote, live)
+	proxies := initProxies(n, proxyData, wprData, azAddr, sleep, remote, live)
 
 	dupMap := DupMap{sync.RWMutex{}, make(map[string]map[string]StoredResp)}
 
@@ -398,7 +403,7 @@ func main() {
 	var proxyData string
 	var nCrawlers int
 	var verbose bool
-	var azPort int
+	var azAddr string
 	var azLogPath string
 	var sleep int
 	var remote bool
@@ -408,7 +413,7 @@ func main() {
 	flag.IntVar(&nCrawlers, "n", 1, "number of crawlers")
 	flag.StringVar(&wprData, "wpr", "", "path to wpr data directory")
 	flag.StringVar(&proxyData, "proxy", "", "path to proxy data directory")
-	flag.IntVar(&azPort, "az", 0, "port of analyzer server")
+	flag.StringVar(&azAddr, "az", "127.0.0.1:11909", "addrs of analyzer server")
 	flag.StringVar(&azLogPath, "azlog", "", "path to az server log")
 	flag.IntVar(&sleep, "sleep", 5, "sleep time")
 	flag.BoolVar(&verbose, "v", false, "verbose")
@@ -433,7 +438,7 @@ func main() {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azPort,
+	lcm := initLCM(nCrawlers, pagePath, proxyData, wprData, azAddr,
 		azLogPath, sleep, remote, live)
 	lcm.Start()
 }
