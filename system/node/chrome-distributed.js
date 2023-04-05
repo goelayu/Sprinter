@@ -150,7 +150,6 @@ var genBrowserArgs = (proxies) => {
     console.log("Initializing proxies...");
     var proxyManager = new Proxy.ProxyManager(
       program.concurrency,
-      program.proxy,
       `${program.output}/logs`,
       program.mode,
       program.enableOPT,
@@ -194,7 +193,7 @@ var genBrowserArgs = (proxies) => {
         .split(":")[4]
         .split(",")[0];
 
-      console.log("updating proxy path");
+      console.log("updating proxy path for ", pa, " to ", sanurl);
       process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;
 
       var hr = await httpPromise(
@@ -276,10 +275,10 @@ var genBrowserArgs = (proxies) => {
     // await az.stop();
 
     //clean up proxy arguments
-    for (var i = 0; i < proxies.length; i++) {
-      var proxy = proxies[i];
-      fs.unlinkSync(proxy.dataOutput);
-    }
+    // for (var i = 0; i < proxies.length; i++) {
+    //   var proxy = proxies[i];
+    //   fs.unlinkSync(proxy.dataOutput);
+    // }
   }
   // save the crawl data
   program.store && dumpData(crawlData);
