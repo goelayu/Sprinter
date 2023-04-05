@@ -66,6 +66,92 @@ var setCover = function (nets) {
   return pages;
 };
 
+var setCoverStatic = function (nets) {
+  var res = [];
+  var nPages = [];
+  var js = [];
+  var nettoUrl = {};
+  var origNets = nets.slice();
+
+  class JSNet {
+    constructor(net) {
+      if (net.length == 0) {
+        this.jss = [];
+        this.url = "";
+        return;
+      }
+      var mainUrl = net[0].response.url;
+      this.jss = net
+        .filter((n) => n.type.indexOf("script") != -1)
+        .filter((n) => n.initiator.url == mainUrl)
+        .map((n) => n.url.split("?")[0]);
+      this.url = net.length > 0 ? net[0].documentURL : "";
+      this.orignet = net;
+    }
+  }
+
+  nets = nets.map((n) => new JSNet(n));
+  var unionstatic = [];
+  for (var net of nets) {
+    if (net.jss && net.jss.length == 0) continue;
+    unionstatic = unionstatic.concat(net.jss);
+  }
+  unionstatic = [...new Set(unionstatic)];
+
+  var largestUncovered = function (nets, union) {
+    var largest = nets[0],
+      largestLen = 0,
+      largestUrl = "",
+      largestNet = nets[0];
+    for (var net of nets) {
+      var uncovered = net.jss.filter((n) => union.includes(n));
+      if (uncovered.length > largestLen) {
+        largest = uncovered;
+        largestLen = uncovered.length;
+        largestUrl = net.url;
+        largestNet = net;
+      }
+    }
+    // program.verbose && console.log(`Picking next: ${largestUrl}`);
+    return [largest, largestUrl, largestNet];
+  };
+
+  var unioncp = unionstatic.slice();
+  while (js.length < unioncp.length) {
+    var [net, u, jsnet] = largestUncovered(nets, unionstatic);
+    // program.verbose && console.log(`largest uncovered: ${net.length}`);
+    for (var n of net) {
+      if (js.indexOf(n) == -1) js.push(n);
+    }
+    nPages.push(jsnet);
+    res.push(u);
+    unionstatic = unionstatic.filter((n) => !net.includes(n));
+    // program.verbose &&
+    //   console.log(`js: ${js.length}, union: ${unionstatic.length}`);
+    // remove net from nets
+    var netindex = nets.indexOf(jsnet);
+    netindex != -1 && nets.splice(netindex, 1);
+  }
+
+  // get all JS files from origNet and check against origUnion
+  var jssetcover = [];
+  for (var p of nPages) {
+    var net = p.orignet;
+    var jss = net
+      .filter((n) => n.type.indexOf("script") != -1)
+      .map((n) => n.url.split("?")[0]);
+    for (var js of jss) {
+      if (!jssetcover.includes(js)) jssetcover.push(js);
+    }
+  }
+  // var rempages = _pagesleft(origNets, jssetcover);
+  // console.log(
+  //   `npages: ${nPages.length} jssetcover: ${jssetcover.length} union: ${union.length} rempages: ${rempages}`
+  // );
+  return res;
+};
+
 module.exports = {
   setCover,
+  setCoverStatic,
 };

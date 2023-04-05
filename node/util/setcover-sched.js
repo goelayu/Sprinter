@@ -14,6 +14,7 @@ const SC = require("../lib/set-cover.js");
 program
   .option("-b, --basedir <dir>", "dir containing network.json files")
   .option("-p, --pages <pages>", " file containing list of pages")
+  .option("-o, --output <output>", "output directory")
   .parse(process.argv);
 
 const DYNDOMAINS = [
@@ -67,18 +68,21 @@ var _allPages = function (nets) {
 };
 
 var addRemainingPages = function (all, sc) {
-  var res = sc.slice(0);
-  res = res.concat(all.filter((p) => !sc.includes(p)));
+  var res = all.filter((p) => !sc.includes(p));
   return res;
 };
 
 var schedPages = function () {
   var nets = traversePages();
   var allpages = _allPages(nets);
-  var scpages = SC.setCover(nets);
+  // var scpages = SC.setCover(nets);
+  var scpages = SC.setCoverStatic(nets);
   var res = addRemainingPages(allpages, scpages);
-  for (var p of res) {
+  for (var p of scpages) {
     console.log(p);
+  }
+  for (var p of res) {
+    console.error(p);
   }
 };
 
