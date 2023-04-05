@@ -20,7 +20,7 @@ class Proxy {
     this.logOutput = options.logOutput;
     this.mode = options.mode;
     this.caching = options.caching;
-    this.az_port = options.az_port;
+    this.az_addr = options.az_addr;
   }
 
   start() {
@@ -28,7 +28,7 @@ class Proxy {
       this.mode
     }\
     --http_port ${this.http_port} --https_port ${this.https_port}\
-    --az_port ${this.az_port}\
+    --az_addr ${this.az_addr}\
     ${this.caching ? "--caching" : ""}`;
     (this.stdout = ""), (this.stderr = "");
     console.log(cmd);
@@ -59,15 +59,15 @@ class Proxy {
 }
 
 class ProxyManager {
-  constructor(nProxies, logDir, mode, caching, az_port) {
+  constructor(nProxies, logDir, mode, caching, az_addr) {
     this.nProxies = nProxies;
     this.proxies = [];
-    this.startHttpPort = 6080;
-    this.startHttpsPort = 7080;
+    this.startHttpsPort = 7080 + Math.floor(Math.random() * 1000);
+    this.startHttpPort = this.startHttpsPort - 1000;
     this.logDir = logDir;
     this.mode = mode;
     this.caching = caching;
-    this.az_port = az_port;
+    this.az_addr = az_addr;
   }
 
   async createProxies() {
@@ -77,14 +77,14 @@ class ProxyManager {
       var logOutput = `${this.logDir}/${https_port}.${this.mode}.log`;
       var mode = this.mode;
       var caching = this.caching;
-      var az_port = this.az_port;
+      var az_addr = this.az_addr;
       var p = new Proxy({
         http_port,
         https_port,
         logOutput,
         mode,
         caching,
-        az_port,
+        az_addr,
       });
       this.proxies.push(p);
     }
