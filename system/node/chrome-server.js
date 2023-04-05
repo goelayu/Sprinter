@@ -17,7 +17,11 @@ const https = require("https");
 
 program
   .option("-p, --port <port>", "Port to listen on", 3000)
-  .option("-c, --concurrency <concurrency>", "Number of proxies to use", 1)
+  .option(
+    "-c, --concurrency <concurrency>",
+    "Number of proxies to use",
+    parseInt
+  )
   .option("--azport <azport>", "Port to use for az server", 1234)
   .option("-o, --output <output>", "Output directory", "output")
   .option("--proxy <proxy>", "Proxy to use", "")
@@ -140,28 +144,31 @@ async function setupBrowserWithProxies() {
       waitUntil: "networkidle0",
       timeout: program.timeout * 1000,
     });
-    console.log(`Page for url ${url} loaded`);
+    console.log(`Page for url ${url} loaded at ${new Date()}`);
   });
 
   cluster.on("taskerror", (err, data) => {
     console.log(`Error crawling ${data}: ${err.message}`);
   });
 
-  return cluster;
+  return [cluster, proxyManager];
 }
 
 async function main() {
-  const cluster = await setupBrowserWithProxies();
+  const [cluster, pm] = await setupBrowserWithProxies();
+  var pagesload = 0;
   const server = http.createServer(async (req, res) => {
     var url = req.url.slice(1);
-    console.log(url);
-    cluster.queue(url);
+    console.log(`Received request for ${url}`);
+    console.log(`Pages loaded: ${++pagesload}`);
+    pagesload % 3 == 0 && cluster.queue(url);
     res.end("ok");
   });
   process.on("SIGINT", async () => {
     console.log("Shutting down...");
     await cluster.idle();
     await cluster.close();
+    pm.stopAll();
     process.exit(0);
   });
   console.log("listening on port " + program.port);
