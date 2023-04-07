@@ -161,7 +161,7 @@ async function main() {
     var url = req.url.slice(1);
     console.log(`Received request for ${url}`);
     console.log(`Pages loaded: ${++pagesload}`);
-    pagesload % 3 == 0 && cluster.queue(url);
+    cluster.queue(url);
     res.end("ok");
   });
   process.on("SIGINT", async () => {

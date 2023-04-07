@@ -21,6 +21,7 @@ class Proxy {
     this.mode = options.mode;
     this.caching = options.caching;
     this.az_addr = options.az_addr;
+    this.remote = options.remote;
   }
 
   start() {
@@ -31,15 +32,21 @@ class Proxy {
     --az_addr ${this.az_addr}\
     ${this.caching ? "--caching" : ""}`;
     (this.stdout = ""), (this.stderr = "");
-    console.log(cmd);
-    //write dummy data to dataOutput before spawning command
-    this.process = child_process.spawn(cmd, { shell: true, cwd: WPRDIR });
+    if (!this.remote) {
+      console.log(cmd);
+      //write dummy data to dataOutput before spawning command
+      this.process = child_process.spawn(cmd, { shell: true, cwd: WPRDIR });
 
-    var outStream = fs.createWriteStream(this.logOutput);
-    var errStream = fs.createWriteStream(this.logOutput);
+      var outStream = fs.createWriteStream(this.logOutput);
+      var errStream = fs.createWriteStream(this.logOutput);
 
-    this.process.stdout.pipe(outStream);
-    this.process.stderr.pipe(errStream);
+      this.process.stdout.pipe(outStream);
+      this.process.stderr.pipe(errStream);
+    } else {
+      console.log(
+        `Running in remote mode, not starting proxy on ${this.http_port} and ${this.https_port}`
+      );
+    }
   }
 
   dump() {
@@ -59,7 +66,7 @@ class Proxy {
 }
 
 class ProxyManager {
-  constructor(nProxies, logDir, mode, caching, az_addr) {
+  constructor(nProxies, logDir, mode, caching, az_addr, remote) {
     this.nProxies = nProxies;
     this.proxies = [];
     this.startHttpsPort = 7080 + Math.floor(Math.random() * 1000);
@@ -68,6 +75,7 @@ class ProxyManager {
     this.mode = mode;
     this.caching = caching;
     this.az_addr = az_addr;
+    this.remote = remote;
   }
 
   async createProxies() {
@@ -78,6 +86,7 @@ class ProxyManager {
       var mode = this.mode;
       var caching = this.caching;
       var az_addr = this.az_addr;
+      var remote = this.remote;
       var p = new Proxy({
         http_port,
         https_port,
@@ -85,6 +94,7 @@ class ProxyManager {
         mode,
         caching,
         az_addr,
+        remote,
       });
       this.proxies.push(p);
     }

@@ -61,6 +61,8 @@ program
   .option("--enableOPT", "Enables the entire system optimization pipeline")
   .option("--testing", "debug mode")
   .option("--azaddr <azaddr>", "addr for the az server")
+  .option("--id <id>", "id of the crawler")
+  .option("--remote", "remote mode")
   .parse(process.argv);
 
 var bashSanitize = (str) => {
@@ -101,17 +103,32 @@ var genBrowserArgs = (proxies) => {
         "--disable-setuid-sandbox",
         // "--blink-settings=scriptEnabled=false",
       ],
-    };
+    },
+    startHttpPort = 6080,
+    base = program.id * program.concurrency;
   program.testing && template.args.push("--auto-open-devtools-for-tabs");
   for (var i = 0; i < proxies.length; i++) {
     var proxy = proxies[i];
+    var httpAddr, httpsAddr;
+    if (program.remote) {
+      !program.id &&
+        console.log("FATAL: id is required in remote mode") &&
+        process.exit(1);
+
+      httpAddr = `lions.eecs.umich.edu:${startHttpPort + base + i}`;
+      httpsAddr = `lions.eecs.umich.edu:${startHttpPort + base + i + 1000}`;
+    } else {
+      httpAddr = `127.0.0.1:${proxy.http_port}`;
+      httpsAddr = `127.0.0.1:${proxy.https_port}`;
+    }
     var proxyFlags = [
-      `--host-resolver-rules=MAP *:80 127.0.0.1:${proxy.http_port},MAP *:443 127.0.0.1:${proxy.https_port},EXCLUDE localhost`,
+      `--host-resolver-rules=MAP *:80 ${httpAddr},MAP *:443 ${httpsAddr},EXCLUDE localhost`,
       // `--proxy-server=http=https://127.0.0.1:${proxy.https_port}`,
     ];
     var browserArgs = Object.assign({}, template);
     browserArgs.args = browserArgs.args.concat(proxyFlags);
     args.push(browserArgs);
+    console.log(proxyFlags);
   }
   // console.log(args)
   return args;
@@ -153,7 +170,8 @@ var genBrowserArgs = (proxies) => {
       `${program.output}/logs`,
       program.mode,
       program.enableOPT,
-      program.azaddr
+      program.azaddr,
+      program.remote
     );
     await proxyManager.createProxies();
     proxies = proxyManager.getAll();
@@ -196,13 +214,20 @@ var genBrowserArgs = (proxies) => {
       console.log("updating proxy path for ", pa, " to ", sanurl);
       process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;
 
+      var host;
+      if (program.remote) {
+        host = "lions.eecs.umich.edu";
+      } else {
+        host = "127.0.0.1";
+      }
+
       var hr = await httpPromise(
-        `http://127.0.0.1:${pa - 1000}/update-archive-path?${
+        `http://${host}:${pa - 1000}/update-archive-path?${
           program.proxy
         }/${sanurl}.wprgo`
       );
       var hsr = await httpsPromise(
-        `https://127.0.0.1:${pa}/update-shared-object`
+        `https://${host}:${pa}/update-shared-object`
       );
 
       console.log(
