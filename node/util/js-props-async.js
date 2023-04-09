@@ -25,6 +25,7 @@ program
   .option("-p, --pages <pages>", " file containing list of pages")
   .option("-o, --output <output>", "output file")
   .option("--glob", "glob pattern for pages")
+  .option("--payload", "enable payload parsing")
   .parse(process.argv);
 
 var getNet = function (path) {
@@ -99,14 +100,16 @@ var traversePages = async function () {
       var static = (total = 0);
       try {
         var net = getNet(`${p}/network.json`);
-        var pl = JSON.parse(fs.readFileSync(`${p}/payload.json`, "utf8"));
+        if (program.payload) {
+          var pl = JSON.parse(fs.readFileSync(`${p}/payload.json`, "utf8"));
+        }
         var fnet = net.filter(filternet);
         var js = fnet.filter((n) => n.type.indexOf("script") != -1);
         console.log(p, js.length);
         for (var n of fnet) {
           var type = getType(n);
           if (!type) continue;
-          if (type == "script") {
+          if (type == "script" && program.payload) {
             var plobj = pl.filter((p) => p.url == n.url)[0];
             var hash = crypto
               .createHash("md5")
@@ -141,7 +144,7 @@ var traversePages = async function () {
             store.urls[url]++;
             type == "script" && store.type[type].urls[url]++;
           }
-          if (type == "script") {
+          if (type == "script" && program.payload) {
             if (!store.type[type].hashes[hash]) {
               store.type[type].hashes[hash] = [url];
               store.type[type].hashunique++;
