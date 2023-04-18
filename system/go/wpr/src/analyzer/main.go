@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -172,8 +173,8 @@ func createServer(c *cli.Context) {
 
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 	// disable logging
-	// log.SetFlags(0)
-	// log.SetOutput(ioutil.Discard)
+	log.SetFlags(0)
+	log.SetOutput(ioutil.Discard)
 
 	az := Analyzer{}
 	az.store = types.Store{}

@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"io"
-	"log"
 	"net/url"
 	"regexp"
 	"strings"
@@ -104,11 +103,11 @@ func constURL(target string, main string, useHttps bool) (host string, path stri
 
 func xtractJSURLS(body string) ([]string, error) {
 
-	injectstr := "custom signature info"
-	if !strings.Contains(body, injectstr) {
-		log.Printf("No custom signature info found in body")
-		return []string{}, errors.New("No custom signature info found in body")
-	}
+	// injectstr := "custom signature info"
+	// if !strings.Contains(body, injectstr) {
+	// 	log.Printf("No custom signature info found in body")
+	// 	return []string{}, errors.New("No custom signature info found in body")
+	// }
 
 	// tregex, _ := regexp.Compile(`CODE BEGIN[\s\S]*CODE END`)
 	// tmplt := tregex.FindString(body)

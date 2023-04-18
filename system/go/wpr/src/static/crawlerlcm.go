@@ -47,7 +47,7 @@ type LCM struct {
 	outDir     string
 	ns         *Netstat
 	dMap       *DupMap
-	remote     bool
+	remote     string
 	live       bool
 	wprData    string
 }
@@ -57,7 +57,7 @@ type Proxy struct {
 	dataFile string
 	wprData  string
 	sshC     *ssh.Client
-	remote   bool
+	remote   string
 }
 
 type StoredResp struct {
@@ -139,7 +139,7 @@ func readLines(path string) ([]string, error) {
 }
 
 func makeLogger(p string) func(msg string, args ...interface{}) {
-	// return func(string, ...interface{}) {}
+	return func(string, ...interface{}) {}
 	prefix := fmt.Sprintf("[Crawler:%s]: ", p)
 	return func(msg string, args ...interface{}) {
 		log.Print(prefix + fmt.Sprintf(msg, args...))
@@ -197,7 +197,7 @@ func retrySSHCon(sshC *ssh.Client, retries int) (*ssh.Session, error) {
 }
 
 func initProxies(n int, proxyData string, wprData string, azAddr string,
-	sleep int, remote bool, live bool) []*Proxy {
+	sleep int, remote string, live bool) []*Proxy {
 	GOROOT := "/w/goelayu/uluyol-sigcomm/go"
 	WPRDIR := "/vault-swift/goelayu/balanced-crawler/system/go/wpr"
 	// DUMMYDATA := "/w/goelayu/bcrawling/wprdata/dummy.wprgo"
@@ -219,8 +219,8 @@ func initProxies(n int, proxyData string, wprData string, azAddr string,
 		outFilePath := fmt.Sprintf("%s/%s.replay.log", proxyData, strconv.Itoa(httpsport))
 		cmdstr := fmt.Sprintf("GOROOT=%s time  go run src/wpr.go replay -host 0.0.0.0 --http_port %d --https_port %d --az_addr %s --static &> %s",
 			GOROOT, httpport, httpsport, azAddr, outFilePath)
-
-		if remote {
+		log.Printf("remote value is %s", remote)
+		if remote != "" {
 			// sshC := setupSSH()
 			// sshS, err := retrySSHCon(sshC, 3)
 			// if err != nil {
@@ -247,9 +247,10 @@ func initProxies(n int, proxyData string, wprData string, azAddr string,
 					}
 				}()
 			}
+			log.Printf("Started proxy on port %d", httpsport)
 			proxies[i] = &Proxy{httpsport, dataFile, wprData, nil, remote}
 		}
-		log.Printf("Started proxy on port %d", httpsport)
+
 	}
 
 	time.Sleep(time.Duration(sleep) * time.Second)
@@ -259,7 +260,7 @@ func initProxies(n int, proxyData string, wprData string, azAddr string,
 func (p *Proxy) Stop() {
 	log.Printf("Stopping proxy on port %d", p.port)
 	killcmd := fmt.Sprintf("ps aux | grep https_port | grep %d | awk '{print $2}' | xargs kill -SIGINT", p.port)
-	if p.remote {
+	if p.remote != "" {
 		// sshS, _ := retrySSHCon(p.sshC, 3)
 		// err := sshS.Run(killcmd)
 		// if err != nil {
@@ -283,7 +284,7 @@ func (p *Proxy) UpdateDataFile(page string) {
 	sanitizecmd := fmt.Sprintf("echo '%s' | sanitize", page)
 	sanpage, _ := exec.Command("bash", "-c", sanitizecmd).Output()
 	wprData := fmt.Sprintf("%s/%s.wprgo", p.wprData, string(sanpage))
-	if p.remote {
+	if p.remote != "" {
 		sshS, _ := retrySSHCon(p.sshC, 3)
 		err := sshS.Run(fmt.Sprintf("echo %s > %s", wprData, p.dataFile))
 		if err != nil {
@@ -330,11 +331,14 @@ func (lcm *LCM) Start() {
 		go func(index int) {
 			cproxy := lcm.proxies[index]
 			hostaddr := "127.0.0.1"
-			if lcm.remote {
-				hostaddr = "lions.eecs.umich.edu"
-				// } else if lcm.remote && index >= nProxies/2 {
-				// 	hostaddr = "redwings.eecs.umich.edu"
+			if lcm.remote != "" {
+				hostaddr = fmt.Sprintf("%s.%s", lcm.remote, "eecs.umich.edu")
 			}
+			// if lcm.remote && index < nProxies/2 {
+			// 	hostaddr = "lions.eecs.umich.edu"
+			// } else if lcm.remote && index >= nProxies/2 {
+			// 	hostaddr = "redwings.eecs.umich.edu"
+			// }
 			defer wg.Done()
 			for {
 				// rl.Take()
@@ -354,12 +358,12 @@ func (lcm *LCM) Start() {
 				crawler := NewCrawler(client, lcm.url2scheme, lcm.ns, lcm.dMap,
 					lcm.wprData, cproxy.port, lcm.live, hostaddr)
 				crawler.logf = logf
-				log.Printf("Initialized crawler %d with proxy port %d", index, cproxy.port)
+				// log.Printf("Initialized crawler %d with proxy port %d", index, cproxy.port)
 				err := crawler.Visit(page, time.Duration(15*time.Second), lcm.outDir)
 				if err != nil {
-					log.Printf("Crawler %s:%d failed to crawl %s", hostaddr, cproxy.port, page)
+					// log.Printf("Crawler %s:%d failed to crawl %s", hostaddr, cproxy.port, page)
 				}
-				log.Printf("returne from visit")
+				// log.Printf("returne from visit")
 				// log.Printf("Cur: Total %d Wire %d", atomic.LoadInt64(lcm.ns.total)/(1000), atomic.LoadInt64(lcm.ns.wire)/(1000))
 			}
 		}(i)
@@ -373,7 +377,7 @@ func (lcm *LCM) Start() {
 }
 
 func initLCM(n int, pagePath string, proxyData string, wprData string,
-	azAddr string, azLogPath string, sleep int, remote bool, live bool) *LCM {
+	azAddr string, azLogPath string, sleep int, remote string, live bool) *LCM {
 	// read pages
 	pages, _ := readLines(pagePath)
 	log.Printf("Read %d pages", len(pages))
@@ -406,7 +410,7 @@ func main() {
 	var azAddr string
 	var azLogPath string
 	var sleep int
-	var remote bool
+	var remote string
 	var live bool
 
 	flag.StringVar(&pagePath, "pages", "", "path to pages file")
@@ -417,7 +421,7 @@ func main() {
 	flag.StringVar(&azLogPath, "azlog", "", "path to az server log")
 	flag.IntVar(&sleep, "sleep", 5, "sleep time")
 	flag.BoolVar(&verbose, "v", false, "verbose")
-	flag.BoolVar(&remote, "remote", false, "remote")
+	flag.StringVar(&remote, "remote", "", "remote")
 	flag.BoolVar(&live, "live", false, "live")
 	flag.Parse()
 
