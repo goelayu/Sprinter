@@ -123,7 +123,7 @@ func (proxy *ReplayingProxy) UpdateArchive(p string) {
 
 func requestIsJSHTML(resp *http.Response, req *http.Request, static bool) bool {
 	// return false
-	log.Printf("checking length and code and type for %s: %v %d %s", resp.Request.URL.String(), resp.Header, resp.StatusCode, resp.Header.Get("Content-Type"))
+	// log.Printf("checking length and code and type for %s: %v %d %s", resp.Request.URL.String(), resp.Header, resp.StatusCode, resp.Header.Get("Content-Type"))
 	return (resp.ContentLength == -1 || resp.ContentLength > 500) &&
 		resp.StatusCode == 200 &&
 		(strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "html") && !static) ||
@@ -177,7 +177,7 @@ func (proxy *ReplayingProxy) ServeHTTP(w http.ResponseWriter, req *http.Request)
 	proxy.Mu.Unlock()
 	if err != nil {
 		logf("couldn't find matching request: %v", err)
-		// dummystr := strings.Repeat("a", 50000)
+		// dummystr := strings.Repeat("a", 70000)
 		// w.Write([]byte(dummystr))
 		w.WriteHeader(http.StatusNotFound)
 		return

@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -429,18 +428,18 @@ func (r *RecordCommand) Run(c *cli.Context) error {
 }
 
 func (r *ReplayCommand) Run(c *cli.Context) error {
-	cpuprofile := fmt.Sprintf("%s/%d-cpu.prof", filepath.Dir(c.Args().First()), r.common.httpsPort)
-	f, err := os.Create(cpuprofile)
-	if err != nil {
-		log.Fatal(err)
-	}
-	pprof.StartCPUProfile(f)
+	// cpuprofile := fmt.Sprintf("%s/%d-cpu.prof", filepath.Dir(c.Args().First()), r.common.httpsPort)
+	// f, err := os.Create(cpuprofile)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// pprof.StartCPUProfile(f)
 	go func() {
 		sigchan := make(chan os.Signal, 1)
 		signal.Notify(sigchan, os.Interrupt)
 		<-sigchan
 		log.Printf("Shutting down")
-		pprof.StopCPUProfile()
+		// pprof.StopCPUProfile()
 		os.Exit(0)
 	}()
 
