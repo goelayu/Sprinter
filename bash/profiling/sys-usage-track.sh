@@ -42,7 +42,7 @@ start_nw_ifconfig(){
     echo "usage,time" > $1/nw_bytes_profile
     t=1
     while true; do
-        u=`nw-usage ens15f1`;
+        u=`nw-usage2 ens15f1`;
         echo $u,$t >> $1/nw_bytes_profile;
         t=$((t+1));
     done
