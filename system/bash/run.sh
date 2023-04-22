@@ -36,10 +36,10 @@ if [ $# -ne 6 ]; then
     exit 1
 fi
 
-PAGESPERSITE=100
+PAGESPERSITE=500
 PERSCRIPTCRAWLERS=5
 CHROMESCRIPT=../node/chrome-distributed.js
-WPRDATA=/w/goelayu/bcrawling/wprdata
+WPRDATA=/w/goelayu/bcrawling/wprdata/500pages
 
 sites_file=$1
 pages_dst=$2
@@ -69,10 +69,10 @@ create_url_file(){
             [ ! -z "$p" ] && echo $p  >> $urlfile
         done < $infile
     done
-    rm -f tmp
+    rm tmp
     # head -n1 $urlfile | sponge $urlfile
     # shuffle urlfile
-    # shuf $urlfile | sponge $urlfile
+    shuf $urlfile | sponge $urlfile
 }
 
 create_url_dist(){
@@ -135,8 +135,8 @@ echo "Starting the az server"
 GOROOT="/w/goelayu/uluyol-sigcomm/go";
 AZDIR=/vault-swift/goelayu/balanced-crawler/system/go/wpr
 [ -z "$AZPORT" ] && AZPORT=`shuf -i 8000-16000 -n 1` && echo "AZPORT: $AZPORT" && KILLAZ=1
-(cd $AZDIR; { time GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port $AZPORT ; } &> $logdir/az.log ) &
-# azpid=$!
+# (cd $AZDIR; { time GOGC=off GOROOT=${GOROOT} go run src/analyzer/main.go src/analyzer/rewriter.go src/analyzer/genjs.go --port $AZPORT ; } &> $logdir/az.log ) &
+azpid=$!
 
 create_crawl_instances_baseline(){
     ncrawlers=$1
@@ -148,9 +148,9 @@ create_crawl_instances_baseline(){
         scripturls=`echo $totalurls / $nscripts | bc`;
         first=$((first + scripturls));
         echo "Running cmd: node $CHROMESCRIPT -u <(cat $urlfile | awk '{print \$2}' | head -n $first | tail -n $scripturls)\
-        -o $rundir --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS"
+        -o $rundir --proxy $WPRDATA $args --azaddr "localhost:$AZPORT" -c $PERSCRIPTCRAWLERS"
         { time node $CHROMESCRIPT -u <(cat $urlfile | awk '{print $1}' | head -n $first | tail -n $scripturls) -o $rundir \
-        --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $logdir/$LOGFILE-$i.log &
+        --proxy $WPRDATA $args --azaddr "localhost:$AZPORT" -c $PERSCRIPTCRAWLERS ; } &> $logdir/$LOGFILE-$i.log &
         pids[${i}]=$!
     done
     echo "Waiting for all scripts to finish"
@@ -167,8 +167,8 @@ create_crawl_instances_opt(){
         [ ! -f $urldir/dist/urls-$i.txt ] && echo "File $urldir/dist/urls-$i.txt does not exist" && exit 1
         
         urlfile=$urldir/dist/urls-$i.txt
-        echo "Running cmd: node $CHROMESCRIPT -u $urlfile -o $rundir --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS &> $logdir/$LOGFILE-$i.log "
-        { time node $CHROMESCRIPT -u $urlfile -o $rundir --proxy $WPRDATA $args --azport $AZPORT -c $PERSCRIPTCRAWLERS ; } &> $logdir/$LOGFILE-$i.log &
+        echo "Running cmd: node $CHROMESCRIPT -u $urlfile -o $rundir --proxy $WPRDATA $args --azaddr "localhost:$AZPORT" -c $PERSCRIPTCRAWLERS &> $logdir/$LOGFILE-$i.log "
+        { time node $CHROMESCRIPT -u $urlfile -o $rundir --id $((i-1)) --proxy $WPRDATA $args --azaddr "localhost:$AZPORT" -c $PERSCRIPTCRAWLERS ; } &> $logdir/$LOGFILE-$i.log &
         pids[${i}]=$!
     done
     echo "Waiting for all scripts to finish"
@@ -183,6 +183,7 @@ if [[ "$RUN" == "baseline" ]]; then
         create_url_file $infile $urlfile
     else
         echo "Skipping url file creation"
+        shuf $infile > $urlfile
     fi
     echo "Starting the baseline crawling script"
     crawl_rate &
