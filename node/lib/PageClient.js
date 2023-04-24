@@ -258,74 +258,74 @@ class PageClient {
 
       var pageFailed = false;
 
-      // await this._page.setRequestInterception(true);
+      await this._page.setRequestInterception(true);
 
-      // this._page.on("request", (request) => {
-      //   request.continue();
-      // });
+      this._page.on("request", (request) => {
+        request.continue();
+      });
 
-      // this._page.on("response", async (response) => {
-      //   var status = response.status();
-      //   if (
-      //     status && // we actually have a status for the response
-      //     !(status > 299 && status < 400) && // not a redirect
-      //     !(status === 204) // not a no-content response
-      //   ) {
-      //     try {
-      //       var request = response.request();
-      //       if (request.resourceType() === "stylesheet") {
-      //         var url = request.url();
-      //         var css = await response.text();
-      //         var re = /url\(["']([^\s\)]*)["']\)/g;
-      //         var urls = css.matchAll(re);
-      //         for (var u of urls) {
-      //           var url = u[1];
-      //           if (url[url.length - 1] == ",") {
-      //             url = url.substring(0, url.length - 1);
-      //           }
-      //           console.log("fetching url: ", url, " from css file");
-      //           this._page
-      //             .evaluate((url) => {
-      //               var xhr = new XMLHttpRequest();
-      //               xhr.open("GET", url, true);
-      //               xhr.send();
-      //             }, url)
-      //             .catch((err) => {
-      //               console.log(`Handled error: ${err}`);
-      //             });
-      //         }
-      //       } else if (request.resourceType() == "document") {
-      //         var url = request.url(),
-      //           cacheUrl;
-      //         var html = await response.text();
-      //         var re =
-      //           /(https?:|\Ssrc="\/?\/|\/\/)[^\s"&')]+\.(svg|png|jpg|jpeg)[^\s>)'"]*/g;
-      //         var urls = html.matchAll(re);
-      //         for (var u of urls) {
-      //           if (u.length < 2) continue;
-      //           var url;
-      //           if (u[1].includes("src=")) {
-      //             url = u[0].split("src=")[1];
-      //           } else url = u[0];
-      //           url = url.replace(/\\/g, "");
-      //           url = url.replace(/"/g, "");
-      //           console.log("fetching url: ", url, " from html file");
-      //           this._page
-      //             .evaluate((url) => {
-      //               var xhr = new XMLHttpRequest();
-      //               xhr.open("GET", url, true);
-      //               xhr.send();
-      //             }, url)
-      //             .catch((err) => {
-      //               console.log(`handled error: ${err}`);
-      //             });
-      //         }
-      //       }
-      //     } catch (err) {
-      //       console.log("handled error: ", err);
-      //     }
-      //   }
-      // });
+      this._page.on("response", async (response) => {
+        var status = response.status();
+        if (
+          status && // we actually have a status for the response
+          !(status > 299 && status < 400) && // not a redirect
+          !(status === 204) // not a no-content response
+        ) {
+          try {
+            var request = response.request();
+            if (request.resourceType() === "stylesheet") {
+              var url = request.url();
+              var css = await response.text();
+              var re = /url\(["']([^\s\)]*)["']\)/g;
+              var urls = css.matchAll(re);
+              for (var u of urls) {
+                var url = u[1];
+                if (url[url.length - 1] == ",") {
+                  url = url.substring(0, url.length - 1);
+                }
+                console.log("fetching url: ", url, " from css file");
+                this._page
+                  .evaluate((url) => {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open("GET", url, true);
+                    xhr.send();
+                  }, url)
+                  .catch((err) => {
+                    console.log(`Handled error: ${err}`);
+                  });
+              }
+            } else if (request.resourceType() == "document") {
+              var url = request.url(),
+                cacheUrl;
+              var html = await response.text();
+              var re =
+                /(https?:|\Ssrc="\/?\/|\/\/)[^\s"&')]+\.(svg|png|jpg|jpeg)[^\s>)'"]*/g;
+              var urls = html.matchAll(re);
+              for (var u of urls) {
+                if (u.length < 2) continue;
+                var url;
+                if (u[1].includes("src=")) {
+                  url = u[0].split("src=")[1];
+                } else url = u[0];
+                url = url.replace(/\\/g, "");
+                url = url.replace(/"/g, "");
+                console.log("fetching url: ", url, " from html file");
+                this._page
+                  .evaluate((url) => {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open("GET", url, true);
+                    xhr.send();
+                  }, url)
+                  .catch((err) => {
+                    console.log(`handled error: ${err}`);
+                  });
+              }
+            }
+          } catch (err) {
+            console.log("handled error: ", err);
+          }
+        }
+      });
 
       // load the page
       await this._page
@@ -342,6 +342,8 @@ class PageClient {
       if (pageFailed) {
         return;
       }
+
+      await this._page.waitForTimeout(1000);
 
       if (this._options.logTime) {
         endTime = process.hrtime(startTime);

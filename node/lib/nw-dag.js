@@ -48,11 +48,14 @@ class Graph {
           break;
         case "script":
           // get the last script in the stack
-          var __url = n.initiator.stack.callFrames.length
-            ? n.initiator.stack.callFrames[
-                n.initiator.stack.callFrames.length - 1
-              ].url
-            : n.initiator.url;
+          if (!n.initiator.stack) var __url = n.initiator.url;
+          else {
+            var __url = n.initiator.stack.callFrames.length
+              ? n.initiator.stack.callFrames[
+                  n.initiator.stack.callFrames.length - 1
+                ].url
+              : n.initiator.url;
+          }
           if (!__url) break;
           var _url = redirectMap[__url] || __url;
           var edge = { source: _url, target: n.url };

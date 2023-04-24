@@ -80,7 +80,7 @@ class ProxyManager {
     await Promise.all(this.proxies.map((p) => p.start()));
 
     // wait for all proxies to start
-    await sleep(5000);
+    await sleep(3000);
   }
 
   async stopIth(i) {
