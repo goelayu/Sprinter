@@ -126,6 +126,7 @@ var traversePages = async function () {
             durls.indexOf(n.initiator.url) == -1
           ) {
             static += n.size;
+            // (type == "script" || type == "html") &&
             store.tsize.sumstatic += n.size;
           } else durls.push(n.url);
           var url = n.url.split("?")[0];
@@ -137,6 +138,7 @@ var traversePages = async function () {
               n.initiator.type != "script" &&
               durls.indexOf(n.initiator.url) == -1
             )
+              // (type == "script" || type == "html") &&
               store.usize.sumstatic += n.size;
             store.usize[type] += n.size;
             type == "script" && (store.type[type].urls[url] = 1);

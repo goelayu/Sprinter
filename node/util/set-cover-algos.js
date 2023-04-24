@@ -94,6 +94,36 @@ var unionJS = function (nets) {
   return [...new Set(js)];
 };
 
+/*
+Same as customsched with the diff: no directory following
+crawls pages in a random order
+*/
+var customSched2 = function (net, union) {
+  var nPages = 0;
+  var unchangedLim = process.env.N;
+  var net = shuffle(net);
+  var js = [];
+  var unchangedCount = 0;
+  for (var n of net) {
+    if (!n.length) continue;
+    var beforeLen = js.length;
+    n.filter((n) => n.type.indexOf("script") != -1)
+      .map((n) => n.url.split("?")[0])
+      .forEach((u) => {
+        if (js.indexOf(u) == -1) js.push(u);
+      });
+    if (js.length == beforeLen) unchangedCount++;
+    else unchangedCount = 0;
+    if (unchangedCount >= unchangedLim) {
+      break;
+    }
+    nPages++;
+    if (js.length >= union.length) break;
+  }
+  console.log(nPages, js.length, union.length);
+  return nPages;
+};
+
 var customSched = function (net, union) {
   var nPages = 0;
   var js = [],
@@ -161,6 +191,7 @@ var randomSched = function (net, union) {
     nPages++;
     if (js.length >= union.length) break;
   }
+  console.log(nPages);
   return nPages;
 };
 
@@ -280,6 +311,7 @@ var greedyApproxSched = function (nets, union) {
       }
     }
     program.verbose && console.log(`Picking next: ${largestUrl}`);
+    program.verbose && console.log(`Set of urls: ${JSON.stringify(largest)}`);
     return [largest, largestUrl, largestNet];
   };
 
@@ -310,7 +342,7 @@ var greedyApproxSched = function (nets, union) {
       if (!jssetcover.includes(js)) jssetcover.push(js);
     }
   }
-  var rempages = _pagesleft(origNets, jssetcover);
+  var rempages = _pagesleft(origNets, jssetcover.slice(0));
   console.log(
     `npages: ${nPages.length} jssetcover: ${jssetcover.length} union: ${union.length} rempages: ${rempages}`
   );
@@ -330,7 +362,7 @@ var main = function () {
       var nPages = greedySched(nets, js);
       break;
     case "custom":
-      var nPages = customSched(nets, js);
+      var nPages = customSched2(nets, js);
       break;
     case "greedystatic":
       var nPages = greedyApproxSched(nets, js);
