@@ -466,6 +466,10 @@
       "WeakMap",
     ];
 
+    var domClasses = ["Document", "Element", "Node"];
+
+    window.__domaccess__ = {};
+
     HTMLNames.forEach((_class) => {
       self[_class] &&
         self[_class].prototype &&
@@ -490,6 +494,12 @@
                     arguments[0].__isShimmed__
                   )
                     arguments[0] = arguments[0].__orig__;
+                  // var domkey = `${_class}.${classKey}`;
+                  // if (!window.__domaccess__[domkey])
+                  //   window.__domaccess__[domkey] = [];
+                  // domClasses.some((domClass) => _class == domClass) &&
+                  //   typeof arguments[0] == "string" &&
+                  //   window.__domaccess__[domkey].push(arguments[0]);
 
                   return origMethod.apply(thisObj, arguments);
                 };
