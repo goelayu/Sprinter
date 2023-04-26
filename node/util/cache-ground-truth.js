@@ -81,6 +81,7 @@ var traversePages = function () {
       pages: {
         tPages: 0,
         newPages: 0,
+        missPages: 0,
       },
     },
     fileMem = {};
@@ -90,12 +91,13 @@ var traversePages = function () {
       var net = JSON.parse(
         fs.readFileSync(`${program.base}/${p}/network.json`, "utf8")
       );
-      var trace = JSON.parse(
-        fs.readFileSync(`${program.base}/${p}/trace.json`, "utf8")
-      );
+      // var trace = JSON.parse(
+      //   fs.readFileSync(`${program.base}/${p}/trace.json`, "utf8")
+      // );
       var netObj = netParser.parseNetworkLogs(net);
-      var execTimings = traceParser.getExecutionTimingsByURL(trace, net);
+      // var execTimings = traceParser.getExecutionTimingsByURL(trace, net);
       var graph = new dag.Graph(netObj);
+      var missOnPage = false;
       graph.createTransitiveEdges();
       var fetches = graph.transitiveEdges;
       summary.pages.tPages++;
@@ -103,17 +105,15 @@ var traversePages = function () {
       for (var n of jss) {
         summary.all.totalScripts++;
         var key = n.url.split("?")[0];
-        fetches[n.url] &&
-          fetches[n.url].length &&
-          summary.fetches.scriptsThatFetch++;
+        var fCurr = fetches[n.url];
+        fCurr && fCurr.length && summary.fetches.scriptsThatFetch++;
         var unseenFile = false;
-        var timings = execTimings.get(n.url);
+        // var timings = execTimings.get(n.url);
 
         if (fileMem[key]) {
           var fPrev = fileMem[key]["fetches"];
-          var fCurr = fetches[n.url],
-            execFound = null;
-          if (fCurr && fCurr.length) {
+          var execFound = null;
+          if (fCurr && fCurr.length && fPrev && fPrev.length) {
             execFound = sameFileFetches(fPrev, fCurr, 1);
             // localtotal++;
             if (execFound) {
@@ -134,15 +134,26 @@ var traversePages = function () {
                     fCurr.sort()
                   )}`
                 );
+              missOnPage = true;
             }
 
-            timings && (fileMem[key]["timings"] += addTimings(timings));
+            // timings && (fileMem[key]["timings"] += addTimings(timings));
+          } else if (fCurr && fCurr.length) {
+            fileMem[key]["fetches"].push(fCurr);
+            summary.fetches.fetchesDiff++;
+            program.verbose &&
+              console.log(
+                `first time fetches for ${n.url}: ${JSON.stringify(
+                  fCurr.sort()
+                )}`
+              );
+            summary.fetches.uniqueScriptsThatFetch++;
           }
         } else {
           summary.all.uniqueScripts++;
           unseenFile = true;
           fileMem[key] = {};
-          fileMem[key]["timings"] = timings ? addTimings(timings) : 0;
+          // fileMem[key]["timings"] = timings ? addTimings(timings) : 0;
           var f = (fileMem[key]["fetches"] = []),
             _f = fetches[n.url];
           _f && _f.length && f.push(_f);
@@ -155,16 +166,17 @@ var traversePages = function () {
             );
         }
       }
+      if (missOnPage) summary.pages.missPages++;
       if (unseenFile) summary.pages.newPages++;
       // console.log(`per page fetch: ${localfetched} ${localtotal}`);
     } catch (e) {
       program.verbose && console.log(e);
     }
   }
-  for (var f in fileMem) {
-    console.log(`${f},${fileMem[f]["timings"]}`);
-  }
-  // console.log(JSON.stringify(summary, null, 2));
+  // for (var f in fileMem) {
+  //   console.log(`${f},${fileMem[f]["timings"]}`);
+  // }
+  console.log(JSON.stringify(summary, null, 2));
 };
 
 traversePages();
