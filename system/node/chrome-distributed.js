@@ -63,6 +63,7 @@ program
   .option("--azaddr <azaddr>", "addr for the az server")
   .option("--id <id>", "id of the crawler")
   .option("--remote", "remote mode")
+  .option("--docwrite <docwrite>", "enable document.write")
   .parse(process.argv);
 
 var bashSanitize = (str) => {
@@ -264,6 +265,15 @@ var genBrowserArgs = (proxies) => {
     await pclient.start().catch((err) => {
       console.log(err);
     });
+
+    if (program.docwrite) {
+      var strpath = `${program.docwrite}/${sanurl}/page.html`;
+      console.log(strpath);
+      var str = fs.readFileSync(strpath, "utf8");
+      await page.evaluate((str) => {
+        document.write(str);
+      }, str);
+    }
 
     // console.log(`total number of frames loaded is ${page.frames().length}`);
 
