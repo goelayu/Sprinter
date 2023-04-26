@@ -40,11 +40,23 @@ var initDOMEvents = function (page, cdp, dLogs) {
   // cdp.on("DOM.childNodeCountUpdated", (params) => {
   //   dLogs.push(params);
   // });
-  // get dom node insertions
-  page._client.on("DOM.childNodeCountUpdated", (params) => {
-    console.log("DOM.childNodeCountUpdated", params);
-    dLogs.push(params);
+  var dom_events = [
+    "DOM.attributeModified",
+    "DOM.characterDataModified",
+    "DOM.childNodeCountUpdated",
+    "DOM.childNodeInserted",
+    "DOM.documentUpdated",
+  ];
+  dom_events.forEach((method) => {
+    cdp.on(method, (params) => {
+      console.log(method, params);
+      dLogs.push({ [method]: params });
+    });
   });
+  // page._client.on("DOM.childNodeCountUpdated", (params) => {
+  //   console.log("DOM.childNodeCountUpdated", params);
+  //   dLogs.push(params);
+  // });
 };
 
 var initConsoleHandlers = function (cdp, cLogs) {
@@ -84,6 +96,13 @@ var getFileState = async function (page, options, nLogs, benchmark) {
     }
   });
 
+  var domaccess = await page.evaluate(() => {
+    return window.__domaccess__;
+  });
+  // // console.log(domaccess);
+
+  dump(domaccess, `${options.outputDir}/domaccess.json`);
+
   benchmark && (benchmark.state.gen += Date.now() - starttime);
 
   if (!state || state.error) return;
@@ -98,9 +117,9 @@ var getFileState = async function (page, options, nLogs, benchmark) {
   benchmark && (benchmark.state.combine += Date.now() - starttime);
   starttime = Date.now();
 
-  if (options.azClient) {
-    await options.azClient.storesignature(newState, options.url);
-  }
+  // if (options.azClient) {
+  //   await options.azClient.storesignature(newState, options.url);
+  // }
   benchmark && (benchmark.state.send += Date.now() - starttime);
   dump(newState, path);
   dump(state, path + ".old");
@@ -486,6 +505,12 @@ class PageClient {
         fs.writeFileSync(
           this._options.outputDir + "/dom.json",
           JSON.stringify(domLogs, null, 2)
+        );
+        var pagecontent = await this._page.content();
+        fs.writeFileSync(
+          this._options.outputDir + "/page.html",
+          pagecontent,
+          "utf8"
         );
       }
 
