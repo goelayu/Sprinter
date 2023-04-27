@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -88,10 +87,10 @@ func (a *Analyzer) Analyze(ctx context.Context, arg *pb.AzRequest) (*pb.AzRespon
 		}
 	} else {
 		log.Printf("File %s not found in cache\n", arg.Name)
-		if arg.Static {
-			log.Printf("Requested by static crawler, simply sending empty response")
-			return &pb.AzResponse{Body: ""}, nil
-		}
+		// if arg.Static {
+		// 	log.Printf("Requested by static crawler, simply sending empty response")
+		// 	return &pb.AzResponse{Body: ""}, nil
+		// }
 		if strings.Contains(arg.Type, "javascript") {
 			atomic.AddInt32(&a.stats.instJS, 1)
 		} else if strings.Contains(arg.Type, "html") {
@@ -173,8 +172,8 @@ func createServer(c *cli.Context) {
 
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
 	// disable logging
-	log.SetFlags(0)
-	log.SetOutput(ioutil.Discard)
+	// log.SetFlags(0)
+	// log.SetOutput(ioutil.Discard)
 
 	az := Analyzer{}
 	az.store = types.Store{}
