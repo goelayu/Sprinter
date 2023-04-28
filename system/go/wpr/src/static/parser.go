@@ -3,12 +3,19 @@ package main
 import (
 	"errors"
 	"io"
+	"log"
 	"net/url"
 	"regexp"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 )
+
+type JSSig struct {
+	urls   []string
+	reads  []string
+	writes []string
+}
 
 func HTMLREParser(body string, logf logprintf) ([]string, error) {
 	re := regexp.MustCompile(`(http| src="\/\/|\/\/)s?:?[^\s"&')]+\.(svg|png|jpg|jpeg|js|css)[^\s>)'"&]*`)
@@ -101,13 +108,13 @@ func constURL(target string, main string, useHttps bool) (host string, path stri
 	return res.Host, res.Path, useHttps, nil
 }
 
-func xtractJSURLS(body string) ([]string, error) {
+func xtractJSURLS(body string) (JSSig, error) {
 
-	// injectstr := "custom signature info"
-	// if !strings.Contains(body, injectstr) {
-	// 	log.Printf("No custom signature info found in body")
-	// 	return []string{}, errors.New("No custom signature info found in body")
-	// }
+	injectstr := "custom signature info"
+	if !strings.Contains(body, injectstr) {
+		log.Printf("No custom signature info found in body")
+		return JSSig{}, errors.New("No custom signature info found in body")
+	}
 
 	// tregex, _ := regexp.Compile(`CODE BEGIN[\s\S]*CODE END`)
 	// tmplt := tregex.FindString(body)
@@ -117,12 +124,37 @@ func xtractJSURLS(body string) ([]string, error) {
 	// }
 	// log.Printf("Found template code")
 
+	log.Printf(" JS body %s", body)
+	sig := JSSig{}
+
+	rrgx, _ := regexp.Compile(`var reads = \[([\s\S]*)\];\s*var writes`)
+	wrgx, _ := regexp.Compile(`var writes = \[([\s\S]*)\];`)
+
+	var reads []string
+	var writes []string
+
+	m := rrgx.FindStringSubmatch(body)
+	if len(m) > 0 {
+		reads = strings.Split(m[1], ",")
+		log.Printf("Reads: %v", reads)
+		sig.reads = reads
+	}
+
+	m = wrgx.FindStringSubmatch(body)
+	if len(m) > 0 {
+		writes = strings.Split(m[1], ",")
+		log.Printf("Writes: %v", writes)
+		sig.writes = writes
+	}
+
 	var jsurls []string
 	urlrgx, _ := regexp.Compile(`fetchVia(DOM|XHR)\("(\S*)"\)`)
-	m := urlrgx.FindAllStringSubmatch(body, -1)
-	for _, v := range m {
+	mu := urlrgx.FindAllStringSubmatch(body, -1)
+	for _, v := range mu {
 		jsurls = append(jsurls, v[2])
 	}
 
-	return jsurls, nil
+	sig.urls = jsurls
+
+	return sig, nil
 }

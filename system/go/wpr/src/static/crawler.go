@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
+	"golang.org/x/net/html"
 )
 
 type logprintf func(msg string, args ...interface{})
@@ -48,6 +49,9 @@ type Crawler struct {
 	live        bool
 	wprData     string
 	sdynamic    chan struct{}
+
+	shadowHeap map[string]string
+	shadowDOM  html.Node
 }
 
 type Req struct {
@@ -357,11 +361,48 @@ func (c *Crawler) HandleCSS(resp *http.Response, body string, referrer string, u
 	return nil
 }
 
+// func (c *Crawler) evalState(sig JSSig, dom html.Node) bool {
+// 	reads := sig.reads
+// 	writes := sig.writes
+
+// 	// match JS reads
+// 	for _, r := range reads {
+// 		e := strings.Split(r, " ")
+// 		key := e[0]
+// 		val := e[1]
+// 		if c.shadowHeap[key] != val {
+// 			return false
+// 		}
+// 	}
+
+// 	// match DOM reads
+// 	domreadAPIs := []string{"getElementById", "getElementsByClassName", "getElementsByTagName", "querySelector", "querySelectorAll"}
+// 	for _, r := range domreadAPIs {
+// 		if r != c.shadowDOM {
+// 			return false
+// 		}
+// 	}
+
+// 	// apply DOM writes
+// 	domwriteAPIs := []string{"appendChild", "insertBefore", "replaceChild", "removeChild"}
+// 	for _, w := range writes {
+// 		e := strings.Split(w, " ")
+// 		key := e[0]
+// 		val := e[1]
+// 		if dom[key] != val {
+// 			return false
+// 		}
+// 	}
+
+// 	return true
+
+// }
+
 func (c *Crawler) HandleJS(resp *http.Response, body string, referrer string, useHttps bool) error {
 
 	c.logf("Handling JS response from %s", resp.Request.URL)
 
-	jsurls, err := xtractJSURLS(body)
+	jssig, err := xtractJSURLS(body)
 	if err != nil {
 		select {
 		case c.sdynamic <- struct{}{}:
@@ -372,6 +413,9 @@ func (c *Crawler) HandleJS(resp *http.Response, body string, referrer string, us
 	}
 
 	u := resp.Request.URL.String()
+
+	jsurls := jssig.urls
+	c.logf("JS signature: %v", jssig)
 
 	if len(jsurls) == 0 {
 		c.logf("No template OR no embedded URLS found in %s", u)
