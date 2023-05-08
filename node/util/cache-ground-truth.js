@@ -84,7 +84,9 @@ var traversePages = function () {
         missPages: 0,
       },
     },
-    fileMem = {};
+    fileMem = {},
+    repeatFetch = {},
+    multiplefetches = {};
   for (var p of pages) {
     try {
       program.verbose && console.log(`--------${p}--------`);
@@ -115,9 +117,11 @@ var traversePages = function () {
           var execFound = null;
           if (fCurr && fCurr.length && fPrev && fPrev.length) {
             execFound = sameFileFetches(fPrev, fCurr, 1);
-            // localtotal++;
+            var sameasfirst = sameFileFetches([fPrev[0]], fCurr, 1);
+            if (sameasfirst) repeatFetch[key].s++;
+            repeatFetch[key].t++;
             if (execFound) {
-              // localfetched++;
+              multiplefetches[fCurr] = 1;
               summary.fetches.fetchesSame++;
               program.verbose &&
                 console.log(
@@ -140,6 +144,7 @@ var traversePages = function () {
             // timings && (fileMem[key]["timings"] += addTimings(timings));
           } else if (fCurr && fCurr.length) {
             fileMem[key]["fetches"].push(fCurr);
+            repeatFetch[key] = { f: fCurr, t: 0, s: 0 };
             summary.fetches.fetchesDiff++;
             program.verbose &&
               console.log(
@@ -164,6 +169,7 @@ var traversePages = function () {
             console.log(
               `first time fetches for ${n.url}: ${JSON.stringify(_f.sort())}`
             );
+          _f && _f.length && (repeatFetch[key] = { f: _f, t: 0, s: 0 });
         }
       }
       if (missOnPage) summary.pages.missPages++;
@@ -175,6 +181,21 @@ var traversePages = function () {
   }
   // for (var f in fileMem) {
   //   console.log(`${f},${fileMem[f]["timings"]}`);
+  // }
+  // summarize repeat fetches
+  var uniqfetches = 0;
+  for (var key in fileMem) {
+    var f = fileMem[key]["fetches"];
+    if (f.length >= 1) uniqfetches += f.length;
+  }
+  console.log(
+    `unique ${uniqfetches} multiple ${Object.keys(multiplefetches).length}`
+  );
+  // for (var f in repeatFetch) {
+  //   var r = repeatFetch[f];
+  //   if (r.t > 1) {
+  //     console.log(`sameasfirst: ${f} ${r.t} ${r.s}`);
+  //   }
   // }
   console.log(JSON.stringify(summary, null, 2));
 };

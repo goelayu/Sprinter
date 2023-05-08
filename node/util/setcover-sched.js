@@ -82,7 +82,7 @@ var schedPages = function () {
     console.log(p);
   }
   for (var p of res) {
-    console.error(p);
+    console.log(p);
   }
 };
 

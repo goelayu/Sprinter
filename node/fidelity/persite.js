@@ -115,6 +115,8 @@ var CompareSites = function () {
   var tsize = 0,
     msize = 0;
   for (var p of procpages) {
+    var ptsize = 0,
+      pmsize = 0;
     if (p.length == 0) continue;
     try {
       var ppath = `${program.basedir}/${p}/network.json`;
@@ -137,6 +139,9 @@ var CompareSites = function () {
       });
       tsize += bnet.reduce((a, b) => a + b.size, 0);
       msize += missingsize;
+      ptsize = bnet.reduce((a, b) => a + b.size, 0);
+      pmsize = missingsize;
+      console.log(`per page ${p} ${ptsize} ${pmsize}`);
     } catch (e) {
       program.verbose && console.log(`error in ${p}: ${e}`);
     }

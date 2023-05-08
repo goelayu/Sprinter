@@ -57,6 +57,7 @@ var parseHTML = function (html) {
     // console.log(media);
     var srcset = e.attributes.srcset;
     if (srcset) {
+      console.log(srcset);
       var u = srcset.split(",").map((u) => u.trim().split(" ")[0]);
       urls = urls.concat(u);
       continue;
@@ -82,6 +83,7 @@ var parseCSS = function (cstring) {
     var urls = s.matchAll(re);
     for (var u of urls) {
       if (r.type == "media") {
+        console.log(s);
         murls.push(u[1]);
       } else {
         surls.push(u[1]);

@@ -159,6 +159,10 @@
           try {
             var str = JSON.stringify(f[i].slice(0, 4));
             res[file].push(str);
+            //
+            // for filesystem api
+            // if (str.indexOf("filesystem") != -1)
+            //   res[file].push(JSON.stringify(f[i]));
           } catch (e) {
             // no-op
           }
@@ -468,6 +472,18 @@
 
     var domClasses = ["Document", "Element", "Node"];
 
+    // var oldshowopenfilepicker = window.showOpenFilePicker;
+    // window.showOpenFilePicker = function () {
+    //   log("showOpenFilePicker", arguments);
+    // }
+    // FileSystemHandle.prototype.getFile = function () {
+    //   log("FileSystemHandle.getFile", arguments[0]);
+    // };
+
+    // FileSystemHandle.prototype.flush = function () {
+    //   log("FileSystemHandle.flush", arguments[0]);
+    // };
+
     window.__domaccess__ = {};
 
     HTMLNames.forEach((_class) => {
@@ -575,3 +591,19 @@
   customShims(window);
   createShimForDOMMethods(window);
 })();
+
+/**
+ * maintainability dummy
+ *
+ * Performance.prototype.responseStatus = function(){
+ *  log(this.url, this.response.status)
+ * return this.response.status;
+ * }
+ *
+ * var networklog = [];
+ * if (read == "performance entry")
+ *  networklog = performance.getEntriesByType("resource");
+ * else if (read == "performance observer")
+ * networklog = performanceObserver.getEntries();
+ *
+ */

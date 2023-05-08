@@ -97,7 +97,8 @@ var traversePages = async function () {
   }
   await Promise.all(
     pages.map(async (p) => {
-      var static = (total = 0);
+      var static = 0,
+        total = 0;
       try {
         var net = getNet(`${p}/network.json`);
         if (program.payload) {
@@ -156,7 +157,7 @@ var traversePages = async function () {
       } catch (e) {
         console.log(e);
       }
-      // console.log(`per page ${p} ${total} ${static}`);
+      console.log(`per page ${p} ${total} ${static}`);
     })
   );
   console.log(
@@ -166,6 +167,14 @@ var traversePages = async function () {
       2
     )
   );
+  var u = store.type.script.urls;
+  var once = 0,
+    multiple = 0;
+  for (var k in u) {
+    if (u[k] == 1) once++;
+    else multiple++;
+  }
+  console.log("once", once, "multiple", multiple);
   fs.writeFileSync(
     `${program.output}/js-props.json`,
     JSON.stringify(store.type["script"], null, 2)
