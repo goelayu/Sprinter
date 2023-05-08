@@ -394,6 +394,8 @@ func (c *Crawler) HandleCSS(resp *http.Response, body string, referrer string, u
 // 		}
 // 	}
 
+// if string.con
+
 // 	return true
 
 // }

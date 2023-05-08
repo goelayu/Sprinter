@@ -102,7 +102,7 @@ var genBrowserArgs = (proxies) => {
         "--disable-features=IsolateOrigins,site-per-process,CrossSiteDocumentBlockingAlways,CrossSiteDocumentBlockingIfIsolating",
         "--no-sandbox",
         "--disable-setuid-sandbox",
-        // "--blink-settings=scriptEnabled=false",
+        "--blink-settings=scriptEnabled=false",
       ],
     },
     startHttpPort = 6080,
@@ -257,7 +257,7 @@ var genBrowserArgs = (proxies) => {
       azClient: azClient,
       testing: program.testing,
       timeout: program.timeout,
-      staticFetch: program.enableOPT,
+      staticFetch: false,
       prefetchCache: prefetchCache,
       benchmark: benchmark,
     });

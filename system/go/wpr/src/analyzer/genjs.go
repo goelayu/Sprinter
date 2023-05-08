@@ -91,7 +91,6 @@ var jsTemplate = `
 		throw "[SUCCESS] all reads satisfied, skipped execution"		
 	}
 	/**INJECTED CODE END*/
-	{{.InstBody}}
 `
 
 func JSGen(sig types.Signature, instBody string, filename string) (string, error) {

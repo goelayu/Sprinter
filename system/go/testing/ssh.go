@@ -43,7 +43,7 @@ func main() {
 	}
 
 	// Connect to the remote server and perform the SSH handshake.
-	client, err := ssh.Dial("tcp", "lions.eecs.umich.edu:22", config)
+	client, err := ssh.Dial("tcp", "redwings.eecs.umich.edu:22", config)
 	if err != nil {
 		log.Fatalf("unable to connect: %v", err)
 	}
@@ -57,12 +57,12 @@ func main() {
 	defer session.Close()
 
 	// execute ls command on remote server
-	// var b []byte
-	session.Output("ls -l /w/goelayu")
-	_, err = session.Output("ls -l /w/")
-	if err != nil {
-		log.Fatal("unable to execute remote command: ", err)
-	}
-	// log.Println(string(b))
+	var b []byte
+	b, _ = session.Output("ulimit -Sn")
+	// _, err = session.Output("ls -l /w/")
+	// if err != nil {
+	// 	log.Fatal("unable to execute remote command: ", err)
+	// }
+	log.Println(string(b))
 
 }

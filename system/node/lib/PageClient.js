@@ -96,12 +96,12 @@ var getFileState = async function (page, options, nLogs, benchmark) {
     }
   });
 
-  var domaccess = await page.evaluate(() => {
-    return window.__domaccess__;
-  });
+  // var domaccess = await page.evaluate(() => {
+  //   return window.__domaccess__;
+  // });
   // // console.log(domaccess);
 
-  dump(domaccess, `${options.outputDir}/domaccess.json`);
+  // dump(domaccess, `${options.outputDir}/domaccess.json`);
 
   benchmark && (benchmark.state.gen += Date.now() - starttime);
 
@@ -117,9 +117,9 @@ var getFileState = async function (page, options, nLogs, benchmark) {
   benchmark && (benchmark.state.combine += Date.now() - starttime);
   starttime = Date.now();
 
-  // if (options.azClient) {
-  //   await options.azClient.storesignature(newState, options.url);
-  // }
+  if (options.azClient) {
+    await options.azClient.storesignature(newState, options.url);
+  }
   benchmark && (benchmark.state.send += Date.now() - starttime);
   dump(newState, path);
   dump(state, path + ".old");
@@ -452,7 +452,7 @@ class PageClient {
           endTime[0] + endTime[1] / 1e9
         );
       }
-      await this._page.waitForTimeout(1000);
+      await this._page.waitForTimeout(2000);
 
       this._options.verbose && console.log("Page loaded");
 
