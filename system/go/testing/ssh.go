@@ -36,7 +36,6 @@ func main() {
 		User: "goelayu",
 		Auth: []ssh.AuthMethod{
 			// Use the PublicKeys method for remote authentication.
-			// ssh.Password("ayuizagem.123"),
 			ssh.PublicKeys(signer),
 		},
 		HostKeyCallback: hostkeyCallback,
