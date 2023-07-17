@@ -18,5 +18,5 @@ To address this trade-off, we have designed Sprinter, a hybrid web crawler, that
 of dynamic and static crawling. The key to Sprinter's design is its ability to memoize computation 
 results from loads of pages performed using a browser, which allows Sprinter to crawl majority of pages
 statically while ensuring perfect fidelity. 
-Our results show Sprinter performs 5x faster than browser-based crawling, while ensuring perfect fidelity 
+Our results show that Sprinter performs 5x faster than browser-based crawling, while ensuring perfect fidelity 
 while crawling a corpus of 50k pages.
